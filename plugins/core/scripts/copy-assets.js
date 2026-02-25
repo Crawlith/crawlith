@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const templatePath = path.join(__dirname, 'sitegraph.html');
+const src = path.join(__dirname, '../src/report/sitegraph.html');
+const dest = path.join(__dirname, '../dist/report/sitegraph.html');
 
-export const SITEGRAPH_HTML = fs.readFileSync(templatePath, 'utf-8');
+fs.copyFileSync(src, dest);
