@@ -83,7 +83,7 @@ function createExactClusters(exactMap: Map<string, GraphNode[]>, startId: number
 }
 
 function findNearDuplicates(candidates: GraphNode[], threshold: number, startId: number): { nearClusters: DuplicateCluster[], nextId: number } {
-    const { bandsMaps, simhashes, validIndices } = buildSimHashBuckets(candidates);
+    const { bandsMaps, simhashes } = buildSimHashBuckets(candidates);
     const { parent, involvedIndices } = findConnectedComponents(bandsMaps, simhashes, candidates.length, threshold);
     return extractClusters(parent, involvedIndices, candidates, startId);
 }
