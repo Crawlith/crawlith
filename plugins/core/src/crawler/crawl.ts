@@ -18,6 +18,11 @@ import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { analyzeContent, calculateThinContentScore } from '../analysis/content.js';
 import { analyzeLinks } from '../analysis/links.js';
 
+interface Robot {
+  isAllowed(url: string, ua?: string): boolean | undefined;
+  getCrawlDelay(ua?: string): number | undefined;
+}
+
 export interface CrawlOptions {
   limit: number;
   depth: number;
@@ -131,7 +136,7 @@ export async function crawl(startUrl: string, options: CrawlOptions): Promise<nu
   const sitemapFetcher = new Sitemap();
 
   // Handle robots.txt
-  let robots: any = null;
+  let robots: Robot | null = null;
   if (!options.ignoreRobots) {
     try {
       const robotsUrl = new URL('/robots.txt', rootOrigin).toString();
@@ -143,7 +148,7 @@ export async function crawl(startUrl: string, options: CrawlOptions): Promise<nu
       });
       if (res.statusCode >= 200 && res.statusCode < 300) {
         const txt = await res.body.text();
-        robots = (robotsParser as any)(robotsUrl, txt);
+        robots = (robotsParser as unknown as (url: string, txt: string) => Robot)(robotsUrl, txt);
       } else {
         await res.body.dump();
       }
