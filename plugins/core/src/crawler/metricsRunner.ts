@@ -35,14 +35,14 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, limitR
     // Use getPagesIdentityBySnapshot to avoid loading full page content (HTML) into memory again
     const pages = pageRepo.getPagesIdentityBySnapshot(snapshotId);
     const urlToId = new Map<string, number>();
-    for(const p of pages) {
+    for (const p of pages) {
         urlToId.set(p.normalized_url, p.id);
     }
-
     const tx = db.transaction(() => {
         for (const node of nodes) {
             const pageId = urlToId.get(node.url);
             if (!pageId) continue;
+
 
             metricsRepo.insertMetrics({
                 snapshot_id: snapshotId,
@@ -78,25 +78,13 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, limitR
         }
 
         // Save duplicate clusters
-        if (graph.duplicateClusters.length > 0) {
-            const clusterStmt = db.prepare(`
-                INSERT OR REPLACE INTO duplicate_clusters (id, snapshot_id, type, size, representative, severity)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `);
-            for (const cluster of graph.duplicateClusters) {
-                clusterStmt.run(cluster.id, snapshotId, cluster.type, cluster.size, cluster.representative, cluster.severity);
-            }
+        for (const cluster of graph.duplicateClusters) {
+            clusterStmt.run(cluster.id, snapshotId, cluster.type, cluster.size, cluster.representative, cluster.severity);
         }
 
         // Save content clusters
-        if (graph.contentClusters.length > 0) {
-            const contentStmt = db.prepare(`
-                INSERT OR REPLACE INTO content_clusters (id, snapshot_id, count, primary_url, risk, shared_path_prefix)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `);
-            for (const cluster of graph.contentClusters) {
-                contentStmt.run(cluster.id, snapshotId, cluster.count, cluster.primaryUrl, cluster.risk, cluster.sharedPathPrefix ?? null);
-            }
+        for (const cluster of graph.contentClusters) {
+            contentStmt.run(cluster.id, snapshotId, cluster.count, cluster.primaryUrl, cluster.risk, cluster.sharedPathPrefix ?? null);
         }
     });
     tx();
