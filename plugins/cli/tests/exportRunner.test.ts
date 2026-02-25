@@ -40,7 +40,10 @@ describe('runSitegraphExports', () => {
         expect(fs.mkdir).toHaveBeenCalledWith('/output', { recursive: true });
 
         // Find the call that writes sitegraph.html
-        const writeCall = vi.mocked(fs.writeFile).mock.calls.find(call => call[0] === '/output/sitegraph.html');
+        const writeCall = vi.mocked(fs.writeFile).mock.calls.find(call => {
+            const filePath = call[0] as string;
+            return filePath.replace(/\\/g, '/').endsWith('output/sitegraph.html');
+        });
         expect(writeCall).toBeDefined();
 
         const content = writeCall![1] as string;
