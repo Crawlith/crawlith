@@ -16,6 +16,6 @@ export default tseslint.config(
         }
     },
     {
-        ignores: ['dist/**', 'coverage/**', 'crawlith-reports/**']
+        ignores: ['dist/**', 'coverage/**', 'crawlith-reports/**', 'plugins/*/dist/**', 'plugins/*/ui/**']
     }
 );
