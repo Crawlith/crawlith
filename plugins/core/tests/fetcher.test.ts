@@ -1,6 +1,7 @@
-import { test, expect, beforeEach } from 'vitest';
+import { test, expect, beforeEach, vi } from 'vitest';
 import { Fetcher } from '../src/crawler/fetcher.js';
 import { MockAgent, setGlobalDispatcher } from 'undici';
+import { IPGuard } from '../src/core/security/ipGuard.js';
 
 let mockAgent: MockAgent;
 
@@ -8,6 +9,9 @@ beforeEach(() => {
   mockAgent = new MockAgent();
   mockAgent.disableNetConnect();
   setGlobalDispatcher(mockAgent);
+
+  // IPGuard.getSecureDispatcher must return the mockAgent so Fetcher uses it
+  vi.spyOn(IPGuard, 'getSecureDispatcher').mockReturnValue(mockAgent as any);
 });
 
 test('fetches simple page', async () => {
