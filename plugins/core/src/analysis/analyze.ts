@@ -14,6 +14,7 @@ import { getDb } from '../db/index.js';
 import { SiteRepository } from '../db/repositories/SiteRepository.js';
 import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../db/repositories/PageRepository.js';
+import { ANALYSIS_LIST_TEMPLATE, ANALYSIS_PAGE_TEMPLATE } from './templates.js';
 
 export interface CrawlPage {
   url: string;
@@ -155,144 +156,54 @@ export function renderAnalysisHtml(result: AnalysisResult): string {
     return renderSinglePageHtml(result.pages[0]);
   }
   const rows = result.pages
-    .map((page) => `< tr > <td>${escapeHtml(page.url)} </td><td>${page.seoScore}</td > <td>${page.thinScore} </td><td>${page.title.status}</td > <td>${page.metaDescription.status} </td></tr > `)
+    .map((page) => `<tr><td>${escapeHtml(page.url)}</td><td>${page.seoScore}</td><td>${page.thinScore}</td><td>${page.title.status}</td><td>${page.metaDescription.status}</td></tr>`)
     .join('');
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><title>Crawlith Analysis Report</title></head><body><h1>Analysis</h1><p>Pages: ${result.site_summary.pages_analyzed}</p><p>Average SEO: ${result.site_summary.avg_seo_score}</p><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>URL</th><th>SEO Score</th><th>Thin Score</th><th>Title</th><th>Meta</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  return ANALYSIS_LIST_TEMPLATE
+    .replace('{{PAGES_ANALYZED}}', result.site_summary.pages_analyzed.toString())
+    .replace('{{AVG_SEO_SCORE}}', result.site_summary.avg_seo_score.toString())
+    .replace('{{ROWS}}', rows);
 }
 
 function renderSinglePageHtml(page: PageAnalysis): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analysis for ${escapeHtml(page.url)}</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #333; }
-        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        h2 { margin-top: 30px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .score-card { display: flex; gap: 20px; margin-bottom: 30px; }
-        .score-box { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; flex: 1; border: 1px solid #e1e4e8; }
-        .score-val { font-size: 24px; font-weight: bold; color: #0366d6; }
-        .status-ok { color: green; font-weight: bold; }
-        .status-warning { color: orange; font-weight: bold; }
-        .status-critical { color: red; font-weight: bold; }
-        .status-missing { color: red; font-weight: bold; }
-        .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .data-table th, .data-table td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
-        .data-table th { width: 150px; color: #666; }
-        code { background: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-size: 0.9em; }
-    </style>
-  </head>
-  <body>
-    <h1>Page Analysis</h1>
-    <p><strong>URL:</strong> <a href="${page.url}" target="_blank">${page.url}</a></p>
-
-    <div class="score-card">
-      <div class="score-box">
-        <div class="score-val">${page.seoScore}</div>
-        <div>SEO Score</div>
-      </div>
-      <div class="score-box">
-        <div class="score-val">${page.thinScore}</div>
-        <div>Thin Content Score</div>
-      </div>
-      <div class="score-box">
-        <div class="score-val">${page.status === 0 ? 'Pending/Limit' : page.status}</div>
-        <div>HTTP Status</div>
-      </div>
-    </div>
-
-    <h2>Meta Tags</h2>
-    <table class="data-table">
-      <tr>
-        <th>Title</th>
-        <td>
-          <div>${escapeHtml(page.title.value || '(missing)')}</div>
-          <small>Length: ${page.title.length} | Status: <span class="status-${page.title.status}">${page.title.status}</span></small>
-        </td>
-      </tr>
-      <tr>
-        <th>Description</th>
-        <td>
-          <div>${escapeHtml(page.metaDescription.value || '(missing)')}</div>
-          <small>Length: ${page.metaDescription.length} | Status: <span class="status-${page.metaDescription.status}">${page.metaDescription.status}</span></small>
-        </td>
-      </tr>
-      <tr>
-        <th>Canonical</th>
-        <td>${page.meta.canonical ? escapeHtml(page.meta.canonical) : '<em>(none)</em>'}</td>
-      </tr>
-      <tr>
-        <th>Robots</th>
-        <td>
-          Index: ${!page.meta.noindex},
-          Follow: ${!page.meta.nofollow}
-        </td>
-      </tr>
-    </table>
-
-    <h2>Content & Heading</h2>
-    <table class="data-table">
-      <tr>
-        <th>H1 Tag</th>
-        <td>
-          Status: <span class="status-${page.h1.status}">${page.h1.status}</span>
-          (${page.h1.count} detected)
-          ${page.h1.matchesTitle ? ' | Matches Title' : ''}
-        </td>
-      </tr>
-      <tr>
-        <th>Word Count</th>
-        <td>${page.content.wordCount} words</td>
-      </tr>
-      <tr>
-        <th>Unique Sentences</th>
-        <td>${page.content.uniqueSentenceCount}</td>
-      </tr>
-      <tr>
-        <th>Text / HTML Ratio</th>
-        <td>${(page.content.textHtmlRatio * 100).toFixed(2)}%</td>
-      </tr>
-    </table>
-
-    <h2>Links & Images</h2>
-    <table class="data-table">
-      <tr>
-        <th>Internal Links</th>
-        <td>${page.links.internalLinks}</td>
-      </tr>
-      <tr>
-        <th>External Links</th>
-        <td>${page.links.externalLinks} (${(page.links.externalRatio * 100).toFixed(1)}%)</td>
-      </tr>
-      <tr>
-        <th>Images</th>
-        <td>${page.images.totalImages} total (${page.images.missingAlt} missing alt text)</td>
-      </tr>
-    </table>
-
-    <h2>Structured Data</h2>
-    <table class="data-table">
-      <tr>
-        <th>Status</th>
-        <td>
-          ${page.structuredData.present
+  const structuredDataStatus = page.structuredData.present
       ? (page.structuredData.valid ? '<span class="status-ok">Valid</span>' : '<span class="status-critical">Invalid JSON</span>')
-      : 'Not detected'
-    }
-        </td>
-      </tr>
-      ${page.structuredData.present ? `
+      : 'Not detected';
+
+  const structuredDataTypesRow = page.structuredData.present ? `
       <tr>
           <th>Types Found</th>
           <td>${page.structuredData.types.map(t => `<code>${t}</code>`).join(', ')}</td>
       </tr>
-      ` : ''}
-    </table>
-  </body>
-</html>`;
+      ` : '';
+
+  return ANALYSIS_PAGE_TEMPLATE
+    .replaceAll('{{URL}}', escapeHtml(page.url))
+    .replace('{{SEO_SCORE}}', page.seoScore.toString())
+    .replace('{{THIN_SCORE}}', page.thinScore.toString())
+    .replace('{{HTTP_STATUS}}', page.status === 0 ? 'Pending/Limit' : page.status.toString())
+    .replace('{{TITLE_VALUE}}', escapeHtml(page.title.value || '(missing)'))
+    .replace('{{TITLE_LENGTH}}', page.title.length.toString())
+    .replaceAll('{{TITLE_STATUS}}', page.title.status)
+    .replace('{{META_DESCRIPTION_VALUE}}', escapeHtml(page.metaDescription.value || '(missing)'))
+    .replace('{{META_DESCRIPTION_LENGTH}}', page.metaDescription.length.toString())
+    .replaceAll('{{META_DESCRIPTION_STATUS}}', page.metaDescription.status)
+    .replace('{{CANONICAL}}', page.meta.canonical ? escapeHtml(page.meta.canonical) : '<em>(none)</em>')
+    .replace('{{ROBOTS_INDEX}}', (!page.meta.noindex).toString())
+    .replace('{{ROBOTS_FOLLOW}}', (!page.meta.nofollow).toString())
+    .replaceAll('{{H1_STATUS}}', page.h1.status)
+    .replace('{{H1_COUNT}}', page.h1.count.toString())
+    .replace('{{H1_MATCHES_TITLE}}', page.h1.matchesTitle ? ' | Matches Title' : '')
+    .replace('{{WORD_COUNT}}', page.content.wordCount.toString())
+    .replace('{{UNIQUE_SENTENCES}}', page.content.uniqueSentenceCount.toString())
+    .replace('{{TEXT_HTML_RATIO}}', (page.content.textHtmlRatio * 100).toFixed(2))
+    .replace('{{INTERNAL_LINKS}}', page.links.internalLinks.toString())
+    .replace('{{EXTERNAL_LINKS}}', page.links.externalLinks.toString())
+    .replace('{{EXTERNAL_RATIO}}', (page.links.externalRatio * 100).toFixed(1))
+    .replace('{{TOTAL_IMAGES}}', page.images.totalImages.toString())
+    .replace('{{MISSING_ALT}}', page.images.missingAlt.toString())
+    .replace('{{STRUCTURED_DATA_STATUS}}', structuredDataStatus)
+    .replace('{{STRUCTURED_DATA_TYPES_ROW}}', structuredDataTypesRow);
 }
 
 export function renderAnalysisMarkdown(result: AnalysisResult): string {
