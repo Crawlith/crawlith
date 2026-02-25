@@ -15,6 +15,61 @@ interface DuplicateCluster {
 }
 
 /**
+ * Union-Find (Disjoint Set Union) data structure with path compression and union by rank.
+ */
+class UnionFind<T> {
+    private parent: Map<T, T>;
+    private rank: Map<T, number>;
+
+    constructor() {
+        this.parent = new Map();
+        this.rank = new Map();
+    }
+
+    find(item: T): T {
+        if (!this.parent.has(item)) {
+            this.parent.set(item, item);
+            this.rank.set(item, 0);
+            return item;
+        }
+
+        let root = item;
+        while (this.parent.get(root) !== root) {
+            root = this.parent.get(root)!;
+        }
+
+        // Path compression
+        let curr = item;
+        while (curr !== root) {
+            const next = this.parent.get(curr)!;
+            this.parent.set(curr, root);
+            curr = next;
+        }
+
+        return root;
+    }
+
+    union(item1: T, item2: T): void {
+        const root1 = this.find(item1);
+        const root2 = this.find(item2);
+
+        if (root1 !== root2) {
+            const rank1 = this.rank.get(root1) || 0;
+            const rank2 = this.rank.get(root2) || 0;
+
+            if (rank1 < rank2) {
+                this.parent.set(root1, root2);
+            } else if (rank1 > rank2) {
+                this.parent.set(root2, root1);
+            } else {
+                this.parent.set(root2, root1);
+                this.rank.set(root1, rank1 + 1);
+            }
+        }
+    }
+}
+
+/**
  * Detects exact and near duplicates, identifies canonical conflicts,
  * and performs non-destructive collapse of edges.
  */
@@ -105,7 +160,9 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
         }
     }
 
-    const nearGroupMap = new Map<string, Set<GraphNode>>();
+    // Use Union-Find to track connected components of near-duplicates
+    const uf = new UnionFind<string>();
+    const involvedNodes = new Set<GraphNode>();
     const checkedPairs = new Set<string>();
 
     for (let i = 0; i < 4; i++) {
@@ -125,37 +182,28 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
 
                     const dist = SimHash.hammingDistance(BigInt(a.simhash!), BigInt(b.simhash!));
                     if (dist <= threshold) {
-                        const setA = nearGroupMap.get(a.url);
-                        const setB = nearGroupMap.get(b.url);
-
-                        if (!setA && !setB) {
-                            const newSet = new Set<GraphNode>([a, b]);
-                            nearGroupMap.set(a.url, newSet);
-                            nearGroupMap.set(b.url, newSet);
-                        } else if (setA && !setB) {
-                            setA.add(b);
-                            nearGroupMap.set(b.url, setA);
-                        } else if (setB && !setA) {
-                            setB.add(a);
-                            nearGroupMap.set(a.url, setB);
-                        } else if (setA && setB && setA !== setB) {
-                            for (const node of setB) {
-                                setA.add(node);
-                                nearGroupMap.set(node.url, setA);
-                            }
-                        }
+                        uf.union(a.url, b.url);
+                        involvedNodes.add(a);
+                        involvedNodes.add(b);
                     }
                 }
             }
         }
     }
 
-    const uniqueNearSets = new Set<Set<GraphNode>>();
-    for (const group of nearGroupMap.values()) {
-        uniqueNearSets.add(group);
+    // Compile clusters from Union-Find roots
+    const clusterMap = new Map<string, Set<GraphNode>>();
+    for (const node of involvedNodes) {
+        const root = uf.find(node.url);
+        let group = clusterMap.get(root);
+        if (!group) {
+            group = new Set();
+            clusterMap.set(root, group);
+        }
+        group.add(node);
     }
 
-    for (const groupSet of uniqueNearSets) {
+    for (const groupSet of clusterMap.values()) {
         if (groupSet.size > 1) {
             const id = `cluster_near_${clusterCounter++}`;
             const groupArr = Array.from(groupSet);
