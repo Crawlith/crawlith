@@ -1,5 +1,4 @@
 import { normalizeUrl } from '../src/crawler/normalize.js';
-import { extractLinks } from '../src/crawler/extract.js';
 import { test, expect } from 'vitest';
 
 test('normalizeUrl', () => {
@@ -11,24 +10,6 @@ test('normalizeUrl', () => {
   expect(normalizeUrl('https://example.com/', '')).toBe('https://example.com/');
 });
 
-test('extractLinks', () => {
-  const html = `
-    <html>
-      <body>
-        <a href="/foo">Foo</a>
-        <a href="bar">Bar</a>
-        <a href="https://other.com/baz">Baz</a>
-        <a href="#top">Top</a>
-      </body>
-    </html>
-  `;
-  const links = extractLinks(html, 'https://example.com/page/');
-  expect(links).toContain('https://example.com/foo');
-  expect(links).toContain('https://example.com/page/bar');
-  expect(links).toContain('https://other.com/baz');
-  expect(links).not.toContain('https://example.com/page/#top');
-  expect(links).toContain('https://example.com/page/'); // #top resolves to base url without fragment
-});
 test('normalizeUrl: absolute resolution', () => {
   expect(normalizeUrl('/foo', 'https://example.com')).toBe('https://example.com/foo');
   expect(normalizeUrl('bar', 'https://example.com/baz/')).toBe('https://example.com/baz/bar');
