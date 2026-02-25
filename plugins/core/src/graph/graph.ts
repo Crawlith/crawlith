@@ -60,7 +60,7 @@ export interface CrawlStats {
 
 export class Graph {
   nodes: Map<string, GraphNode> = new Map();
-  // Using string "source|target" to ensure uniqueness efficiently. Mapping to weight.
+  // Using JSON string of [source, target] to ensure uniqueness. Mapping to weight.
   edges: Map<string, number> = new Map();
   limitReached: boolean = false;
   sessionStats: CrawlStats = {
@@ -72,6 +72,21 @@ export class Graph {
   trapClusters: { pattern: string; type: string; count: number }[] = [];
   duplicateClusters: { id: string; type: 'exact' | 'near' | 'template_heavy'; size: number; representative: string; severity: 'low' | 'medium' | 'high' }[] = [];
   contentClusters: ClusterInfo[] = [];
+
+  /**
+   * Generates a unique key for an edge.
+   */
+  static getEdgeKey(source: string, target: string): string {
+    return JSON.stringify([source, target]);
+  }
+
+  /**
+   * Parses an edge key back into source and target.
+   */
+  static parseEdgeKey(key: string): { source: string; target: string } {
+    const [source, target] = JSON.parse(key);
+    return { source, target };
+  }
 
   /**
    * Adds a node to the graph if it doesn't exist.
@@ -113,7 +128,7 @@ export class Graph {
     const targetNode = this.nodes.get(target);
 
     if (sourceNode && targetNode) {
-      const edgeKey = `${source}|${target}`;
+      const edgeKey = Graph.getEdgeKey(source, target);
       if (!this.edges.has(edgeKey)) {
         this.edges.set(edgeKey, weight);
         sourceNode.outLinks++;
@@ -134,7 +149,7 @@ export class Graph {
 
   getEdges(): GraphEdge[] {
     return Array.from(this.edges.entries()).map(([edge, weight]) => {
-      const [source, target] = edge.split('|');
+      const { source, target } = Graph.parseEdgeKey(edge);
       return { source, target, weight };
     });
   }
@@ -157,7 +172,7 @@ export class Graph {
     }
     if (json.edges) {
       for (const edge of json.edges) {
-        const key = `${edge.source}|${edge.target}`;
+        const key = Graph.getEdgeKey(edge.source, edge.target);
         graph.edges.set(key, edge.weight || 1.0);
       }
     }

@@ -2,9 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Fetcher } from '../src/crawler/fetcher.js';
 import { request } from 'undici';
 
-vi.mock('undici', () => ({
-    request: vi.fn(),
-}));
+vi.mock('undici', () => {
+    return {
+        request: vi.fn(),
+        Agent: class {
+            dispatch = vi.fn();
+        },
+        Dispatcher: class {}
+    };
+});
 
 describe('Fetcher Safety Integration', () => {
     let fetcher: Fetcher;

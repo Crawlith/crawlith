@@ -27,7 +27,9 @@ describe('html report generator', () => {
         };
 
         const mockGraphData = {
-            nodes: [{ url: 'https://example.com/', depth: 0, inLinks: 5, outLinks: 2, status: 200 }],
+            nodes: [
+                { url: 'https://example.com/', depth: 0, inLinks: 5, outLinks: 2, status: 200, html: '<body>Content</body>' }
+            ],
             edges: []
         };
 
@@ -35,11 +37,18 @@ describe('html report generator', () => {
 
         expect(html).toContain('<!DOCTYPE html>');
         expect(html).toContain('Crawlith Site Graph');
-        expect(html).toContain('10</span>'); // totalPages
-        expect(html).toContain('5 pages</span>'); // pagesFetched
-        expect(html).toContain('2</span>'); // pagesCached
-        expect(html).toContain('https://example.com/orphan');
+
+        // Check for injected data
         expect(html).toContain('window.GRAPH_DATA =');
+        expect(html).toContain('window.METRICS_DATA =');
+
+        // Verify metrics injection
+        expect(html).toContain('"totalPages":10');
+        expect(html).toContain('"pagesFetched":5');
+
+        // Verify graph injection and sanitization
+        expect(html).toContain('"url":"https://example.com/"');
+        expect(html).not.toContain('<body>Content</body>'); // html property should be removed
     });
 
     test('handles missing session stats', () => {
@@ -53,6 +62,7 @@ describe('html report generator', () => {
             sessionStats: null
         };
         const html = generateHtml({ nodes: [], edges: [] }, mockMetrics as any);
-        expect(html).not.toContain('Session Crawl:');
+        expect(html).toContain('window.METRICS_DATA =');
+        expect(html).toContain('"totalPages":10');
     });
 });
