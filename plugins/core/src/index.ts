@@ -1,7 +1,6 @@
 export * from './crawler/crawl.js';
 export * from './crawler/metricsRunner.js';
 export * from './graph/metrics.js';
-export * from './report/html.js';
 export * from './report/sitegraph_template.js';
 export * from './report/sitegraphExport.js';
 export * from './graph/graph.js';

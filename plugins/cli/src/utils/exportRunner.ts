@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import chalk from 'chalk';
 import {
-    generateHtml,
+    renderSitegraphHtml,
     renderSitegraphMarkdown,
     renderSitegraphCsvNodes,
     renderSitegraphCsvEdges,
@@ -37,13 +37,13 @@ export async function runSitegraphExports(
     }
 
     if (formats.includes('html')) {
-        const html = generateHtml(graphData, metrics);
+        const html = renderSitegraphHtml(graphData, metrics);
         await fs.writeFile(path.join(outputDir, 'graph.html'), html);
         console.log(chalk.green(`HTML report saved to ${path.join(outputDir, 'graph.html')}`));
     }
 
     if (formats.includes('visualize')) {
-        const siteGraphHtml = generateHtml(graphData, metrics);
+        const siteGraphHtml = renderSitegraphHtml(graphData, metrics);
         await fs.writeFile(path.join(outputDir, 'sitegraph.html'), siteGraphHtml);
         console.log(chalk.green(`Visualization saved to ${path.join(outputDir, 'sitegraph.html')}`));
     }
