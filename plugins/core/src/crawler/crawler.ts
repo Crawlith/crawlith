@@ -3,7 +3,7 @@ import pLimit from 'p-limit';
 import chalk from 'chalk';
 import robotsParser from 'robots-parser';
 import { Graph } from '../graph/graph.js';
-import { Fetcher, FetchOptions } from './fetcher.js';
+import { Fetcher } from './fetcher.js';
 import { Parser } from './parser.js';
 import { Sitemap } from './sitemap.js';
 import { normalizeUrl } from './normalize.js';
