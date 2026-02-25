@@ -4,7 +4,7 @@ import path from 'path';
 import chalk from 'chalk';
 export function startServer(options) {
     return new Promise((resolve, reject) => {
-        const { port, staticPath, siteName } = options;
+        const { port, host = '127.0.0.1', staticPath, siteName } = options;
         const resolvedStaticPath = path.resolve(staticPath);
         const app = express();
         // Serve static files
@@ -13,8 +13,9 @@ export function startServer(options) {
         app.get('*', (req, res) => {
             res.sendFile(path.join(resolvedStaticPath, 'index.html'));
         });
-        const server = app.listen(port, () => {
-            console.log(chalk.green(`\n✅ Crawlith UI Server started at http://localhost:${port}`));
+        const server = app.listen(port, host, () => {
+            const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+            console.log(chalk.green(`\n✅ Crawlith UI Server started at http://${displayHost}:${port}`));
             if (siteName) {
                 console.log(chalk.gray(`   Viewing site: ${siteName}`));
             }
