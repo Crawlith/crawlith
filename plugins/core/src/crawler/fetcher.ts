@@ -1,4 +1,5 @@
 import { request, Dispatcher } from 'undici';
+import * as net from 'net';
 import { IPGuard } from '../core/security/ipGuard.js';
 import { RateLimiter } from '../core/network/rateLimiter.js';
 import { RetryPolicy } from '../core/network/retryPolicy.js';
@@ -84,10 +85,14 @@ export class Fetcher {
     while (true) {
       const urlObj = new URL(currentUrl);
 
-      // 1. SSRF Guard
-      const isSafe = await IPGuard.validateHost(urlObj.hostname);
-      if (!isSafe) {
-        return this.errorResult('blocked_internal_ip', currentUrl, redirectChain, totalRetries);
+      // 1. SSRF Guard (IP Literals only)
+      // We only check explicit IP literals here to fail fast.
+      // For domains, we rely on the secureDispatcher (which uses IPGuard.secureLookup)
+      // to resolve and validate the IP at connection time, preventing TOCTOU attacks.
+      if (net.isIP(urlObj.hostname)) {
+        if (IPGuard.isInternal(urlObj.hostname)) {
+          return this.errorResult('blocked_internal_ip', currentUrl, redirectChain, totalRetries);
+        }
       }
 
       // 2. Scope Validation (Domain & Subdomain)
@@ -214,6 +219,11 @@ export class Fetcher {
       } catch (error: any) {
         // Map common network errors to specific statuses if needed
         const isProxyError = error.message?.toLowerCase().includes('proxy') || error.code === 'ECONNREFUSED';
+
+        if (error.code === 'EBLOCKED' || error.message?.includes('Blocked internal IP')) {
+          return this.errorResult('blocked_internal_ip', currentUrl, redirectChain, totalRetries);
+        }
+
         const finalStatus = isProxyError ? 'proxy_connection_failed' : 'network_error';
 
         return this.errorResult(
