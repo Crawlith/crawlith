@@ -49,6 +49,15 @@ export class IPGuard {
             // fe80::/10 (Link Local)
             if ((firstWord & 0xffc0) === 0xfe80) return true;
 
+            // IPv4-mapped IPv6: ::ffff:0:0/96
+            if (expanded.startsWith('0000:0000:0000:0000:0000:ffff:')) {
+                const parts = expanded.split(':');
+                const p7 = parseInt(parts[6], 16);
+                const p8 = parseInt(parts[7], 16);
+                const ip4 = `${(p7 >> 8) & 255}.${p7 & 255}.${(p8 >> 8) & 255}.${p8 & 255}`;
+                return IPGuard.isInternal(ip4);
+            }
+
             return false;
         }
 
@@ -135,9 +144,22 @@ export class IPGuard {
 
     private static expandIPv6(ip: string): string {
         if (ip === '::') return '0000:0000:0000:0000:0000:0000:0000:0000';
-        let full = ip;
-        if (ip.includes('::')) {
-            const parts = ip.split('::');
+
+        let normalizedIp = ip;
+        if (ip.includes('.')) {
+            const lastColonIndex = ip.lastIndexOf(':');
+            const lastPart = ip.substring(lastColonIndex + 1);
+            if (net.isIPv4(lastPart)) {
+                const parts = lastPart.split('.').map(Number);
+                const hex1 = ((parts[0] << 8) | parts[1]).toString(16);
+                const hex2 = ((parts[2] << 8) | parts[3]).toString(16);
+                normalizedIp = ip.substring(0, lastColonIndex + 1) + hex1 + ':' + hex2;
+            }
+        }
+
+        let full = normalizedIp;
+        if (normalizedIp.includes('::')) {
+            const parts = normalizedIp.split('::');
             const left = parts[0].split(':').filter(x => x !== '');
             const right = parts[1].split(':').filter(x => x !== '');
             const missing = 8 - (left.length + right.length);
