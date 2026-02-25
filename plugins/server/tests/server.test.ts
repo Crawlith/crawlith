@@ -1,6 +1,6 @@
 import { test, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
-import { startServer } from '../src/index';
+import { startServer } from '../src/index.js';
 
 vi.mock('express', () => {
   const mockApp = {
@@ -19,8 +19,10 @@ vi.mock('express', () => {
       };
     })
   };
+  const expressMock: any = vi.fn(() => mockApp);
+  expressMock.static = vi.fn();
   return {
-    default: vi.fn(() => mockApp)
+    default: expressMock
   };
 });
 
