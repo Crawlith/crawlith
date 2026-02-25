@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import { crawl } from '../crawler/crawl.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { normalizeUrl } from '../crawler/normalize.js';
@@ -27,7 +26,6 @@ export interface CrawlPage {
 }
 
 export interface AnalyzeOptions {
-  fromCrawl?: string;
   live?: boolean;
   html?: boolean;
   seo?: boolean;
@@ -97,13 +95,13 @@ export async function analyzeSite(url: string, options: AnalyzeOptions): Promise
     crawlData = await runLiveCrawl(normalizedRoot, options);
   } else {
     try {
-      crawlData = await loadCrawlData(normalizedRoot, options.fromCrawl);
+      crawlData = await loadCrawlData(normalizedRoot);
     } catch (error: any) {
       const isNotFound = error.code === 'ENOENT' ||
         error.message.includes('Crawl data not found') ||
         error.message.includes('No completed snapshot found') ||
         error.message.includes('not found in database');
-      if (isNotFound && !options.fromCrawl) {
+      if (isNotFound) {
         console.log('No local crawl data found. Switching to live analysis mode...');
         crawlData = await runLiveCrawl(normalizedRoot, options);
       } else {
@@ -448,23 +446,7 @@ function filterPageModules(
   };
 }
 
-async function loadCrawlData(rootUrl: string, fromCrawl?: string): Promise<CrawlData> {
-  // If fromCrawl is provided, we could theoretically load JSON, but 
-  // we now default to DB fetching for all operations.
-
-  if (fromCrawl) {
-    try {
-      const content = await fs.readFile(fromCrawl, 'utf-8');
-      const raw = JSON.parse(content) as Record<string, unknown>;
-      const pages = parsePages(raw);
-      const graph = graphFromPages(rootUrl, pages, raw);
-      const metrics = calculateMetrics(graph, 5);
-      return { pages, metrics, graph };
-    } catch (_e) {
-      // Fallback downwards if file doesn't exist
-    }
-  }
-
+async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
   const db = getDb();
   const siteRepo = new SiteRepository(db);
   const snapshotRepo = new SnapshotRepository(db);
@@ -503,61 +485,6 @@ async function loadCrawlData(rootUrl: string, fromCrawl?: string): Promise<Crawl
   return { pages: pagesGenerator(), metrics, graph };
 }
 
-function parsePages(raw: Record<string, unknown>): CrawlPage[] {
-  if (Array.isArray(raw.pages)) {
-    return raw.pages.map((page) => {
-      const p = page as Record<string, unknown>;
-      return {
-        url: String(p.url || ''),
-        status: Number(p.status || 0),
-        html: typeof p.html === 'string' ? p.html : '',
-        depth: Number(p.depth || 0)
-      };
-    }).filter((page) => Boolean(page.url));
-  }
-
-  if (Array.isArray(raw.nodes)) {
-    return raw.nodes.map((node) => {
-      const n = node as Record<string, unknown>;
-      return {
-        url: String(n.url || ''),
-        status: Number(n.status || 0),
-        html: typeof n.html === 'string' ? n.html : '',
-        depth: Number(n.depth || 0)
-      };
-    }).filter((page) => Boolean(page.url));
-  }
-
-  return [];
-}
-
-function graphFromPages(rootUrl: string, pages: CrawlPage[], raw: Record<string, unknown>): Graph {
-  const graph = new Graph();
-
-  for (const page of pages) {
-    graph.addNode(page.url, page.depth || 0, page.status || 0);
-  }
-
-  if (Array.isArray(raw.edges)) {
-    for (const edge of raw.edges) {
-      const e = edge as Record<string, unknown>;
-      if (typeof e.source === 'string' && typeof e.target === 'string') {
-        graph.addNode(e.source, 0, 0);
-        graph.addNode(e.target, 0, 0);
-        graph.addEdge(e.source, e.target);
-      }
-    }
-    return graph;
-  }
-
-  for (const page of pages) {
-    if (!page.html) continue;
-    const linkAnalysis = analyzeLinks(page.html, page.url, rootUrl);
-    if (linkAnalysis.internalLinks === 0 && linkAnalysis.externalLinks === 0) continue;
-  }
-
-  return graph;
-}
 
 async function runLiveCrawl(url: string, options: AnalyzeOptions): Promise<CrawlData> {
   const snapshotId = await crawl(url, {
