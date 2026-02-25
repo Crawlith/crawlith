@@ -1,6 +1,6 @@
 import { issues, Issue } from '../data.js';
 import { useState, useMemo } from 'react';
-import { ArrowUpDown, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
 
 export const IssuesTable = () => {
   const [filter, setFilter] = useState('');

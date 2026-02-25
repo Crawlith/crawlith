@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import open from 'open';
 import fs from 'node:fs';
 import { startServer } from '@crawlith/server';
-// @ts-ignore
 import { distPath } from '@crawlith/web';
 
 export const ui = new Command('ui')

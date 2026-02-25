@@ -24,7 +24,7 @@ export class SiteRepository {
   firstOrCreateSite(domain: string): Site {
     let site = this.getSite(domain);
     if (!site) {
-      const id = this.createSite(domain);
+      this.createSite(domain);
       site = this.getSite(domain);
     }
     return site!;

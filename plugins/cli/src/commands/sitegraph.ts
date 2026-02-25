@@ -5,8 +5,6 @@ import chalk from 'chalk';
 import {
   crawl,
   calculateMetrics,
-  generateHtml,
-  SITEGRAPH_HTML,
   Graph,
   compareGraphs,
   annotateOrphans,

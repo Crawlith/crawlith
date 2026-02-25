@@ -17,7 +17,6 @@ import { EdgeRepository } from '../db/repositories/EdgeRepository.js';
 import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { analyzeContent, calculateThinContentScore } from '../analysis/content.js';
 import { analyzeLinks } from '../analysis/links.js';
-import { runPostCrawlMetrics } from './metricsRunner.js';
 
 export interface CrawlOptions {
   limit: number;

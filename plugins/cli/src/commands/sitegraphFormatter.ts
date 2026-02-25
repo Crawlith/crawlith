@@ -4,7 +4,6 @@ import {
   analyzeImageAlts,
   analyzeLinks,
   Graph,
-  GraphNode as Node,
   Metrics
 } from '@crawlith/core';
 

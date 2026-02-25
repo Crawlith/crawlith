@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import fs from 'node:fs/promises';
 import chalk from 'chalk';
 import {
     getDb,

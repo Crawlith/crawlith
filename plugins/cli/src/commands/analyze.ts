@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { analyzeSite } from '@crawlith/core';
 import {

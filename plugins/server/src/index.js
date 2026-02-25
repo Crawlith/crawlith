@@ -1,3 +1,4 @@
+/* global console, process */
 import express from 'express';
 import path from 'path';
 import chalk from 'chalk';

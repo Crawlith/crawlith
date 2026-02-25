@@ -1,5 +1,6 @@
 {
   "name": "crawlith",
+  "type": "module",
   "private": true,
   "workspaces": [
     "plugins/*"

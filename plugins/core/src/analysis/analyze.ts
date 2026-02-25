@@ -428,7 +428,7 @@ async function loadCrawlData(rootUrl: string, fromCrawl?: string): Promise<Crawl
       const graph = graphFromPages(rootUrl, pages, raw);
       const metrics = calculateMetrics(graph, 5);
       return { pages, metrics, graph };
-    } catch (e) {
+    } catch (_e) {
       // Fallback downwards if file doesn't exist
     }
   }
