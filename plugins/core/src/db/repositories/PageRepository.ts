@@ -213,6 +213,10 @@ export class PageRepository {
     return this.db.prepare('SELECT * FROM pages WHERE last_seen_snapshot_id = ?').all(snapshotId) as Page[];
   }
 
+  getPagesIteratorBySnapshot(snapshotId: number): IterableIterator<Page> {
+    return this.db.prepare('SELECT * FROM pages WHERE last_seen_snapshot_id = ?').iterate(snapshotId) as IterableIterator<Page>;
+  }
+
   getIdByUrl(siteId: number, url: string): number | undefined {
     const row = this.getIdStmt.get(siteId, url) as { id: number } | undefined;
     return row?.id;
