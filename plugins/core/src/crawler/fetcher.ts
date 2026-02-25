@@ -1,4 +1,4 @@
-import { request } from 'undici';
+import { request, Dispatcher } from 'undici';
 import { IPGuard } from '../core/security/ipGuard.js';
 import { RateLimiter } from '../core/network/rateLimiter.js';
 import { RetryPolicy } from '../core/network/retryPolicy.js';
@@ -47,6 +47,7 @@ export class Fetcher {
   private userAgent = 'crawlith/1.0';
   private rateLimiter: RateLimiter;
   private proxyAdapter: ProxyAdapter;
+  private secureDispatcher: Dispatcher;
   private scopeManager?: ScopeManager;
   private maxRedirects: number;
 
@@ -59,6 +60,13 @@ export class Fetcher {
   } = {}) {
     this.rateLimiter = new RateLimiter(options.rate || 2);
     this.proxyAdapter = new ProxyAdapter(options.proxyUrl);
+
+    if (this.proxyAdapter.dispatcher) {
+      this.secureDispatcher = this.proxyAdapter.dispatcher;
+    } else {
+      this.secureDispatcher = IPGuard.getSecureDispatcher();
+    }
+
     this.scopeManager = options.scopeManager;
     this.maxRedirects = Math.min(options.maxRedirects ?? 2, 11);
     this.userAgent = options.userAgent || `crawlith/${version}`;
@@ -113,7 +121,7 @@ export class Fetcher {
               method: 'GET',
               headers,
               maxRedirections: 0,
-              dispatcher: this.proxyAdapter.dispatcher,
+              dispatcher: this.secureDispatcher,
               headersTimeout: 10000,
               bodyTimeout: 10000
             });

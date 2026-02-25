@@ -1,11 +1,10 @@
-import fs from 'node:fs/promises';
 import { crawl } from '../crawler/crawl.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { normalizeUrl } from '../crawler/normalize.js';
 import { calculateMetrics, Metrics } from '../graph/metrics.js';
 import { Graph, ClusterInfo } from '../graph/graph.js';
 import { analyzeContent, calculateThinContentScore } from './content.js';
-import { analyzeH1, analyzeMetaDescription, analyzeTitle, applyDuplicateStatuses, H1Analysis, TextFieldAnalysis } from './seo.js';
+import { analyzeH1, analyzeMetaDescription, analyzeTitle, H1Analysis, TextFieldAnalysis } from './seo.js';
 import { analyzeImageAlts, ImageAltAnalysis } from './images.js';
 import { analyzeLinks, LinkRatioAnalysis } from './links.js';
 import { analyzeStructuredData, StructuredDataResult } from './structuredData.js';
@@ -27,7 +26,6 @@ export interface CrawlPage {
 }
 
 export interface AnalyzeOptions {
-  fromCrawl?: string;
   live?: boolean;
   html?: boolean;
   seo?: boolean;
@@ -80,7 +78,7 @@ export interface AnalysisResult {
 }
 
 interface CrawlData {
-  pages: CrawlPage[];
+  pages: Iterable<CrawlPage> | CrawlPage[];
   metrics: Metrics;
   graph: Graph;
 }
@@ -97,13 +95,13 @@ export async function analyzeSite(url: string, options: AnalyzeOptions): Promise
     crawlData = await runLiveCrawl(normalizedRoot, options);
   } else {
     try {
-      crawlData = await loadCrawlData(normalizedRoot, options.fromCrawl);
+      crawlData = await loadCrawlData(normalizedRoot);
     } catch (error: any) {
       const isNotFound = error.code === 'ENOENT' ||
         error.message.includes('Crawl data not found') ||
         error.message.includes('No completed snapshot found') ||
         error.message.includes('not found in database');
-      if (isNotFound && !options.fromCrawl) {
+      if (isNotFound) {
         console.log('No local crawl data found. Switching to live analysis mode...');
         crawlData = await runLiveCrawl(normalizedRoot, options);
       } else {
@@ -347,52 +345,84 @@ function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-function analyzePages(rootUrl: string, pages: CrawlPage[]): PageAnalysis[] {
-  const titleCandidates = pages.map((page) => analyzeTitle(page.html || ''));
-  const metaCandidates = pages.map((page) => analyzeMetaDescription(page.html || ''));
-  const titles = applyDuplicateStatuses(titleCandidates);
-  const metas = applyDuplicateStatuses(metaCandidates);
-
+export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | CrawlPage[]): PageAnalysis[] {
+  const titleCounts = new Map<string, number>();
+  const metaCounts = new Map<string, number>();
   const sentenceCountFrequency = new Map<number, number>();
-  const baseContent = pages.map((page) => analyzeContent(page.html || ''));
-  for (const item of baseContent) {
-    sentenceCountFrequency.set(item.uniqueSentenceCount, (sentenceCountFrequency.get(item.uniqueSentenceCount) || 0) + 1);
-  }
 
-  return pages.map((page, index) => {
+  const results: PageAnalysis[] = [];
+
+  for (const page of pages) {
     const html = page.html || '';
-    const title = titles[index];
-    const metaDescription = metas[index];
+
+    // 1. Analyze Individual Components
+    const title = analyzeTitle(html);
+    const metaDescription = analyzeMetaDescription(html);
     const h1 = analyzeH1(html, title.value);
-    const content = baseContent[index];
-    const duplicationScore = (sentenceCountFrequency.get(content.uniqueSentenceCount) || 0) > 1 ? 100 : 0;
-    const thinScore = calculateThinContentScore(content, duplicationScore);
+    const content = analyzeContent(html);
     const images = analyzeImageAlts(html);
     const links = analyzeLinks(html, page.url, rootUrl);
     const structuredData = analyzeStructuredData(html);
 
-    const analysis: PageAnalysis = {
+    // 2. Accumulate Frequencies for Duplicates
+    if (title.value) {
+      const key = (title.value || '').trim().toLowerCase();
+      titleCounts.set(key, (titleCounts.get(key) || 0) + 1);
+    }
+    if (metaDescription.value) {
+      const key = (metaDescription.value || '').trim().toLowerCase();
+      metaCounts.set(key, (metaCounts.get(key) || 0) + 1);
+    }
+    sentenceCountFrequency.set(content.uniqueSentenceCount, (sentenceCountFrequency.get(content.uniqueSentenceCount) || 0) + 1);
+
+    // 3. Store Preliminary Result
+    results.push({
       url: page.url,
       status: page.status || 0,
       title,
       metaDescription,
       h1,
       content,
-      thinScore,
+      thinScore: 0, // Calculated in pass 2
       images,
       links,
       structuredData,
-      seoScore: 0,
+      seoScore: 0, // Calculated in pass 2
       meta: {
         canonical: page.canonical,
         noindex: page.noindex,
         nofollow: page.nofollow
       }
-    };
+    });
+  }
 
+  // 4. Finalize Statuses and Scores (Pass 2)
+  for (const analysis of results) {
+    // Check Title Duplicates
+    if (analysis.title.value) {
+      const key = (analysis.title.value || '').trim().toLowerCase();
+      if ((titleCounts.get(key) || 0) > 1) {
+        analysis.title.status = 'duplicate';
+      }
+    }
+
+    // Check Meta Duplicates
+    if (analysis.metaDescription.value) {
+      const key = (analysis.metaDescription.value || '').trim().toLowerCase();
+      if ((metaCounts.get(key) || 0) > 1) {
+        analysis.metaDescription.status = 'duplicate';
+      }
+    }
+
+    // Check Content Duplication
+    const duplicationScore = (sentenceCountFrequency.get(analysis.content.uniqueSentenceCount) || 0) > 1 ? 100 : 0;
+    analysis.thinScore = calculateThinContentScore(analysis.content, duplicationScore);
+
+    // Calculate Final SEO Score
     analysis.seoScore = scorePageSeo(analysis);
-    return analysis;
-  });
+  }
+
+  return results;
 }
 
 function filterPageModules(
@@ -416,23 +446,7 @@ function filterPageModules(
   };
 }
 
-async function loadCrawlData(rootUrl: string, fromCrawl?: string): Promise<CrawlData> {
-  // If fromCrawl is provided, we could theoretically load JSON, but 
-  // we now default to DB fetching for all operations.
-
-  if (fromCrawl) {
-    try {
-      const content = await fs.readFile(fromCrawl, 'utf-8');
-      const raw = JSON.parse(content) as Record<string, unknown>;
-      const pages = parsePages(raw);
-      const graph = graphFromPages(rootUrl, pages, raw);
-      const metrics = calculateMetrics(graph, 5);
-      return { pages, metrics, graph };
-    } catch (_e) {
-      // Fallback downwards if file doesn't exist
-    }
-  }
-
+async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
   const db = getDb();
   const siteRepo = new SiteRepository(db);
   const snapshotRepo = new SnapshotRepository(db);
@@ -450,78 +464,27 @@ async function loadCrawlData(rootUrl: string, fromCrawl?: string): Promise<Crawl
   const graph = loadGraphFromSnapshot(snapshot.id);
   const metrics = calculateMetrics(graph, 5);
 
-  // We also need the `pages` array for analysis. 
-  // It needs `html` which might not be fully available unless we look up from the DB or Graph.
-  // Wait, the Graph stores Node which doesn't contain HTML since we removed it from memory? 
-  // Actually, `loadGraphFromSnapshot` does NOT load actual raw HTML from nodes to save memory.
-  // We need HTML for `analyzeSite` module! So we must fetch it from `pageRepo`.
+  // Use iterator to save memory
+  const dbPagesIterator = pageRepo.getPagesIteratorBySnapshot(snapshot.id);
 
-  const dbPages = pageRepo.getPagesBySnapshot(snapshot.id);
-  const pages: CrawlPage[] = dbPages.map((p: any) => ({
-    url: p.normalized_url,
-    status: p.http_status || 0,
-    html: p.html || '',
-    depth: p.depth || 0
-  }));
-
-  return { pages, metrics, graph };
-}
-
-function parsePages(raw: Record<string, unknown>): CrawlPage[] {
-  if (Array.isArray(raw.pages)) {
-    return raw.pages.map((page) => {
-      const p = page as Record<string, unknown>;
-      return {
-        url: String(p.url || ''),
-        status: Number(p.status || 0),
-        html: typeof p.html === 'string' ? p.html : '',
-        depth: Number(p.depth || 0)
-      };
-    }).filter((page) => Boolean(page.url));
-  }
-
-  if (Array.isArray(raw.nodes)) {
-    return raw.nodes.map((node) => {
-      const n = node as Record<string, unknown>;
-      return {
-        url: String(n.url || ''),
-        status: Number(n.status || 0),
-        html: typeof n.html === 'string' ? n.html : '',
-        depth: Number(n.depth || 0)
-      };
-    }).filter((page) => Boolean(page.url));
-  }
-
-  return [];
-}
-
-function graphFromPages(rootUrl: string, pages: CrawlPage[], raw: Record<string, unknown>): Graph {
-  const graph = new Graph();
-
-  for (const page of pages) {
-    graph.addNode(page.url, page.depth || 0, page.status || 0);
-  }
-
-  if (Array.isArray(raw.edges)) {
-    for (const edge of raw.edges) {
-      const e = edge as Record<string, unknown>;
-      if (typeof e.source === 'string' && typeof e.target === 'string') {
-        graph.addNode(e.source, 0, 0);
-        graph.addNode(e.target, 0, 0);
-        graph.addEdge(e.source, e.target);
-      }
+  // We need to map the DB pages to CrawlPage format lazily
+  const pagesGenerator = function* () {
+    for (const p of dbPagesIterator) {
+      yield {
+        url: p.normalized_url,
+        status: p.http_status || 0,
+        html: p.html || '',
+        depth: p.depth || 0,
+        canonical: p.canonical_url || undefined,
+        noindex: !!p.noindex,
+        nofollow: !!p.nofollow
+      } as CrawlPage;
     }
-    return graph;
-  }
+  };
 
-  for (const page of pages) {
-    if (!page.html) continue;
-    const linkAnalysis = analyzeLinks(page.html, page.url, rootUrl);
-    if (linkAnalysis.internalLinks === 0 && linkAnalysis.externalLinks === 0) continue;
-  }
-
-  return graph;
+  return { pages: pagesGenerator(), metrics, graph };
 }
+
 
 async function runLiveCrawl(url: string, options: AnalyzeOptions): Promise<CrawlData> {
   const snapshotId = await crawl(url, {

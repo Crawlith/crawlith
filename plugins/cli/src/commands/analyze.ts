@@ -11,7 +11,6 @@ import { parseExportFormats, runAnalysisExports } from '../utils/exportRunner.js
 export const analyze = new Command('analyze')
   .description('Analyze SEO and content quality from crawl data')
   .argument('<url>', 'URL to analyze')
-  .option('--from-crawl <path>', 'Load an existing crawl JSON file')
   .option('--live', 'Perform a live crawl before analysis')
   .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html)', false)
   .option('--format <type>', 'Output format to terminal (text, json)', 'text')
@@ -30,7 +29,6 @@ export const analyze = new Command('analyze')
   .action(async (url, options) => {
     try {
       const result = await analyzeSite(url, {
-        fromCrawl: options.fromCrawl,
         live: options.live,
         html: options.html,
         seo: options.seo,
