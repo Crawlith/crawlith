@@ -12,7 +12,7 @@ vi.mock('@crawlith/core', async (importOriginal) => {
     ...actual,
     crawl: vi.fn(),
     calculateMetrics: vi.fn(),
-    generateHtml: vi.fn(),
+    renderSitegraphHtml: vi.fn(),
     compareGraphs: vi.fn(),
     analyzeSite: vi.fn(),
     renderAnalysisHtml: vi.fn(),
@@ -66,7 +66,7 @@ test('sitegraph command execution (DB-only, no file writes)', async () => {
 
   // No file writes in DB-only mode (only lock file from LockManager)
   expect(fs.mkdir).not.toHaveBeenCalled();
-  expect(core.generateHtml).not.toHaveBeenCalled();
+  expect(core.renderSitegraphHtml).not.toHaveBeenCalled();
 
   // Verify snapshot ID is logged
   expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('snapshot #123'));
@@ -95,13 +95,13 @@ test('sitegraph --html flag triggers file export', async () => {
     topPageRankPages: [],
     limitReached: false
   });
-  vi.mocked(core.generateHtml).mockReturnValue('<html></html>');
+  vi.mocked(core.renderSitegraphHtml).mockReturnValue('<html></html>');
 
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
 
   await sitegraph.parseAsync(['https://example.com', '--limit', '10', '--export', 'html', '--output', 'test-output'], { from: 'user' });
 
-  expect(core.generateHtml).toHaveBeenCalled();
+  expect(core.renderSitegraphHtml).toHaveBeenCalled();
   expect(fs.mkdir).toHaveBeenCalledWith(expect.stringContaining('test-output'), { recursive: true });
   expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('graph.html'), '<html></html>');
 

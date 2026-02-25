@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { generateHtml } from '../src/report/html.js';
+import { renderSitegraphHtml } from '../src/report/sitegraphExport.js';
 import { Metrics } from '../src/graph/metrics.js';
 
 describe('html report generator', () => {
@@ -33,7 +33,7 @@ describe('html report generator', () => {
             edges: []
         };
 
-        const html = generateHtml(mockGraphData, mockMetrics);
+        const html = renderSitegraphHtml(mockGraphData, mockMetrics);
 
         // Check for template content
         expect(html).toContain('<!DOCTYPE html>');
@@ -62,7 +62,7 @@ describe('html report generator', () => {
             topAuthorityPages: [],
             sessionStats: null
         };
-        const html = generateHtml({ nodes: [], edges: [] }, mockMetrics as any);
+        const html = renderSitegraphHtml({ nodes: [], edges: [] }, mockMetrics as any);
         expect(html).toContain('window.METRICS_DATA =');
         expect(html).toContain('"totalPages":10');
         expect(html).toContain('"sessionStats":null');
