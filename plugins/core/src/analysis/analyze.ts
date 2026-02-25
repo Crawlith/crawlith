@@ -28,7 +28,6 @@ export interface CrawlPage {
 
 export interface AnalyzeOptions {
   live?: boolean;
-  html?: boolean;
   seo?: boolean;
   content?: boolean;
   accessibility?: boolean;
@@ -84,6 +83,14 @@ interface CrawlData {
   graph: Graph;
 }
 
+/**
+ * Analyzes a site for SEO, content, and accessibility.
+ * Supports live crawling or loading from a database snapshot.
+ * Note: File-based data loading is not supported.
+ *
+ * @param url The root URL to analyze
+ * @param options Analysis options
+ */
 export async function analyzeSite(url: string, options: AnalyzeOptions): Promise<AnalysisResult> {
   const normalizedRoot = normalizeUrl(url, '', { stripQuery: false });
   if (!normalizedRoot) {
