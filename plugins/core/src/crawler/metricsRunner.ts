@@ -31,12 +31,18 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, limitR
     console.log('Updating metrics in DB...');
     const nodes = graph.getNodes();
 
+    // Pre-fetch all page IDs to avoid N+1 queries
+    // Use getPagesIdentityBySnapshot to avoid loading full page content (HTML) into memory again
+    const pages = pageRepo.getPagesIdentityBySnapshot(snapshotId);
+    const urlToId = new Map<string, number>();
+    for(const p of pages) {
+        urlToId.set(p.normalized_url, p.id);
+    }
+
     const tx = db.transaction(() => {
         for (const node of nodes) {
-            const pageId = pageRepo.getIdByUrl(snapshot.site_id, node.url);
+            const pageId = urlToId.get(node.url);
             if (!pageId) continue;
-
-            const existing = metricsRepo.getMetricsForPage(snapshotId, pageId);
 
             metricsRepo.insertMetrics({
                 snapshot_id: snapshotId,
@@ -46,11 +52,11 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, limitR
                 pagerank: node.pageRank ?? null,
                 pagerank_score: node.pageRankScore ?? null,
                 link_role: node.linkRole ?? null,
-                crawl_status: existing?.crawl_status ?? null,
-                word_count: existing?.word_count ?? null,
-                thin_content_score: existing?.thin_content_score ?? null,
-                external_link_ratio: existing?.external_link_ratio ?? null,
-                orphan_score: existing?.orphan_score ?? null,
+                crawl_status: node.crawlStatus ?? null,
+                word_count: node.wordCount ?? null,
+                thin_content_score: node.thinContentScore ?? null,
+                external_link_ratio: node.externalLinkRatio ?? null,
+                orphan_score: node.orphanScore ?? null,
                 duplicate_cluster_id: node.duplicateClusterId ?? null,
                 duplicate_type: node.duplicateType ?? null,
                 is_cluster_primary: node.isClusterPrimary ? 1 : 0
