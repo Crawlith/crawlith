@@ -39,6 +39,7 @@ describe('extractLinks', () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         const error = new Error('Cheerio error');
 
+        // Mock cheerio.load to throw an error
         vi.mocked(cheerio.load).mockImplementationOnce(() => {
             throw error;
         });
