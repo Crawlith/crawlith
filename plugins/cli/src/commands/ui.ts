@@ -2,8 +2,13 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import open from 'open';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startServer } from '@crawlith/server';
-import { distPath } from '@crawlith/web';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, 'ui');
 
 export const ui = new Command('ui')
   .description('Start the Crawlith UI Dashboard')

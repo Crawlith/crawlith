@@ -2,16 +2,13 @@
   "name": "crawlith",
   "type": "module",
   "private": true,
-  "workspaces": [
-    "plugins/*"
-  ],
   "bin": {
     "crawlith": "plugins/cli/dist/index.js"
   },
   "scripts": {
-    "build": "npm run build --workspaces",
-    "test": "vitest",
-    "lint": "eslint plugins/*/src",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
     "crawlith": "node plugins/cli/dist/index.js",
     "changeset": "changeset",
     "version-packages": "changeset version",
