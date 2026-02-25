@@ -98,11 +98,12 @@ export function detectDuplicates(graph: Graph, options: DuplicateOptions = {}) {
 }
 
 function findExactDuplicates(nodes: GraphNode[], startId: number): { exactClusters: DuplicateCluster[], nearCandidates: GraphNode[], nextId: number } {
-    const exactClusters: DuplicateCluster[] = [];
-    const nearCandidates: GraphNode[] = [];
-    const exactMap = new Map<string, GraphNode[]>();
-    let clusterCounter = startId;
+    const exactMap = groupNodesByContentHash(nodes);
+    return createExactClusters(exactMap, startId);
+}
 
+function groupNodesByContentHash(nodes: GraphNode[]): Map<string, GraphNode[]> {
+    const exactMap = new Map<string, GraphNode[]>();
     for (const node of nodes) {
         if (!node.contentHash || node.status !== 200) continue;
         let arr = exactMap.get(node.contentHash);
@@ -112,6 +113,13 @@ function findExactDuplicates(nodes: GraphNode[], startId: number): { exactCluste
         }
         arr.push(node);
     }
+    return exactMap;
+}
+
+function createExactClusters(exactMap: Map<string, GraphNode[]>, startId: number): { exactClusters: DuplicateCluster[], nearCandidates: GraphNode[], nextId: number } {
+    const exactClusters: DuplicateCluster[] = [];
+    const nearCandidates: GraphNode[] = [];
+    let clusterCounter = startId;
 
     for (const [_hash, group] of exactMap.entries()) {
         if (group.length > 1) {
@@ -130,9 +138,12 @@ function findExactDuplicates(nodes: GraphNode[], startId: number): { exactCluste
 }
 
 function findNearDuplicates(candidates: GraphNode[], threshold: number, startId: number): { nearClusters: DuplicateCluster[], nextId: number } {
-    const nearClusters: DuplicateCluster[] = [];
-    let clusterCounter = startId;
+    const bandsMaps = buildSimHashBuckets(candidates);
+    const { uf, involvedNodes } = findConnectedComponents(bandsMaps, threshold);
+    return extractClusters(uf, involvedNodes, startId);
+}
 
+function buildSimHashBuckets(candidates: GraphNode[]): Map<number, GraphNode[]>[] {
     const bandsMaps: Map<number, GraphNode[]>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
 
     for (const node of candidates) {
@@ -149,8 +160,10 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
             arr.push(node);
         }
     }
+    return bandsMaps;
+}
 
-    // Use Union-Find to track connected components of near-duplicates
+function findConnectedComponents(bandsMaps: Map<number, GraphNode[]>[], threshold: number): { uf: UnionFind<string>, involvedNodes: Set<GraphNode> } {
     const uf = new UnionFind<string>();
     const involvedNodes = new Set<GraphNode>();
     const checkedPairs = new Set<string>();
@@ -180,9 +193,14 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
             }
         }
     }
+    return { uf, involvedNodes };
+}
 
-    // Compile clusters from Union-Find roots
+function extractClusters(uf: UnionFind<string>, involvedNodes: Set<GraphNode>, startId: number): { nearClusters: DuplicateCluster[], nextId: number } {
+    const nearClusters: DuplicateCluster[] = [];
+    let clusterCounter = startId;
     const clusterMap = new Map<string, Set<GraphNode>>();
+
     for (const node of involvedNodes) {
         const root = uf.find(node.url);
         let group = clusterMap.get(root);
@@ -209,72 +227,81 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
 }
 
 function processClusters(clusters: DuplicateCluster[], graph: Graph, collapse: boolean) {
-    // Phase 4: Template-Heavy Detection
     for (const cluster of clusters) {
-        const avgRatio = cluster.nodes.reduce((sum, n) => sum + (n.uniqueTokenRatio || 0), 0) / cluster.nodes.length;
-        if (avgRatio < 0.3) {
-            cluster.type = 'template_heavy';
-            cluster.nodes.forEach(n => n.duplicateType = 'template_heavy');
-        }
+        processSingleCluster(cluster, graph, collapse);
+    }
+}
+
+function processSingleCluster(cluster: DuplicateCluster, graph: Graph, collapse: boolean) {
+    checkTemplateHeavy(cluster);
+    cluster.severity = calculateSeverity(cluster);
+    const representative = selectRepresentative(cluster);
+    cluster.representative = representative.url;
+    applyClusterToGraph(cluster, representative, graph, collapse);
+}
+
+function checkTemplateHeavy(cluster: DuplicateCluster) {
+    const avgRatio = cluster.nodes.reduce((sum, n) => sum + (n.uniqueTokenRatio || 0), 0) / cluster.nodes.length;
+    if (avgRatio < 0.3) {
+        cluster.type = 'template_heavy';
+        cluster.nodes.forEach(n => n.duplicateType = 'template_heavy');
+    }
+}
+
+function calculateSeverity(cluster: DuplicateCluster): 'low' | 'medium' | 'high' {
+    const canonicals = new Set<string>();
+    let hasMissing = false;
+
+    for (const n of cluster.nodes) {
+        if (!n.canonical) hasMissing = true;
+        else canonicals.add(n.canonical);
     }
 
-    // Phase 5: Canonical Conflict & Representative Selection
-    for (const cluster of clusters) {
-        const canonicals = new Set<string>();
-        let hasMissing = false;
+    if (hasMissing || canonicals.size > 1) {
+        return 'high';
+    } else if (cluster.type === 'near') {
+        return 'medium';
+    } else {
+        return 'low';
+    }
+}
 
+function selectRepresentative(cluster: DuplicateCluster): GraphNode {
+    const urlsInCluster = new Set(cluster.nodes.map(n => n.url));
+    const validCanonicals = cluster.nodes.filter(n => n.canonical && urlsInCluster.has(n.canonical) && n.url === n.canonical);
+
+    if (validCanonicals.length > 0) {
+        return validCanonicals[0];
+    }
+
+    return cluster.nodes.reduce((best, current) => {
+        if (current.inLinks > best.inLinks) return current;
+        if (current.inLinks < best.inLinks) return best;
+        if (current.url.length < best.url.length) return current;
+        return best;
+    });
+}
+
+function applyClusterToGraph(cluster: DuplicateCluster, representative: GraphNode, graph: Graph, collapse: boolean) {
+    cluster.nodes.forEach(n => {
+        n.isClusterPrimary = n.url === representative.url;
+        n.isCollapsed = false;
+        n.collapseInto = undefined;
+    });
+
+    graph.duplicateClusters.push({
+        id: cluster.id,
+        type: cluster.type,
+        size: cluster.nodes.length,
+        representative: representative.url,
+        severity: cluster.severity!
+    });
+
+    if (collapse) {
         for (const n of cluster.nodes) {
-            if (!n.canonical) hasMissing = true;
-            else canonicals.add(n.canonical);
-        }
-
-        if (hasMissing || canonicals.size > 1) {
-            cluster.severity = 'high';
-        } else if (cluster.type === 'near') {
-            cluster.severity = 'medium';
-        } else {
-            cluster.severity = 'low';
-        }
-
-        // Phase 6: Select Representative
-        let representativeNode = cluster.nodes[0];
-        const urlsInCluster = new Set(cluster.nodes.map(n => n.url));
-        const validCanonicals = cluster.nodes.filter(n => n.canonical && urlsInCluster.has(n.canonical) && n.url === n.canonical);
-
-        if (validCanonicals.length > 0) {
-            representativeNode = validCanonicals[0];
-        } else {
-            representativeNode = cluster.nodes.reduce((best, current) => {
-                if (current.inLinks > best.inLinks) return current;
-                if (current.inLinks < best.inLinks) return best;
-                if (current.url.length < best.url.length) return current;
-                return best;
-            });
-        }
-
-        cluster.representative = representativeNode.url;
-
-        cluster.nodes.forEach(n => {
-            n.isClusterPrimary = n.url === representativeNode.url;
-            n.isCollapsed = false;
-            n.collapseInto = undefined;
-        });
-
-        graph.duplicateClusters.push({
-            id: cluster.id,
-            type: cluster.type,
-            size: cluster.nodes.length,
-            representative: representativeNode.url,
-            severity: cluster.severity!
-        });
-
-        // Controlled Collapse
-        if (collapse) {
-            for (const n of cluster.nodes) {
-                if (n.url !== representativeNode.url) {
-                    n.isCollapsed = true;
-                    n.collapseInto = representativeNode.url;
-                }
+            if (n.url !== representative.url) {
+                n.isCollapsed = true;
+                n.collapseInto = representative.url;
             }
         }
     }
