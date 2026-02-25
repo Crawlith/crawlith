@@ -35,6 +35,11 @@ export interface GraphNode {
   clusterId?: number;
   bytesReceived?: number;
   linkRole?: 'hub' | 'authority' | 'power' | 'balanced' | 'peripheral';
+  crawlStatus?: string;
+  wordCount?: number;
+  thinContentScore?: number;
+  externalLinkRatio?: number;
+  orphanScore?: number;
 }
 
 export interface GraphEdge {

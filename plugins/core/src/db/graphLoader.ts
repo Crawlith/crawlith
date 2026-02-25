@@ -68,6 +68,12 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             duplicateClusterId: m?.duplicate_cluster_id ?? undefined,
             duplicateType: m?.duplicate_type ?? undefined,
             isClusterPrimary: m?.is_cluster_primary ? true : undefined,
+            // Additional metrics
+            crawlStatus: m?.crawl_status || undefined,
+            wordCount: m?.word_count != null ? m.word_count : undefined,
+            thinContentScore: m?.thin_content_score != null ? m.thin_content_score : undefined,
+            externalLinkRatio: m?.external_link_ratio != null ? m.external_link_ratio : undefined,
+            orphanScore: m?.orphan_score != null ? m.orphan_score : undefined,
         });
     }
 
