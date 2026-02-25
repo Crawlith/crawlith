@@ -1,5 +1,4 @@
 import { request } from 'undici';
-import pLimit from 'p-limit';
 import chalk from 'chalk';
 import robotsParser from 'robots-parser';
 import { Graph } from '../graph/graph.js';
@@ -47,7 +46,6 @@ interface QueueItem {
 export async function crawl(startUrl: string, options: CrawlOptions): Promise<number> {
   const visited = new Set<string>();
   const concurrency = Math.min(options.concurrency || 2, 10);
-  const limitConcurrency = pLimit(concurrency);
   const trapDetector = new TrapDetector();
 
   const db = getDb();
@@ -236,7 +234,7 @@ export async function crawl(startUrl: string, options: CrawlOptions): Promise<nu
         pagesCrawled++;
         visited.add(item.url);
 
-        limitConcurrency(() => processPage(item)).finally(() => {
+        processPage(item).finally(() => {
           active--;
           next();
         });
