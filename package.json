@@ -1,0 +1,40 @@
+{
+  "name": "crawlith",
+  "private": true,
+  "workspaces": [
+    "plugins/*"
+  ],
+  "bin": {
+    "crawlith": "plugins/cli/dist/index.js"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "vitest",
+    "lint": "eslint plugins/*/src",
+    "crawlith": "node plugins/cli/dist/index.js",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "npm run build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.12.7",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^10.0.0",
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.56.0",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "vite": "7.3.1"
+  }
+}
