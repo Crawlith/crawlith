@@ -85,6 +85,7 @@ export const SITEGRAPH_HTML = `<!DOCTYPE html>
 
     <div id="metrics-summary">
       <div class="metric"><span class="metric-value" id="m-pages">-</span><span class="metric-label">Pages</span></div>
+      <div class="metric" id="m-session-container" style="display:none"><span class="metric-value" id="m-session">-</span><span class="metric-label">Fetched</span></div>
       <div class="metric"><span class="metric-value" id="m-depth">-</span><span class="metric-label">Max Depth</span></div>
       <div class="metric"><span class="metric-value" id="m-eff">-</span><span class="metric-label">Efficiency</span></div>
       <div class="metric"><span class="metric-value" id="m-orphan">-</span><span class="metric-label">Orphans</span></div>
@@ -276,6 +277,13 @@ export const SITEGRAPH_HTML = `<!DOCTYPE html>
       document.getElementById('m-depth').textContent = state.metrics.maxDepthFound;
       document.getElementById('m-eff').textContent = (state.metrics.crawlEfficiencyScore * 100).toFixed(1) + '%';
       document.getElementById('m-orphan').textContent = state.metrics.orphanPages.length;
+
+      if (state.metrics.sessionStats) {
+        document.getElementById('m-session-container').style.display = 'flex';
+        document.getElementById('m-session').textContent = state.metrics.sessionStats.pagesFetched;
+        // Add tooltip with more details
+        document.getElementById('m-session-container').title = 'Fetched: ' + state.metrics.sessionStats.pagesFetched + ', Cached: ' + state.metrics.sessionStats.pagesCached;
+      }
     }
 
     // --- Simulation ---

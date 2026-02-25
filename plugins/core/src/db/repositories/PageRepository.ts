@@ -117,12 +117,108 @@ export class PageRepository {
     return this.db.prepare('SELECT * FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as Page | undefined;
   }
 
+  getPagesByUrls(siteId: number, urls: string[]): Page[] {
+    if (urls.length === 0) return [];
+    const chunkSize = 900;
+    const results: Page[] = [];
+
+    for (let i = 0; i < urls.length; i += chunkSize) {
+      const chunk = urls.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => '?').join(',');
+      const chunkResults = this.db.prepare(`SELECT * FROM pages WHERE site_id = ? AND normalized_url IN (${placeholders})`).all(siteId, ...chunk) as Page[];
+      results.push(...chunkResults);
+    }
+
+    return results;
+  }
+
+  upsertMany(pages: (Partial<Page> & { site_id: number; normalized_url: string; last_seen_snapshot_id: number })[]): Map<string, number> {
+    if (pages.length === 0) return new Map();
+
+    const upsertStmtWithReturn = this.db.prepare(`
+      INSERT INTO pages (
+        site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id,
+        http_status, canonical_url, content_hash, simhash, etag, last_modified, html,
+        soft404_score, noindex, nofollow, security_error, retries, depth,
+        redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
+        updated_at
+      ) VALUES (
+        @site_id, @normalized_url, @first_seen_snapshot_id, @last_seen_snapshot_id,
+        @http_status, @canonical_url, @content_hash, @simhash, @etag, @last_modified, @html,
+        @soft404_score, @noindex, @nofollow, @security_error, @retries, @depth,
+        @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
+        datetime('now')
+      )
+      ON CONFLICT(site_id, normalized_url) DO UPDATE SET
+        last_seen_snapshot_id = excluded.last_seen_snapshot_id,
+        http_status = excluded.http_status,
+        canonical_url = excluded.canonical_url,
+        content_hash = excluded.content_hash,
+        simhash = excluded.simhash,
+        etag = excluded.etag,
+        last_modified = excluded.last_modified,
+        html = excluded.html,
+        soft404_score = excluded.soft404_score,
+        noindex = excluded.noindex,
+        nofollow = excluded.nofollow,
+        security_error = excluded.security_error,
+        retries = excluded.retries,
+        depth = excluded.depth,
+        redirect_chain = excluded.redirect_chain,
+        bytes_received = excluded.bytes_received,
+        crawl_trap_flag = excluded.crawl_trap_flag,
+        crawl_trap_risk = excluded.crawl_trap_risk,
+        trap_type = excluded.trap_type,
+        updated_at = datetime('now')
+      RETURNING id
+    `);
+
+    const urlToId = new Map<string, number>();
+    const tx = this.db.transaction((pagesBatch) => {
+      for (const page of pagesBatch) {
+        const params = {
+          site_id: page.site_id,
+          normalized_url: page.normalized_url,
+          first_seen_snapshot_id: page.first_seen_snapshot_id ?? page.last_seen_snapshot_id,
+          last_seen_snapshot_id: page.last_seen_snapshot_id,
+          http_status: page.http_status ?? null,
+          canonical_url: page.canonical_url ?? null,
+          content_hash: page.content_hash ?? null,
+          simhash: page.simhash ?? null,
+          etag: page.etag ?? null,
+          last_modified: page.last_modified ?? null,
+          html: page.html ?? null,
+          soft404_score: page.soft404_score ?? null,
+          noindex: page.noindex ?? 0,
+          nofollow: page.nofollow ?? 0,
+          security_error: page.security_error ?? null,
+          retries: page.retries ?? 0,
+          depth: page.depth ?? 0,
+          redirect_chain: page.redirect_chain ?? null,
+          bytes_received: page.bytes_received ?? null,
+          crawl_trap_flag: page.crawl_trap_flag ?? 0,
+          crawl_trap_risk: page.crawl_trap_risk ?? null,
+          trap_type: page.trap_type ?? null,
+        };
+        const row = upsertStmtWithReturn.get(params) as { id: number };
+        urlToId.set(page.normalized_url, row.id);
+      }
+    });
+
+    tx(pages);
+    return urlToId;
+  }
+
   getPagesBySnapshot(snapshotId: number): Page[] {
     return this.db.prepare('SELECT * FROM pages WHERE last_seen_snapshot_id = ?').all(snapshotId) as Page[];
   }
 
   getPagesIdentityBySnapshot(snapshotId: number): { id: number; normalized_url: string }[] {
     return this.db.prepare('SELECT id, normalized_url FROM pages WHERE last_seen_snapshot_id = ?').all(snapshotId) as { id: number; normalized_url: string }[];
+  }
+
+  getPagesIteratorBySnapshot(snapshotId: number): IterableIterator<Page> {
+    return this.db.prepare('SELECT * FROM pages WHERE last_seen_snapshot_id = ?').iterate(snapshotId) as IterableIterator<Page>;
   }
 
   getIdByUrl(siteId: number, url: string): number | undefined {

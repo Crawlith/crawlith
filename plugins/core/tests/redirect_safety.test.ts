@@ -5,7 +5,11 @@ import { request } from 'undici';
 
 vi.mock('undici', () => ({
     request: vi.fn(),
-    ProxyAgent: vi.fn().mockImplementation(() => ({ dispatcher: {} }))
+    ProxyAgent: vi.fn().mockImplementation(() => ({ dispatcher: {} })),
+    Agent: class {
+        dispatch = vi.fn();
+    },
+    Dispatcher: class {}
 }));
 
 describe('RedirectController', () => {

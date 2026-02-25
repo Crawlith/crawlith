@@ -25,6 +25,13 @@ describe('DomainFilter', () => {
         const filter = new DomainFilter(['allowed.com']);
         expect(filter.isAllowed('other.com')).toBe(false);
     });
+
+    it('should fallback to raw string on invalid hostname', () => {
+        // '[' and 'http://denied-invalid-[' causes new URL() to throw
+        const filter = new DomainFilter(['['], ['denied-invalid-[']);
+        expect(filter.isAllowed('[')).toBe(true);
+        expect(filter.isAllowed('denied-invalid-[')).toBe(false);
+    });
 });
 
 describe('SubdomainPolicy', () => {
