@@ -34,6 +34,18 @@ describe('IPGuard', () => {
         expect(IPGuard.isInternal('fe80::1')).toBe(true);
     });
 
+    it('should block IPv4-mapped IPv6 internal addresses', () => {
+        expect(IPGuard.isInternal('::ffff:127.0.0.1')).toBe(true);
+        expect(IPGuard.isInternal('::ffff:10.0.0.1')).toBe(true);
+        expect(IPGuard.isInternal('::ffff:192.168.1.1')).toBe(true);
+        expect(IPGuard.isInternal('::ffff:169.254.169.254')).toBe(true);
+        expect(IPGuard.isInternal('::ffff:7f00:0001')).toBe(true); // Hex 127.0.0.1
+    });
+
+    it('should allow IPv4-mapped IPv6 public addresses', () => {
+        expect(IPGuard.isInternal('::ffff:8.8.8.8')).toBe(false);
+    });
+
     it('should validate hostname by resolving IPs', async () => {
         const resolve4Spy = vi.mocked(dns.resolve4);
         const resolve6Spy = vi.mocked(dns.resolve6);

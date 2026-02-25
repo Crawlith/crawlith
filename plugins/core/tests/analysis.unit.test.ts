@@ -88,11 +88,28 @@ describe('links and images', () => {
     expect(links.externalRatio).toBeCloseTo(2 / 3);
   });
 
+  test('link ratio with no links', () => {
+    const html = '<div><p>No links here</p></div>';
+    const links = analyzeLinks(html, 'https://example.com/page', 'https://example.com');
+    expect(links.internalLinks).toBe(0);
+    expect(links.externalLinks).toBe(0);
+    expect(links.nofollowCount).toBe(0);
+    expect(links.externalRatio).toBe(0);
+  });
+
   test('image alt detection', () => {
     const html = '<img src="a"><img src="b" alt=""><img src="c" alt="ok">';
     const imgs = analyzeImageAlts(html);
     expect(imgs.totalImages).toBe(3);
     expect(imgs.missingAlt).toBe(1);
     expect(imgs.emptyAlt).toBe(1);
+  });
+
+  test('image alt detection no images', () => {
+    const html = '<div><p>No images here</p></div>';
+    const imgs = analyzeImageAlts(html);
+    expect(imgs.totalImages).toBe(0);
+    expect(imgs.missingAlt).toBe(0);
+    expect(imgs.emptyAlt).toBe(0);
   });
 });
