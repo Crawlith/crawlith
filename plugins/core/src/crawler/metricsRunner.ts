@@ -31,12 +31,26 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, limitR
     console.log('Updating metrics in DB...');
     const nodes = graph.getNodes();
 
+    // Pre-fetch all pages for this snapshot to avoid N+1 queries
+    const pages = pageRepo.getPagesBySnapshot(snapshotId);
+    const urlToId = new Map<string, number>();
+    for (const p of pages) {
+        urlToId.set(p.normalized_url, p.id);
+    }
+
+    // Pre-fetch all existing metrics for this snapshot
+    const metricsRows = metricsRepo.getMetrics(snapshotId);
+    const metricsMap = new Map<number, any>();
+    for (const m of metricsRows) {
+        metricsMap.set(m.page_id, m);
+    }
+
     const tx = db.transaction(() => {
         for (const node of nodes) {
-            const pageId = pageRepo.getIdByUrl(snapshot.site_id, node.url);
+            const pageId = urlToId.get(node.url);
             if (!pageId) continue;
 
-            const existing = metricsRepo.getMetricsForPage(snapshotId, pageId);
+            const existing = metricsMap.get(pageId);
 
             metricsRepo.insertMetrics({
                 snapshot_id: snapshotId,
