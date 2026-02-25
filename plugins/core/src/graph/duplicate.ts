@@ -105,7 +105,7 @@ export function detectDuplicates(graph: Graph, options: DuplicateOptions = {}) {
 
                     // Ensure n1 < n2 lexicographically to avoid duplicate pairs
                     const [a, b] = n1.url < n2.url ? [n1, n2] : [n2, n1];
-                    const pairKey = `${a.url}|${b.url}`;
+                    const pairKey = Graph.getEdgeKey(a.url, b.url);
 
                     if (checkedPairs.has(pairKey)) continue;
                     checkedPairs.add(pairKey);
@@ -262,7 +262,7 @@ export function detectDuplicates(graph: Graph, options: DuplicateOptions = {}) {
             // Skip self-referential edges caused by repointing
             if (actualSource === actualTarget) continue;
 
-            const edgeKey = `${actualSource}|${actualTarget}`;
+            const edgeKey = Graph.getEdgeKey(actualSource, actualTarget);
             const existingWeight = updatedEdges.get(edgeKey) || 0;
             updatedEdges.set(edgeKey, Math.max(existingWeight, edge.weight)); // deduplicate
         }
@@ -276,7 +276,7 @@ export function detectDuplicates(graph: Graph, options: DuplicateOptions = {}) {
             node.outLinks = 0;
         }
         for (const [edgeKey, _weight] of updatedEdges.entries()) {
-            const [src, tgt] = edgeKey.split('|');
+            const { source: src, target: tgt } = Graph.parseEdgeKey(edgeKey);
             const sn = graph.nodes.get(src);
             const tn = graph.nodes.get(tgt);
             if (sn) sn.outLinks++;
