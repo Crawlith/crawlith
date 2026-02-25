@@ -3,7 +3,6 @@ import fs from 'node:fs/promises';
 import chalk from 'chalk';
 import {
     generateHtml,
-    SITEGRAPH_HTML,
     renderSitegraphMarkdown,
     renderSitegraphCsvNodes,
     renderSitegraphCsvEdges,
@@ -44,18 +43,7 @@ export async function runSitegraphExports(
     }
 
     if (formats.includes('visualize')) {
-        const vizGraphData = {
-            ...graphData,
-            nodes: graphData.nodes.map((n: any) => {
-                const { html: _unusedHtml, ...rest } = n;
-                return rest;
-            })
-        };
-        const siteGraphHtml = SITEGRAPH_HTML.replace('</body>', `<script>
-       window.GRAPH_DATA = ${JSON.stringify(vizGraphData, null, 2)};
-       window.METRICS_DATA = ${JSON.stringify(metrics, null, 2)};
-      </script>
-      </body>`);
+        const siteGraphHtml = generateHtml(graphData, metrics);
         await fs.writeFile(path.join(outputDir, 'sitegraph.html'), siteGraphHtml);
         console.log(chalk.green(`Visualization saved to ${path.join(outputDir, 'sitegraph.html')}`));
     }
