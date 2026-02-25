@@ -3,7 +3,7 @@ import { generateHtml } from '../src/report/html.js';
 import { Metrics } from '../src/graph/metrics.js';
 
 describe('html report generator', () => {
-    test('generates valid html string with metrics', () => {
+    test('generates valid html string with injected data', () => {
         const mockMetrics: Metrics = {
             totalPages: 10,
             totalEdges: 20,
@@ -28,13 +28,14 @@ describe('html report generator', () => {
 
         const mockGraphData = {
             nodes: [
-                { url: 'https://example.com/', depth: 0, inLinks: 5, outLinks: 2, status: 200, html: '<body>Content</body>' }
+                { url: 'https://example.com/', depth: 0, inLinks: 5, outLinks: 2, status: 200, html: '<body>Big content</body>' }
             ],
             edges: []
         };
 
         const html = generateHtml(mockGraphData, mockMetrics);
 
+        // Check for template content
         expect(html).toContain('<!DOCTYPE html>');
         expect(html).toContain('Crawlith Site Graph');
 
@@ -48,10 +49,10 @@ describe('html report generator', () => {
 
         // Verify graph injection and sanitization
         expect(html).toContain('"url":"https://example.com/"');
-        expect(html).not.toContain('<body>Content</body>'); // html property should be removed
+        expect(html).not.toContain('Big content'); // html property should be removed
     });
 
-    test('handles missing session stats', () => {
+    test('handles missing session stats gracefully', () => {
         const mockMetrics: any = {
             totalPages: 10,
             totalEdges: 20,
@@ -64,5 +65,6 @@ describe('html report generator', () => {
         const html = generateHtml({ nodes: [], edges: [] }, mockMetrics as any);
         expect(html).toContain('window.METRICS_DATA =');
         expect(html).toContain('"totalPages":10');
+        expect(html).toContain('"sessionStats":null');
     });
 });
