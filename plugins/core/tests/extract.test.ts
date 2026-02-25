@@ -34,7 +34,7 @@ describe('extractLinks', () => {
         expect(links).toContain('https://example.com/page/');
     });
 
-    test('should handle cheerio errors gracefully', () => {
+    test('should return empty array when cheerio.load throws an error', () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         const error = new Error('Cheerio error');
 
@@ -49,5 +49,51 @@ describe('extractLinks', () => {
             expect.stringContaining('Error extracting links from https://example.com'),
             error
         );
+    });
+
+    test('should handle duplicate links and ignore hash fragments', () => {
+        const html = `
+      <html>
+        <body>
+          <a href="/foo">Foo 1</a>
+          <a href="/foo">Foo 2</a>
+          <a href="/foo#bar">Foo 3</a>
+        </body>
+      </html>
+    `;
+        const links = extractLinks(html, 'https://example.com');
+        expect(links).toHaveLength(1);
+        expect(links).toContain('https://example.com/foo');
+    });
+
+    test('should ignore non-http protocols', () => {
+        const html = `
+      <html>
+        <body>
+          <a href="mailto:test@example.com">Email</a>
+          <a href="tel:1234567890">Phone</a>
+          <a href="javascript:void(0)">JS</a>
+          <a href="ftp://example.com/file">FTP</a>
+          <a href="http://example.com">HTTP</a>
+          <a href="https://example.com">HTTPS</a>
+        </body>
+      </html>
+    `;
+        const links = extractLinks(html, 'https://example.com');
+        expect(links).toHaveLength(2);
+        expect(links).toContain('http://example.com/');
+        expect(links).toContain('https://example.com/');
+    });
+
+    test('should handle invalid href attributes gracefully', () => {
+        const html = `
+      <html>
+        <body>
+          <a href="http://[invalid-url]">Invalid 1</a>
+        </body>
+      </html>
+    `;
+        const links = extractLinks(html, 'https://example.com');
+        expect(links).toHaveLength(0);
     });
 });
