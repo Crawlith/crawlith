@@ -38,6 +38,17 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, limitR
     for (const p of pages) {
         urlToId.set(p.normalized_url, p.id);
     }
+
+    const clusterStmt = db.prepare(`
+        INSERT OR REPLACE INTO duplicate_clusters (id, snapshot_id, type, size, representative, severity)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const contentStmt = db.prepare(`
+        INSERT OR REPLACE INTO content_clusters (id, snapshot_id, count, primary_url, risk, shared_path_prefix)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
     const tx = db.transaction(() => {
         for (const node of nodes) {
             const pageId = urlToId.get(node.url);
