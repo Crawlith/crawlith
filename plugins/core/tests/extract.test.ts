@@ -39,6 +39,7 @@ describe('extractLinks', () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         const error = new Error('Cheerio error');
 
+        // Mock cheerio.load to throw an error
         vi.mocked(cheerio.load).mockImplementationOnce(() => {
             throw error;
         });
@@ -67,5 +68,27 @@ describe('extractLinks', () => {
             expect.stringContaining('Error extracting links from https://example.com'),
             error
         );
+    });
+
+    test('should ignore invalid URLs that cause URL constructor to throw', () => {
+        const html = '<a href="http://[">Invalid</a>';
+        const links = extractLinks(html, 'https://example.com');
+        expect(links).toEqual([]);
+    });
+
+    test('should ignore non-http protocols', () => {
+        const html = `
+            <a href="mailto:test@example.com">Mail</a>
+            <a href="javascript:void(0)">JS</a>
+            <a href="ftp://example.com/file">FTP</a>
+        `;
+        const links = extractLinks(html, 'https://example.com');
+        expect(links).toEqual([]);
+    });
+
+    test('should ignore links without href', () => {
+        const html = '<a>No Href</a>';
+        const links = extractLinks(html, 'https://example.com');
+        expect(links).toEqual([]);
     });
 });
