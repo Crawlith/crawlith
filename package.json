@@ -8,7 +8,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "lint": "pnpm -r lint",
+    "lint": "eslint plugins/*/src",
     "crawlith": "node plugins/cli/dist/index.js",
     "changeset": "changeset",
     "version-packages": "changeset version",
