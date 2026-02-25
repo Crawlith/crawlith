@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateScore } from '../../src/audit/scoring.js';
-import { TransportDiagnostics, DnsDiagnostics, SecurityHeadersResult, PerformanceMetrics, AuditIssue } from '../../src/audit/types.js';
+import { TransportDiagnostics, DnsDiagnostics, SecurityHeadersResult, PerformanceMetrics } from '../../src/audit/types.js';
 
 describe('Scoring Engine', () => {
   const mockTransport: TransportDiagnostics = {
@@ -84,8 +84,8 @@ describe('Scoring Engine', () => {
 
   it('should fail on expired cert', () => {
     const expiredTransport = {
-        ...mockTransport,
-        certificate: { ...mockTransport.certificate!, daysUntilExpiry: -5, validTo: '2023-01-01' }
+      ...mockTransport,
+      certificate: { ...mockTransport.certificate!, daysUntilExpiry: -5, validTo: '2023-01-01' }
     };
     const result = calculateScore(expiredTransport, mockDns, mockHeaders, mockPerformance, []);
     expect(result.grade).toBe('F');
@@ -104,30 +104,30 @@ describe('Scoring Engine', () => {
   });
 
   it('should penalize poor performance', () => {
-      const badPerf = { ...mockPerformance, ttfb: 1000, htmlSize: 2000000 };
-      const result = calculateScore(mockTransport, mockDns, mockHeaders, badPerf, []);
-      // TTFB > 800: Lose 10 pts
-      // HTML > 1MB: Lose 5 pts
-      // Total perf score (30) -> 15.
-      expect(result.categoryScores.performance).toBe(15);
-      expect(result.score).toBe(85);
-      expect(result.issues).toEqual(expect.arrayContaining([
-          expect.objectContaining({ id: 'slow-ttfb' }),
-          expect.objectContaining({ id: 'large-html' })
-      ]));
+    const badPerf = { ...mockPerformance, ttfb: 1000, htmlSize: 2000000 };
+    const result = calculateScore(mockTransport, mockDns, mockHeaders, badPerf, []);
+    // TTFB > 800: Lose 10 pts
+    // HTML > 1MB: Lose 5 pts
+    // Total perf score (30) -> 15.
+    expect(result.categoryScores.performance).toBe(15);
+    expect(result.score).toBe(85);
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'slow-ttfb' }),
+      expect.objectContaining({ id: 'large-html' })
+    ]));
   });
 
   it('should penalize infrastructure issues', () => {
-      const badDns = { ...mockDns, ipv6Support: false, ipCount: 1 };
-      const result = calculateScore(mockTransport, badDns, mockHeaders, mockPerformance, []);
-      // No IPv6: Lose 10 pts
-      // Single IP: Lose 10 pts
-      // Infra score (20) -> 0.
-      expect(result.categoryScores.infrastructure).toBe(0);
-      expect(result.score).toBe(80);
-      expect(result.issues).toEqual(expect.arrayContaining([
-          expect.objectContaining({ id: 'no-ipv6' }),
-          expect.objectContaining({ id: 'single-ip' })
-      ]));
+    const badDns = { ...mockDns, ipv6Support: false, ipCount: 1 };
+    const result = calculateScore(mockTransport, badDns, mockHeaders, mockPerformance, []);
+    // No IPv6: Lose 10 pts
+    // Single IP: Lose 10 pts
+    // Infra score (20) -> 0.
+    expect(result.categoryScores.infrastructure).toBe(0);
+    expect(result.score).toBe(80);
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'no-ipv6' }),
+      expect.objectContaining({ id: 'single-ip' })
+    ]));
   });
 });
