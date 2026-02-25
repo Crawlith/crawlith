@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { analyzeTransport } from '../../src/audit/transport.js';
 import https from 'node:https';
-import http from 'node:http';
 import tls from 'node:tls';
 import { EventEmitter } from 'events';
 
