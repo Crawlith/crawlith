@@ -2,6 +2,7 @@ import { extractLinks } from '../src/crawler/extract.js';
 import { test, expect, describe, vi, afterEach } from 'vitest';
 import * as cheerio from 'cheerio';
 
+// Mock cheerio.load to allow us to simulate errors
 vi.mock('cheerio', async (importOriginal) => {
     const mod = await importOriginal<any>();
     return {
@@ -37,6 +38,23 @@ describe('extractLinks', () => {
     test('should handle cheerio errors gracefully', () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         const error = new Error('Cheerio error');
+
+        vi.mocked(cheerio.load).mockImplementationOnce(() => {
+            throw error;
+        });
+
+        const links = extractLinks('<html></html>', 'https://example.com');
+
+        expect(links).toEqual([]);
+        expect(consoleSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Error extracting links from https://example.com'),
+            error
+        );
+    });
+
+    test('should handle non-Error exceptions gracefully', () => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+        const error = 'String error'; // Simulate a thrown string
 
         vi.mocked(cheerio.load).mockImplementationOnce(() => {
             throw error;
