@@ -95,4 +95,12 @@ describe('links and images', () => {
     expect(imgs.missingAlt).toBe(1);
     expect(imgs.emptyAlt).toBe(1);
   });
+
+  test('image alt detection no images', () => {
+    const html = '<div><p>No images here</p></div>';
+    const imgs = analyzeImageAlts(html);
+    expect(imgs.totalImages).toBe(0);
+    expect(imgs.missingAlt).toBe(0);
+    expect(imgs.emptyAlt).toBe(0);
+  });
 });
