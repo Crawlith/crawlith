@@ -89,7 +89,7 @@ describe('Duplicate Detection', () => {
         graph.updateNodeData('https://example.com/b', { contentHash: 'h1' });
 
         // Add edge pointing to B
-        graph.edges.set('https://example.com/source|https://example.com/b', 1);
+        graph.addEdge('https://example.com/source', 'https://example.com/b', 1);
 
         // Force A to be the representative by giving it higher inLinks manually, though it's determined dynamically
         graph.nodes.get('https://example.com/a')!.inLinks = 10;
@@ -105,6 +105,6 @@ describe('Duplicate Detection', () => {
         expect(b.collapseInto).toBe('https://example.com/a');
 
         // Check edge transfer
-        expect(graph.edges.has('https://example.com/source|https://example.com/a')).toBe(true);
+        expect(graph.edges.has(Graph.getEdgeKey('https://example.com/source', 'https://example.com/a'))).toBe(true);
     });
 });

@@ -2,6 +2,8 @@ export class SimHash {
     private static FNV_PRIME = 1099511628211n;
     private static FNV_OFFSET_BASIS = 14695981039346656037n;
     private static MAX_UINT64 = 0xffffffffffffffffn;
+    public static readonly BANDS = 4;
+    public static readonly BAND_WIDTH = 16;
 
     /**
      * Generates a 64-bit FNV-1a hash for a given string token.
@@ -43,6 +45,19 @@ export class SimHash {
         }
 
         return simhash;
+    }
+
+    /**
+     * Splits a 64-bit SimHash into 4 bands of 16 bits.
+     */
+    static getBands(simhash: bigint): number[] {
+        const bands: number[] = [];
+        for (let i = 0; i < SimHash.BANDS; i++) {
+            // Extract 16-bit chunks
+            const chunk = Number((simhash >> BigInt(i * SimHash.BAND_WIDTH)) & 0xFFFFn);
+            bands.push(chunk);
+        }
+        return bands;
     }
 
     /**

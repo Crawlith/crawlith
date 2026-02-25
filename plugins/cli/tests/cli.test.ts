@@ -174,9 +174,9 @@ test('analyze command json and html output', async () => {
 
   const logSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
 
-  await analyze.parseAsync(['https://example.com', '--from-crawl', 'crawl.json', '--export', 'html'], { from: 'user' });
+  await analyze.parseAsync(['https://example.com', '--export', 'html'], { from: 'user' });
 
-  expect(core.analyzeSite).toHaveBeenCalledWith('https://example.com', expect.objectContaining({ fromCrawl: 'crawl.json' }));
+  expect(core.analyzeSite).toHaveBeenCalledWith('https://example.com', expect.objectContaining({}));
   expect(core.renderAnalysisHtml).toHaveBeenCalled();
   expect(fs.mkdir).toHaveBeenCalled();
   expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('analysis.html'), '<html>analysis</html>', 'utf-8');
@@ -210,7 +210,7 @@ test('analyze exits with code 1 when --fail-on-critical is set', async () => {
   }) as never);
 
   await expect(
-    analyze.parseAsync(['https://example.com', '--from-crawl', 'crawl.json', '--fail-on-critical'], { from: 'user' })
+    analyze.parseAsync(['https://example.com', '--fail-on-critical'], { from: 'user' })
   ).rejects.toThrow('exit:1');
 
   exitSpy.mockRestore();

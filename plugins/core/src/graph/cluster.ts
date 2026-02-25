@@ -1,5 +1,6 @@
 import { Graph, GraphNode, ClusterInfo } from './graph.js';
 import { SimHash } from './simhash.js';
+import { load } from 'cheerio';
 
 /**
  * Detects content clusters using 64-bit SimHash and Hamming Distance.
@@ -18,24 +19,23 @@ export function detectContentClusters(
     // Banding Optimization (4 bands of 16 bits)
     // Note: For threshold > 3, this is a heuristic and may miss some pairs,
     // but it dramatically reduces the search space as requested.
-    const bands = 4;
-    const bandWidth = 16;
-    const buckets: Map<number, Set<string>>[] = Array.from({ length: bands }, () => new Map());
+    const buckets: Map<number, Set<string>>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
 
     for (const node of nodes) {
         const hash = BigInt(node.simhash!);
-        for (let b = 0; b < bands; b++) {
-            const bandValue = Number((hash >> BigInt(b * bandWidth)) & 0xFFFFn);
+        const bandValues = SimHash.getBands(hash);
+
+        bandValues.forEach((bandValue, b) => {
             if (!buckets[b].has(bandValue)) {
                 buckets[b].set(bandValue, new Set());
             }
             buckets[b].get(bandValue)!.add(node.url);
-        }
+        });
     }
 
     const checkedPairs = new Set<string>();
 
-    for (let b = 0; b < bands; b++) {
+    for (let b = 0; b < SimHash.BANDS; b++) {
         for (const bucket of buckets[b].values()) {
             if (bucket.size < 2) continue;
             const bucketNodes = Array.from(bucket);
@@ -154,14 +154,68 @@ function selectPrimaryUrl(urls: string[], graph: Graph): string {
  * Calculates cannibalization risk based on title and H1 similarity within the cluster.
  */
 function calculateClusterRisk(nodes: GraphNode[]): 'low' | 'medium' | 'high' {
-    // Logic: Check if there's significant overlap in Titles or H1s among cluster members.
-    // This is a heuristic as requested.
-    // Simplified heuristic: risk is based on cluster density and size
-    // Large clusters of highly similar content are high risk.
+    if (nodes.length <= 1) return 'low';
 
-    // Fallback to a safe categorization
-    if (nodes.length > 5) return 'high';
-    if (nodes.length > 2) return 'medium';
+    // Count title and H1 occurrences
+    const titleCounts = new Map<string, number>();
+    const h1Counts = new Map<string, number>();
+    let processedCount = 0;
+
+    for (const node of nodes) {
+        if (!node.html) continue;
+
+        try {
+            const $ = load(node.html);
+            const title = $('title').text().trim().toLowerCase();
+            const h1 = $('h1').first().text().trim().toLowerCase();
+
+            if (title) {
+                titleCounts.set(title, (titleCounts.get(title) || 0) + 1);
+            }
+            if (h1) {
+                h1Counts.set(h1, (h1Counts.get(h1) || 0) + 1);
+            }
+            processedCount++;
+        } catch {
+            // Ignore parsing errors
+        }
+    }
+
+    // If we couldn't parse enough content (e.g., no HTML stored), fallback to size-based heuristic
+    if (processedCount < nodes.length * 0.5) {
+        if (nodes.length > 5) return 'high';
+        if (nodes.length > 2) return 'medium';
+        return 'low';
+    }
+
+    // Calculate duplicate ratios
+    let duplicateTitleCount = 0;
+    let duplicateH1Count = 0;
+
+    for (const count of titleCounts.values()) {
+        if (count > 1) duplicateTitleCount += count;
+    }
+    for (const count of h1Counts.values()) {
+        if (count > 1) duplicateH1Count += count;
+    }
+
+    const titleDupeRatio = duplicateTitleCount / nodes.length;
+    const h1DupeRatio = duplicateH1Count / nodes.length;
+
+    // Heuristic 1: High Risk
+    // Significant overlap in Titles OR H1s (e.g., > 30% of cluster members are duplicates)
+    if (titleDupeRatio > 0.3 || h1DupeRatio > 0.3) {
+        return 'high';
+    }
+
+    // Heuristic 2: Medium Risk
+    // Any overlap, or very large clusters (potential template issues or thin content)
+    if (titleDupeRatio > 0 || h1DupeRatio > 0 || nodes.length > 10) {
+        return 'medium';
+    }
+
+    // Heuristic 3: Low Risk
+    // Unique content and manageable cluster size
     return 'low';
 }
 
