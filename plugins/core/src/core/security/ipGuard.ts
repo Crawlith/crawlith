@@ -86,7 +86,7 @@ export class IPGuard {
         options: dns.LookupOneOptions | dns.LookupAllOptions,
         callback: (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family: number) => void
     ): void {
-        dns.lookup(hostname, options as any, (err, address, family) => {
+        dns.lookup(hostname, options as any, (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family: number) => {
             if (err) {
                 return callback(err, address as any, family);
             }
