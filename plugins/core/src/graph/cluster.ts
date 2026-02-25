@@ -18,24 +18,23 @@ export function detectContentClusters(
     // Banding Optimization (4 bands of 16 bits)
     // Note: For threshold > 3, this is a heuristic and may miss some pairs,
     // but it dramatically reduces the search space as requested.
-    const bands = 4;
-    const bandWidth = 16;
-    const buckets: Map<number, Set<string>>[] = Array.from({ length: bands }, () => new Map());
+    const buckets: Map<number, Set<string>>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
 
     for (const node of nodes) {
         const hash = BigInt(node.simhash!);
-        for (let b = 0; b < bands; b++) {
-            const bandValue = Number((hash >> BigInt(b * bandWidth)) & 0xFFFFn);
+        const bandValues = SimHash.getBands(hash);
+
+        bandValues.forEach((bandValue, b) => {
             if (!buckets[b].has(bandValue)) {
                 buckets[b].set(bandValue, new Set());
             }
             buckets[b].get(bandValue)!.add(node.url);
-        }
+        });
     }
 
     const checkedPairs = new Set<string>();
 
-    for (let b = 0; b < bands; b++) {
+    for (let b = 0; b < SimHash.BANDS; b++) {
         for (const bucket of buckets[b].values()) {
             if (bucket.size < 2) continue;
             const bucketNodes = Array.from(bucket);

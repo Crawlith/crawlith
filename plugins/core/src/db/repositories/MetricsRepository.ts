@@ -20,8 +20,10 @@ export interface DbMetrics {
 
 export class MetricsRepository {
   private insertStmt;
+  private getByPageStmt;
 
   constructor(private db: Database) {
+    this.getByPageStmt = this.db.prepare('SELECT * FROM metrics WHERE snapshot_id = ? AND page_id = ?');
     this.insertStmt = this.db.prepare(`
       INSERT OR REPLACE INTO metrics (
         snapshot_id, page_id, authority_score, hub_score, pagerank, pagerank_score,
@@ -44,6 +46,14 @@ export class MetricsRepository {
   }
 
   getMetricsForPage(snapshotId: number, pageId: number): DbMetrics | undefined {
-    return this.db.prepare('SELECT * FROM metrics WHERE snapshot_id = ? AND page_id = ?').get(snapshotId, pageId) as DbMetrics | undefined;
+    return this.getByPageStmt.get(snapshotId, pageId) as DbMetrics | undefined;
+  }
+
+  insertMany(metricsList: DbMetrics[]) {
+    const insert = this.insertStmt;
+    const tx = this.db.transaction((items: DbMetrics[]) => {
+      for (const item of items) insert.run(item);
+    });
+    tx(metricsList);
   }
 }

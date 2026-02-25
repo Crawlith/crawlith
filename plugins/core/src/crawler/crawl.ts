@@ -1,5 +1,4 @@
 import { request } from 'undici';
-import pLimit from 'p-limit';
 import chalk from 'chalk';
 import robotsParser from 'robots-parser';
 import { Graph } from '../graph/graph.js';
@@ -47,7 +46,6 @@ interface QueueItem {
 export async function crawl(startUrl: string, options: CrawlOptions): Promise<number> {
   const visited = new Set<string>();
   const concurrency = Math.min(options.concurrency || 2, 10);
-  const limitConcurrency = pLimit(concurrency);
   const trapDetector = new TrapDetector();
 
   const db = getDb();
@@ -236,7 +234,7 @@ export async function crawl(startUrl: string, options: CrawlOptions): Promise<nu
         pagesCrawled++;
         visited.add(item.url);
 
-        limitConcurrency(() => processPage(item)).finally(() => {
+        processPage(item).finally(() => {
           active--;
           next();
         });
@@ -362,15 +360,52 @@ export async function crawl(startUrl: string, options: CrawlOptions): Promise<nu
             }
           }
 
+          const linksToProcess = new Set<string>();
           for (const linkItem of parseResult.links) {
             const normalizedLink = normalizeUrl(linkItem.url, '', options);
             if (normalizedLink && normalizedLink !== finalUrl) {
-              savePageToDb(normalizedLink, depth + 1, 0);
-              saveEdgeToDb(finalUrl, normalizedLink, 1.0, 'internal');
-              if (shouldEnqueue(normalizedLink, depth + 1)) {
-                addToQueue(normalizedLink, depth + 1);
+              linksToProcess.add(normalizedLink);
+            }
+          }
+
+          if (linksToProcess.size > 0 && pageId) {
+            const linksArray = Array.from(linksToProcess);
+            const existingPages = pageRepo.getPagesByUrls(siteId!, linksArray);
+            const existingPagesMap = new Map(existingPages.map(p => [p.normalized_url, p]));
+
+            const pagesToUpsert = linksArray.map(link => {
+              const existing = existingPagesMap.get(link);
+              const isSameSnapshot = existing?.last_seen_snapshot_id === snapshotId;
+              return {
+                site_id: siteId!,
+                normalized_url: link,
+                depth: isSameSnapshot && existing ? existing.depth : depth + 1,
+                http_status: 0,
+                first_seen_snapshot_id: existing ? existing.first_seen_snapshot_id : snapshotId,
+                last_seen_snapshot_id: snapshotId,
+              };
+            });
+
+            const urlToId = pageRepo.upsertMany(pagesToUpsert);
+
+            const edgesToInsert = [];
+            for (const link of linksArray) {
+              const targetId = urlToId.get(link);
+              if (targetId) {
+                edgesToInsert.push({
+                  snapshot_id: snapshotId,
+                  source_page_id: pageId,
+                  target_page_id: targetId,
+                  weight: 1.0,
+                  rel: 'internal'
+                });
+              }
+
+              if (shouldEnqueue(link, depth + 1)) {
+                addToQueue(link, depth + 1);
               }
             }
+            edgeRepo.insertEdges(edgesToInsert);
           }
         }
       } catch (e) {

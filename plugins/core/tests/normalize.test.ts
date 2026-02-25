@@ -95,6 +95,12 @@ test('normalizeUrl: skip non-HTML assets', () => {
   expect(normalizeUrl('https://example.com/page', '')).toBe('https://example.com/page');
 });
 
+test('normalizeUrl: invalid URL', () => {
+  expect(normalizeUrl('/foo', '')).toBeNull();
+  expect(normalizeUrl('invalid-url', '')).toBeNull();
+  expect(normalizeUrl('/foo', 'invalid-base')).toBeNull();
+});
+
 test('normalizeUrl: return format', () => {
   const res = normalizeUrl('https://example.com/foo?a=1', '');
   expect(res).toBe('https://example.com/foo?a=1');

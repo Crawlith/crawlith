@@ -27,7 +27,9 @@ describe('html report generator', () => {
         };
 
         const mockGraphData = {
-            nodes: [{ url: 'https://example.com/', depth: 0, inLinks: 5, outLinks: 2, status: 200, html: '<html>Big content</html>' }],
+            nodes: [
+                { url: 'https://example.com/', depth: 0, inLinks: 5, outLinks: 2, status: 200, html: '<body>Big content</body>' }
+            ],
             edges: []
         };
 
@@ -41,15 +43,13 @@ describe('html report generator', () => {
         expect(html).toContain('window.GRAPH_DATA =');
         expect(html).toContain('window.METRICS_DATA =');
 
-        // Check specific data values in the JSON string
+        // Verify metrics injection
         expect(html).toContain('"totalPages":10');
         expect(html).toContain('"pagesFetched":5');
 
-        // Check that HTML content is stripped
-        expect(html).not.toContain('Big content');
-
-        // Check for node data
+        // Verify graph injection and sanitization
         expect(html).toContain('"url":"https://example.com/"');
+        expect(html).not.toContain('Big content'); // html property should be removed
     });
 
     test('handles missing session stats gracefully', () => {
@@ -63,8 +63,8 @@ describe('html report generator', () => {
             sessionStats: null
         };
         const html = generateHtml({ nodes: [], edges: [] }, mockMetrics as any);
-
         expect(html).toContain('window.METRICS_DATA =');
+        expect(html).toContain('"totalPages":10');
         expect(html).toContain('"sessionStats":null');
     });
 });
