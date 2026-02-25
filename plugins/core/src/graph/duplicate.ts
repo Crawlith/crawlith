@@ -15,61 +15,6 @@ interface DuplicateCluster {
 }
 
 /**
- * Union-Find (Disjoint Set Union) data structure with path compression and union by rank.
- */
-class UnionFind<T> {
-    private parent: Map<T, T>;
-    private rank: Map<T, number>;
-
-    constructor() {
-        this.parent = new Map();
-        this.rank = new Map();
-    }
-
-    find(item: T): T {
-        if (!this.parent.has(item)) {
-            this.parent.set(item, item);
-            this.rank.set(item, 0);
-            return item;
-        }
-
-        let root = item;
-        while (this.parent.get(root) !== root) {
-            root = this.parent.get(root)!;
-        }
-
-        // Path compression
-        let curr = item;
-        while (curr !== root) {
-            const next = this.parent.get(curr)!;
-            this.parent.set(curr, root);
-            curr = next;
-        }
-
-        return root;
-    }
-
-    union(item1: T, item2: T): void {
-        const root1 = this.find(item1);
-        const root2 = this.find(item2);
-
-        if (root1 !== root2) {
-            const rank1 = this.rank.get(root1) || 0;
-            const rank2 = this.rank.get(root2) || 0;
-
-            if (rank1 < rank2) {
-                this.parent.set(root1, root2);
-            } else if (rank1 > rank2) {
-                this.parent.set(root2, root1);
-            } else {
-                this.parent.set(root2, root1);
-                this.rank.set(root1, rank1 + 1);
-            }
-        }
-    }
-}
-
-/**
  * Detects exact and near duplicates, identifies canonical conflicts,
  * and performs non-destructive collapse of edges.
  */
@@ -138,85 +83,146 @@ function createExactClusters(exactMap: Map<string, GraphNode[]>, startId: number
 }
 
 function findNearDuplicates(candidates: GraphNode[], threshold: number, startId: number): { nearClusters: DuplicateCluster[], nextId: number } {
-    const bandsMaps = buildSimHashBuckets(candidates);
-    const { uf, involvedNodes } = findConnectedComponents(bandsMaps, threshold);
-    return extractClusters(uf, involvedNodes, startId);
+    const { bandsMaps, simhashes } = buildSimHashBuckets(candidates);
+    const { parent, involvedIndices } = findConnectedComponents(bandsMaps, simhashes, candidates.length, threshold);
+    return extractClusters(parent, involvedIndices, candidates, startId);
 }
 
-function buildSimHashBuckets(candidates: GraphNode[]): Map<number, GraphNode[]>[] {
-    const bandsMaps: Map<number, GraphNode[]>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
+function buildSimHashBuckets(candidates: GraphNode[]): { bandsMaps: Map<number, number[]>[], simhashes: BigUint64Array, validIndices: number[] } {
+    const n = candidates.length;
+    const simhashes = new BigUint64Array(n);
+    const validIndices: number[] = [];
 
-    for (const node of candidates) {
-        if (!node.simhash) continue;
-        const simhash = BigInt(node.simhash);
-        const bands = SimHash.getBands(simhash);
-
-        for (let i = 0; i < SimHash.BANDS; i++) {
-            let arr = bandsMaps[i].get(bands[i]);
-            if (!arr) {
-                arr = [];
-                bandsMaps[i].set(bands[i], arr);
-            }
-            arr.push(node);
+    for (let i = 0; i < n; i++) {
+        if (candidates[i].simhash) {
+            simhashes[i] = BigInt(candidates[i].simhash!);
+            validIndices.push(i);
         }
     }
-    return bandsMaps;
+
+    const bandsMaps: Map<number, number[]>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
+
+    for (const idx of validIndices) {
+        const bands = SimHash.getBands(simhashes[idx]);
+        for (let b = 0; b < SimHash.BANDS; b++) {
+            let arr = bandsMaps[b].get(bands[b]);
+            if (!arr) {
+                arr = [];
+                bandsMaps[b].set(bands[b], arr);
+            }
+            arr.push(idx);
+        }
+    }
+
+    return { bandsMaps, simhashes, validIndices };
 }
 
-function findConnectedComponents(bandsMaps: Map<number, GraphNode[]>[], threshold: number): { uf: UnionFind<string>, involvedNodes: Set<GraphNode> } {
-    const uf = new UnionFind<string>();
-    const involvedNodes = new Set<GraphNode>();
-    const checkedPairs = new Set<string>();
+function findConnectedComponents(bandsMaps: Map<number, number[]>[], simhashes: BigUint64Array, n: number, threshold: number): { parent: Uint32Array, involvedIndices: Set<number> } {
+    // Union-Find Arrays (Integer-based)
+    const parent = new Uint32Array(n);
+    const rank = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+        parent[i] = i;
+        rank[i] = 0;
+    }
 
-    for (let i = 0; i < SimHash.BANDS; i++) {
-        for (const [_bandVal, bucketNodes] of bandsMaps[i].entries()) {
-            if (bucketNodes.length < 2) continue;
+    function find(i: number): number {
+        let root = i;
+        while (parent[root] !== root) {
+            root = parent[root];
+        }
+        let curr = i;
+        while (curr !== root) {
+            const next = parent[curr];
+            parent[curr] = root;
+            curr = next;
+        }
+        return root;
+    }
 
-            for (let j = 0; j < bucketNodes.length; j++) {
-                for (let k = j + 1; k < bucketNodes.length; k++) {
-                    const n1 = bucketNodes[j];
-                    const n2 = bucketNodes[k];
+    function union(i: number, j: number) {
+        const rootI = find(i);
+        const rootJ = find(j);
+        if (rootI !== rootJ) {
+            const rankI = rank[rootI];
+            const rankJ = rank[rootJ];
+            if (rankI < rankJ) {
+                parent[rootI] = rootJ;
+            } else if (rankI > rankJ) {
+                parent[rootJ] = rootI;
+            } else {
+                parent[rootJ] = rootI;
+                rank[rootI]++;
+            }
+        }
+    }
 
-                    const [a, b] = n1.url < n2.url ? [n1, n2] : [n2, n1];
-                    const pairKey = Graph.getEdgeKey(a.url, b.url);
+    const involvedIndices = new Set<number>();
 
-                    if (checkedPairs.has(pairKey)) continue;
-                    checkedPairs.add(pairKey);
+    for (let b = 0; b < SimHash.BANDS; b++) {
+        for (const bucketIndices of bandsMaps[b].values()) {
+            if (bucketIndices.length < 2) continue;
 
-                    const dist = SimHash.hammingDistance(BigInt(a.simhash!), BigInt(b.simhash!));
+            for (let j = 0; j < bucketIndices.length; j++) {
+                for (let k = j + 1; k < bucketIndices.length; k++) {
+                    const idx1 = bucketIndices[j];
+                    const idx2 = bucketIndices[k];
+
+                    const root1 = find(idx1);
+                    const root2 = find(idx2);
+
+                    if (root1 === root2) continue; // Already connected, skip expensive distance check
+
+                    const dist = SimHash.hammingDistance(simhashes[idx1], simhashes[idx2]);
                     if (dist <= threshold) {
-                        uf.union(a.url, b.url);
-                        involvedNodes.add(a);
-                        involvedNodes.add(b);
+                        union(root1, root2);
+                        involvedIndices.add(idx1);
+                        involvedIndices.add(idx2);
                     }
                 }
             }
         }
     }
-    return { uf, involvedNodes };
+
+    return { parent, involvedIndices };
 }
 
-function extractClusters(uf: UnionFind<string>, involvedNodes: Set<GraphNode>, startId: number): { nearClusters: DuplicateCluster[], nextId: number } {
+function extractClusters(parent: Uint32Array, involvedIndices: Set<number>, candidates: GraphNode[], startId: number): { nearClusters: DuplicateCluster[], nextId: number } {
     const nearClusters: DuplicateCluster[] = [];
     let clusterCounter = startId;
-    const clusterMap = new Map<string, Set<GraphNode>>();
 
-    for (const node of involvedNodes) {
-        const root = uf.find(node.url);
-        let group = clusterMap.get(root);
-        if (!group) {
-            group = new Set();
-            clusterMap.set(root, group);
+    function find(i: number): number {
+        let root = i;
+        while (parent[root] !== root) {
+            root = parent[root];
         }
-        group.add(node);
+        let curr = i;
+        while (curr !== root) {
+            const next = parent[curr];
+            parent[curr] = root;
+            curr = next;
+        }
+        return root;
     }
 
-    for (const groupSet of clusterMap.values()) {
-        if (groupSet.size > 1) {
+    // Compile clusters
+    const clusterMap = new Map<number, number[]>();
+    for (const idx of involvedIndices) {
+        const root = find(idx);
+        let group = clusterMap.get(root);
+        if (!group) {
+            group = [];
+            clusterMap.set(root, group);
+        }
+        group.push(idx);
+    }
+
+    for (const groupIndices of clusterMap.values()) {
+        if (groupIndices.length > 1) {
             const id = `cluster_near_${clusterCounter++}`;
-            const groupArr = Array.from(groupSet);
-            nearClusters.push({ id, type: 'near', nodes: groupArr });
-            for (const n of groupArr) {
+            const groupNodes = groupIndices.map(idx => candidates[idx]);
+            nearClusters.push({ id, type: 'near', nodes: groupNodes });
+            for (const n of groupNodes) {
                 n.duplicateClusterId = id;
                 n.duplicateType = 'near';
             }
