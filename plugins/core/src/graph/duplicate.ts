@@ -133,24 +133,14 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
     const nearClusters: DuplicateCluster[] = [];
     let clusterCounter = startId;
 
-    const bandsMaps = [
-        new Map<number, GraphNode[]>(),
-        new Map<number, GraphNode[]>(),
-        new Map<number, GraphNode[]>(),
-        new Map<number, GraphNode[]>()
-    ];
+    const bandsMaps: Map<number, GraphNode[]>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
 
     for (const node of candidates) {
         if (!node.simhash) continue;
         const simhash = BigInt(node.simhash);
+        const bands = SimHash.getBands(simhash);
 
-        const b0 = Number(simhash & 0xFFFFn);
-        const b1 = Number((simhash >> 16n) & 0xFFFFn);
-        const b2 = Number((simhash >> 32n) & 0xFFFFn);
-        const b3 = Number((simhash >> 48n) & 0xFFFFn);
-
-        const bands = [b0, b1, b2, b3];
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < SimHash.BANDS; i++) {
             let arr = bandsMaps[i].get(bands[i]);
             if (!arr) {
                 arr = [];
@@ -165,7 +155,7 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
     const involvedNodes = new Set<GraphNode>();
     const checkedPairs = new Set<string>();
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < SimHash.BANDS; i++) {
         for (const [_bandVal, bucketNodes] of bandsMaps[i].entries()) {
             if (bucketNodes.length < 2) continue;
 
