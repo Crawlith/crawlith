@@ -36,4 +36,8 @@ export class EdgeRepository {
   getEdgesBySnapshot(snapshotId: number): Edge[] {
     return this.db.prepare('SELECT * FROM edges WHERE snapshot_id = ?').all(snapshotId) as Edge[];
   }
+
+  getEdgesIteratorBySnapshot(snapshotId: number): IterableIterator<Edge> {
+    return this.db.prepare('SELECT * FROM edges WHERE snapshot_id = ?').iterate(snapshotId) as IterableIterator<Edge>;
+  }
 }

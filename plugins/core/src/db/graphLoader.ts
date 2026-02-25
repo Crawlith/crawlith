@@ -12,8 +12,8 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
 
-    const pages = pageRepo.getPagesBySnapshot(snapshotId);
-    const metrics = metricsRepo.getMetrics(snapshotId);
+    const pages = pageRepo.getPagesIteratorBySnapshot(snapshotId);
+    const metrics = metricsRepo.getMetricsIterator(snapshotId);
     const snapshot = snapshotRepo.getSnapshot(snapshotId);
     const metricsMap = new Map<number, DbMetrics>();
     for (const m of metrics) {
@@ -77,7 +77,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
         });
     }
 
-    const edges = edgeRepo.getEdgesBySnapshot(snapshotId);
+    const edges = edgeRepo.getEdgesIteratorBySnapshot(snapshotId);
 
     for (const e of edges) {
         const source = idMap.get(e.source_page_id);

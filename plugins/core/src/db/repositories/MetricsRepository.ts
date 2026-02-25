@@ -45,6 +45,10 @@ export class MetricsRepository {
     return this.db.prepare('SELECT * FROM metrics WHERE snapshot_id = ?').all(snapshotId) as DbMetrics[];
   }
 
+  getMetricsIterator(snapshotId: number): IterableIterator<DbMetrics> {
+    return this.db.prepare('SELECT * FROM metrics WHERE snapshot_id = ?').iterate(snapshotId) as IterableIterator<DbMetrics>;
+  }
+
   getMetricsForPage(snapshotId: number, pageId: number): DbMetrics | undefined {
     return this.getByPageStmt.get(snapshotId, pageId) as DbMetrics | undefined;
   }
