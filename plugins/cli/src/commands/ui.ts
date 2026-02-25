@@ -14,9 +14,11 @@ export const ui = new Command('ui')
   .description('Start the Crawlith UI Dashboard')
   .option('--site <url>', 'Site URL to display in dashboard', 'https://example.com')
   .option('--port <number>', 'Port to run server on', '23484')
+  .option('--host <address>', 'Host to bind server to', '127.0.0.1')
   .action(async (options) => {
     try {
       const port = parseInt(options.port, 10);
+      const host = options.host;
       const siteUrl = options.site;
 
       console.log(chalk.bold.cyan(`\n🚀 Starting Crawlith UI`));
@@ -29,11 +31,13 @@ export const ui = new Command('ui')
 
       await startServer({
         port,
+        host,
         staticPath: distPath,
         siteName: siteUrl
       });
 
-      const url = `http://localhost:${port}`;
+      const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+      const url = `http://${displayHost}:${port}`;
       console.log(chalk.green(`\n✅ Dashboard ready at: ${chalk.underline(url)}`));
       console.log(chalk.gray('   Press Ctrl+C to stop.'));
 
