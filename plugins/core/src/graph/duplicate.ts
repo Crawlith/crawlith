@@ -133,22 +133,7 @@ function findNearDuplicates(candidates: GraphNode[], threshold: number, startId:
     const nearClusters: DuplicateCluster[] = [];
     let clusterCounter = startId;
 
-    const bandsMaps: Map<number, GraphNode[]>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
-
-    for (const node of candidates) {
-        if (!node.simhash) continue;
-        const simhash = BigInt(node.simhash);
-        const bands = SimHash.getBands(simhash);
-
-        for (let i = 0; i < SimHash.BANDS; i++) {
-            let arr = bandsMaps[i].get(bands[i]);
-            if (!arr) {
-                arr = [];
-                bandsMaps[i].set(bands[i], arr);
-            }
-            arr.push(node);
-        }
-    }
+    const bandsMaps = SimHash.groupIntoBands(candidates, node => node.simhash ? BigInt(node.simhash) : undefined);
 
     // Use Union-Find to track connected components of near-duplicates
     const uf = new UnionFind<string>();

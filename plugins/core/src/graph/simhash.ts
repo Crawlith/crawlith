@@ -73,4 +73,28 @@ export class SimHash {
         }
         return distance;
     }
+
+    /**
+     * Groups items into SimHash bands/buckets.
+     */
+    static groupIntoBands<T>(items: Iterable<T>, hashExtractor: (item: T) => bigint | undefined): Map<number, T[]>[] {
+        const buckets: Map<number, T[]>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
+
+        for (const item of items) {
+            const hash = hashExtractor(item);
+            if (hash === undefined) continue;
+
+            const bandValues = SimHash.getBands(hash);
+
+            bandValues.forEach((bandValue, b) => {
+                let bucket = buckets[b].get(bandValue);
+                if (!bucket) {
+                    bucket = [];
+                    buckets[b].set(bandValue, bucket);
+                }
+                bucket.push(item);
+            });
+        }
+        return buckets;
+    }
 }

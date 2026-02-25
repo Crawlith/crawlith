@@ -19,38 +19,26 @@ export function detectContentClusters(
     // Banding Optimization (4 bands of 16 bits)
     // Note: For threshold > 3, this is a heuristic and may miss some pairs,
     // but it dramatically reduces the search space as requested.
-    const buckets: Map<number, Set<string>>[] = Array.from({ length: SimHash.BANDS }, () => new Map());
-
-    for (const node of nodes) {
-        const hash = BigInt(node.simhash!);
-        const bandValues = SimHash.getBands(hash);
-
-        bandValues.forEach((bandValue, b) => {
-            if (!buckets[b].has(bandValue)) {
-                buckets[b].set(bandValue, new Set());
-            }
-            buckets[b].get(bandValue)!.add(node.url);
-        });
-    }
+    const buckets = SimHash.groupIntoBands(nodes, node => BigInt(node.simhash!));
 
     const checkedPairs = new Set<string>();
 
     for (let b = 0; b < SimHash.BANDS; b++) {
         for (const bucket of buckets[b].values()) {
-            if (bucket.size < 2) continue;
-            const bucketNodes = Array.from(bucket);
+            if (bucket.length < 2) continue;
+            const bucketNodes = bucket;
             for (let i = 0; i < bucketNodes.length; i++) {
                 for (let j = i + 1; j < bucketNodes.length; j++) {
-                    const u1 = bucketNodes[i];
-                    const u2 = bucketNodes[j];
+                    const n1 = bucketNodes[i];
+                    const n2 = bucketNodes[j];
+                    const u1 = n1.url;
+                    const u2 = n2.url;
+
                     if (u1 === u2) continue;
 
                     const pairKey = u1 < u2 ? `${u1}|${u2}` : `${u2}|${u1}`;
                     if (checkedPairs.has(pairKey)) continue;
                     checkedPairs.add(pairKey);
-
-                    const n1 = graph.nodes.get(u1)!;
-                    const n2 = graph.nodes.get(u2)!;
 
                     const dist = SimHash.hammingDistance(BigInt(n1.simhash!), BigInt(n2.simhash!));
                     if (dist <= threshold) {
