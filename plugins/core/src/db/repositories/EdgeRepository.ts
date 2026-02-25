@@ -23,6 +23,16 @@ export class EdgeRepository {
     this.insertStmt.run(snapshotId, sourcePageId, targetPageId, weight, rel);
   }
 
+  insertEdges(edges: { snapshot_id: number; source_page_id: number; target_page_id: number; weight: number; rel: string }[]) {
+    if (edges.length === 0) return;
+    const tx = this.db.transaction((edgesBatch) => {
+      for (const edge of edgesBatch) {
+        this.insertStmt.run(edge.snapshot_id, edge.source_page_id, edge.target_page_id, edge.weight, edge.rel);
+      }
+    });
+    tx(edges);
+  }
+
   getEdgesBySnapshot(snapshotId: number): Edge[] {
     return this.db.prepare('SELECT * FROM edges WHERE snapshot_id = ?').all(snapshotId) as Edge[];
   }
