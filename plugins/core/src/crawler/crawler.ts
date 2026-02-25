@@ -3,7 +3,7 @@ import pLimit from 'p-limit';
 import chalk from 'chalk';
 import robotsParser from 'robots-parser';
 import { Graph } from '../graph/graph.js';
-import { Fetcher } from './fetcher.js';
+import { Fetcher, FetchOptions } from './fetcher.js';
 import { Parser } from './parser.js';
 import { Sitemap } from './sitemap.js';
 import { normalizeUrl } from './normalize.js';
@@ -69,6 +69,14 @@ export class Crawler {
   private snapshotId: number | null = null;
   private rootOrigin: string = '';
 
+  // Discovery tracking
+  private discoveryDepths: Map<string, number> = new Map();
+
+  // Buffers for batch operations
+  private pageBuffer: Map<string, any> = new Map();
+  private edgeBuffer: { sourceUrl: string; targetUrl: string; weight: number; rel: string }[] = [];
+  private metricsBuffer: any[] = [];
+
   // Modules
   private scopeManager: ScopeManager | null = null;
   private fetcher: Fetcher | null = null;
@@ -110,6 +118,9 @@ export class Crawler {
     this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, this.options.previousGraph ? 'incremental' : 'full');
     this.rootOrigin = urlObj.origin;
     this.startUrl = rootUrl;
+
+    // Seed discovery depth for root
+    this.discoveryDepths.set(this.startUrl, 0);
   }
 
   setupModules(): void {
@@ -173,6 +184,11 @@ export class Crawler {
     if (!this.uniqueQueue.has(u)) {
       this.uniqueQueue.add(u);
       this.queue.push({ url: u, depth: d });
+
+      const currentDiscovery = this.discoveryDepths.get(u);
+      if (currentDiscovery === undefined || d < currentDiscovery) {
+        this.discoveryDepths.set(u, d);
+      }
     }
   }
 
@@ -198,89 +214,191 @@ export class Crawler {
     this.addToQueue(this.startUrl, 0);
   }
 
-  private savePageToDb(url: string, depth: number, status: number, data: any = {}): number | null {
-    try {
-      const existing = this.pageRepo!.getPage(this.siteId!, url);
-      const isSameSnapshot = existing?.last_seen_snapshot_id === this.snapshotId;
+  private bufferPage(url: string, depth: number, status: number, data: any = {}): void {
+    const existing = this.pageBuffer.get(url);
+    const knownDiscovery = this.discoveryDepths.get(url);
 
-      return this.pageRepo!.upsertAndGetId({
+    // Always use the best (minimum) depth discovered for this URL
+    const finalDepth = knownDiscovery !== undefined ? Math.min(knownDiscovery, depth) : depth;
+    if (knownDiscovery === undefined || depth < knownDiscovery) {
+      this.discoveryDepths.set(url, depth);
+    }
+
+    // If we already have a buffered record, only update if the new one is more "complete" (has status)
+    // or if the depth is better.
+    if (existing) {
+      const isStatusUpdate = status !== 0 && existing.http_status === 0;
+      const isBetterDepth = finalDepth < existing.depth;
+
+      if (!isStatusUpdate && !isBetterDepth && Object.keys(data).length === 0) {
+        return;
+      }
+
+      this.pageBuffer.set(url, {
+        ...existing,
+        depth: finalDepth,
+        http_status: status !== 0 ? status : existing.http_status,
+        ...data
+      });
+    } else {
+      this.pageBuffer.set(url, {
         site_id: this.siteId!,
         normalized_url: url,
-        depth: isSameSnapshot ? existing.depth : depth,
+        depth: finalDepth,
         http_status: status,
-        first_seen_snapshot_id: existing ? existing.first_seen_snapshot_id : this.snapshotId!,
         last_seen_snapshot_id: this.snapshotId!,
-        canonical_url: data.canonical !== undefined ? data.canonical : existing?.canonical_url,
-        content_hash: data.contentHash !== undefined ? data.contentHash : existing?.content_hash,
-        simhash: data.simhash !== undefined ? data.simhash : existing?.simhash,
-        etag: data.etag !== undefined ? data.etag : existing?.etag,
-        last_modified: data.lastModified !== undefined ? data.lastModified : existing?.last_modified,
-        html: data.html !== undefined ? data.html : existing?.html,
-        soft404_score: data.soft404Score !== undefined ? data.soft404Score : existing?.soft404_score,
-        noindex: data.noindex !== undefined ? (data.noindex ? 1 : 0) : existing?.noindex,
-        nofollow: data.nofollow !== undefined ? (data.nofollow ? 1 : 0) : existing?.nofollow,
-        security_error: data.securityError !== undefined ? data.securityError : existing?.security_error,
-        retries: data.retries !== undefined ? data.retries : existing?.retries
+        ...data
       });
-    } catch (e) {
-      console.error(`Failed to save page ${url}:`, e);
-      return null;
+    }
+
+    if (this.pageBuffer.size >= 50) {
+      this.flushPages();
     }
   }
 
-  private saveEdgeToDb(sourceUrl: string, targetUrl: string, weight: number = 1.0, rel: string = 'internal'): void {
-    try {
-      const sourceId = this.pageRepo!.getIdByUrl(this.siteId!, sourceUrl);
-      const targetId = this.pageRepo!.getIdByUrl(this.siteId!, targetUrl);
-      if (sourceId && targetId) {
-        this.edgeRepo!.insertEdge(this.snapshotId!, sourceId, targetId, weight, rel);
-      }
-    } catch (e) {
-      console.error(`Failed to save edge ${sourceUrl} -> ${targetUrl}:`, e);
+  private flushPages(): void {
+    if (this.pageBuffer.size === 0) return;
+    this.pageRepo!.upsertMany(Array.from(this.pageBuffer.values()));
+    this.pageBuffer.clear();
+  }
+
+  private bufferEdge(sourceUrl: string, targetUrl: string, weight: number = 1.0, rel: string = 'internal'): void {
+    this.edgeBuffer.push({ sourceUrl, targetUrl, weight, rel });
+    if (this.edgeBuffer.length >= 100) {
+      this.flushEdges();
     }
+  }
+
+  private flushEdges(): void {
+    if (this.edgeBuffer.length === 0) return;
+
+    // To resolve URLs to IDs, we need to make sure pages are flushed first
+    this.flushPages();
+
+    const identities = this.pageRepo!.getPagesIdentityBySnapshot(this.snapshotId!);
+    const urlToId = new Map(identities.map(p => [p.normalized_url, p.id]));
+
+    const edgesToInsert = this.edgeBuffer
+      .map(e => ({
+        snapshot_id: this.snapshotId!,
+        source_page_id: urlToId.get(e.sourceUrl)!,
+        target_page_id: urlToId.get(e.targetUrl)!,
+        weight: e.weight,
+        rel: e.rel as any
+      }))
+      .filter(e => e.source_page_id !== undefined && e.target_page_id !== undefined);
+
+    if (edgesToInsert.length > 0) {
+      this.edgeRepo!.insertEdges(edgesToInsert);
+    }
+    this.edgeBuffer = [];
+  }
+
+  private bufferMetrics(url: string, data: any): void {
+    this.metricsBuffer.push({ url, data });
+    if (this.metricsBuffer.length >= 50) {
+      this.flushMetrics();
+    }
+  }
+
+  private flushMetrics(): void {
+    if (this.metricsBuffer.length === 0) return;
+
+    this.flushPages();
+    const identities = this.pageRepo!.getPagesIdentityBySnapshot(this.snapshotId!);
+    const urlToId = new Map(identities.map(p => [p.normalized_url, p.id]));
+
+    const metricsList = this.metricsBuffer.map(item => {
+      const pageId = urlToId.get(item.url);
+      if (!pageId) return null;
+      return {
+        snapshot_id: this.snapshotId!,
+        page_id: pageId,
+        authority_score: null,
+        hub_score: null,
+        pagerank: null,
+        pagerank_score: null,
+        link_role: null,
+        crawl_status: null,
+        word_count: null,
+        thin_content_score: null,
+        external_link_ratio: null,
+        orphan_score: null,
+        duplicate_cluster_id: null,
+        duplicate_type: null,
+        is_cluster_primary: 0,
+        ...item.data
+      };
+    }).filter(m => m !== null);
+
+    if (metricsList.length > 0) {
+      this.metricsRepo!.insertMany(metricsList as any[]);
+    }
+    this.metricsBuffer = [];
+  }
+
+  async flushAll(): Promise<void> {
+    this.flushPages();
+    this.flushEdges();
+    this.flushMetrics();
   }
 
   private async processPage(item: QueueItem): Promise<void> {
     const { url, depth } = item;
     if (this.scopeManager!.isUrlEligible(url) !== 'allowed') {
-      this.savePageToDb(url, depth, 0, { securityError: 'blocked_by_domain_filter' });
+      this.bufferPage(url, depth, 0, { securityError: 'blocked_by_domain_filter' });
       return;
     }
 
-    const existingInDb = this.pageRepo!.getPage(this.siteId!, url);
-    this.savePageToDb(url, depth, 0);
+    const prevNode = this.options.previousGraph?.nodes.get(url);
 
     try {
       const res = await this.fetcher!.fetch(url, {
-        etag: existingInDb?.etag || undefined,
-        lastModified: existingInDb?.last_modified || undefined,
         maxBytes: this.options.maxBytes,
-        crawlDelay: this.robots ? this.robots.getCrawlDelay('crawlith') : undefined
+        crawlDelay: this.robots ? this.robots.getCrawlDelay('crawlith') : undefined,
+        etag: prevNode?.etag,
+        lastModified: prevNode?.lastModified
       });
 
       if (this.options.debug) {
         console.log(`${chalk.gray(`[D:${depth}]`)} ${res.status} ${chalk.blue(url)}`);
       }
 
-      if (res.status === 304) {
-        this.savePageToDb(url, depth, 304);
-        this.metricsRepo!.insertMetrics({
-          snapshot_id: this.snapshotId!,
-          page_id: existingInDb!.id,
-          authority_score: null,
-          hub_score: null,
-          pagerank: null,
-          pagerank_score: null,
-          link_role: null,
-          crawl_status: 'cached',
-          word_count: null,
-          thin_content_score: null,
-          external_link_ratio: null,
-          orphan_score: null,
-          duplicate_cluster_id: null,
-          duplicate_type: null,
-          is_cluster_primary: 0
+      const finalUrl = normalizeUrl(res.finalUrl, '', this.options);
+      if (!finalUrl) return;
+
+      if (res.status === 304 && prevNode) {
+        this.bufferPage(finalUrl, depth, 200, {
+          html: prevNode.html,
+          canonical_url: prevNode.canonical,
+          content_hash: prevNode.contentHash,
+          simhash: prevNode.simhash,
+          etag: prevNode.etag,
+          last_modified: prevNode.lastModified,
+          noindex: prevNode.noindex ? 1 : 0,
+          nofollow: prevNode.nofollow ? 1 : 0
         });
+        this.bufferMetrics(finalUrl, {
+          crawl_status: 'cached'
+        });
+
+        // Re-discovery links from previous graph to continue crawling if needed
+        const prevLinks = this.options.previousGraph?.getEdges()
+          .filter(e => e.source === url)
+          .map(e => e.target);
+
+        if (prevLinks) {
+          for (const link of prevLinks) {
+            const normalizedLink = normalizeUrl(link, '', this.options);
+            if (normalizedLink && normalizedLink !== finalUrl) {
+              this.bufferPage(normalizedLink, depth + 1, 0);
+              this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
+              if (this.shouldEnqueue(normalizedLink, depth + 1)) {
+                this.addToQueue(normalizedLink, depth + 1);
+              }
+            }
+          }
+        }
         return;
       }
 
@@ -289,19 +407,16 @@ export class Crawler {
         const source = normalizeUrl(step.url, '', this.options);
         const target = normalizeUrl(step.target, '', this.options);
         if (source && target) {
-          this.savePageToDb(source, depth, step.status);
-          this.savePageToDb(target, depth, 0);
-          this.saveEdgeToDb(source, target);
+          this.bufferPage(source, depth, step.status);
+          this.bufferPage(target, depth, 0);
+          this.bufferEdge(source, target);
         }
       }
 
-      const finalUrl = normalizeUrl(res.finalUrl, '', this.options);
-      if (!finalUrl) return;
-
       const isStringStatus = typeof res.status === 'string';
       if (isStringStatus || (typeof res.status === 'number' && res.status >= 300)) {
-        this.savePageToDb(finalUrl, depth, typeof res.status === 'number' ? res.status : 0, {
-          securityError: isStringStatus ? res.status : undefined,
+        this.bufferPage(finalUrl, depth, typeof res.status === 'number' ? res.status : 0, {
+          security_error: isStringStatus ? res.status : undefined,
           retries: res.retries
         });
         return;
@@ -311,59 +426,45 @@ export class Crawler {
         const contentTypeHeader = res.headers['content-type'];
         const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : (contentTypeHeader || '');
         if (!contentType || !contentType.toLowerCase().includes('text/html')) {
-          this.savePageToDb(finalUrl, depth, res.status);
+          this.bufferPage(finalUrl, depth, res.status);
           return;
         }
 
-        this.savePageToDb(finalUrl, depth, res.status);
         const parseResult = this.parser!.parse(res.body, finalUrl, res.status);
 
-        const pageId = this.savePageToDb(finalUrl, depth, res.status, {
+        this.bufferPage(finalUrl, depth, res.status, {
           html: parseResult.html,
-          canonical: parseResult.canonical || undefined,
-          noindex: parseResult.noindex,
-          nofollow: parseResult.nofollow,
-          contentHash: parseResult.contentHash,
+          canonical_url: parseResult.canonical || undefined,
+          noindex: parseResult.noindex ? 1 : 0,
+          nofollow: parseResult.nofollow ? 1 : 0,
+          content_hash: parseResult.contentHash,
           simhash: parseResult.simhash,
-          soft404Score: parseResult.soft404Score,
+          soft404_score: parseResult.soft404Score,
           etag: res.etag,
-          lastModified: res.lastModified,
+          last_modified: res.lastModified,
           retries: res.retries
         });
 
-        if (pageId) {
-          try {
-            const contentAnalysis = analyzeContent(parseResult.html);
-            const linkAnalysis = analyzeLinks(parseResult.html, finalUrl, this.rootOrigin);
-            const thinScore = calculateThinContentScore(contentAnalysis, 0);
+        try {
+          const contentAnalysis = analyzeContent(parseResult.html);
+          const linkAnalysis = analyzeLinks(parseResult.html, finalUrl, this.rootOrigin);
+          const thinScore = calculateThinContentScore(contentAnalysis, 0);
 
-            this.metricsRepo!.insertMetrics({
-              snapshot_id: this.snapshotId!,
-              page_id: pageId,
-              authority_score: null,
-              hub_score: null,
-              pagerank: null,
-              pagerank_score: null,
-              link_role: null,
-              crawl_status: 'fetched',
-              word_count: contentAnalysis.wordCount,
-              thin_content_score: thinScore,
-              external_link_ratio: linkAnalysis.externalRatio,
-              orphan_score: null,
-              duplicate_cluster_id: null,
-              duplicate_type: null,
-              is_cluster_primary: 0
-            });
-          } catch (e) {
-            console.error(`Error calculating per-page metrics for ${finalUrl}:`, e);
-          }
+          this.bufferMetrics(finalUrl, {
+            crawl_status: 'fetched',
+            word_count: contentAnalysis.wordCount,
+            thin_content_score: thinScore,
+            external_link_ratio: linkAnalysis.externalRatio
+          });
+        } catch (e) {
+          console.error(`Error calculating per-page metrics for ${finalUrl}:`, e);
         }
 
         for (const linkItem of parseResult.links) {
           const normalizedLink = normalizeUrl(linkItem.url, '', this.options);
           if (normalizedLink && normalizedLink !== finalUrl) {
-            this.savePageToDb(normalizedLink, depth + 1, 0);
-            this.saveEdgeToDb(finalUrl, normalizedLink, 1.0, 'internal');
+            this.bufferPage(normalizedLink, depth + 1, 0);
+            this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
             if (this.shouldEnqueue(normalizedLink, depth + 1)) {
               this.addToQueue(normalizedLink, depth + 1);
             }
@@ -382,8 +483,9 @@ export class Crawler {
     await this.seedQueue();
 
     return new Promise((resolve) => {
-      const checkDone = () => {
+      const checkDone = async () => {
         if (this.queue.length === 0 && this.active === 0) {
+          await this.flushAll();
           this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
             limit_reached: this.reachedLimit ? 1 : 0
           });
@@ -393,11 +495,13 @@ export class Crawler {
         return false;
       };
 
-      const next = () => {
-        if (checkDone()) return;
+      const next = async () => {
+        if (await checkDone()) return;
+
         if (this.pagesCrawled >= this.options.limit) {
           this.reachedLimit = true;
           if (this.active === 0) {
+            await this.flushAll();
             this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
               limit_reached: 1
             });

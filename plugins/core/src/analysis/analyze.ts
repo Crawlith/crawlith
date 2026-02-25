@@ -495,7 +495,7 @@ async function runLiveCrawl(url: string, options: AnalyzeOptions): Promise<Crawl
     userAgent: options.userAgent,
     maxRedirects: options.maxRedirects,
     debug: options.debug
-  });
+  }) as number;
   const graph = loadGraphFromSnapshot(snapshotId);
   const pages = graph.getNodes().map((node) => ({
     url: node.url,
