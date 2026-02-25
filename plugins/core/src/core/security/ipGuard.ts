@@ -1,6 +1,7 @@
 import * as dns from 'dns';
 import * as net from 'net';
 import { promisify } from 'util';
+import { Agent } from 'undici';
 
 const resolve4 = promisify(dns.resolve4);
 const resolve6 = promisify(dns.resolve6);
@@ -74,6 +75,62 @@ export class IPGuard {
             // If resolution fails drastically, we block for safety or let fetcher try
             return false;
         }
+    }
+
+    /**
+     * Custom lookup function for undici that validates the resolved IP.
+     * Prevents DNS Rebinding attacks by checking the IP immediately before connection.
+     */
+    static secureLookup(
+        hostname: string,
+        options: dns.LookupOneOptions | dns.LookupAllOptions,
+        callback: (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family: number) => void
+    ): void {
+        dns.lookup(hostname, options as any, (err, address, family) => {
+            if (err) {
+                return callback(err, address as any, family);
+            }
+
+            const checkIP = (ip: string) => {
+                if (IPGuard.isInternal(ip)) {
+                    return new Error(`Blocked internal IP: ${ip}`);
+                }
+                return null;
+            };
+
+            if (typeof address === 'string') {
+                const error = checkIP(address);
+                if (error) {
+                    // Return a custom error that undici will propagate
+                    const blockedError = new Error(`Blocked internal IP: ${address}`);
+                    (blockedError as any).code = 'EBLOCKED';
+                    return callback(blockedError, address, family);
+                }
+            } else if (Array.isArray(address)) {
+                // Handle array of addresses (if options.all is true)
+                for (const addr of address) {
+                    const error = checkIP(addr.address);
+                    if (error) {
+                        const blockedError = new Error(`Blocked internal IP: ${addr.address}`);
+                        (blockedError as any).code = 'EBLOCKED';
+                        return callback(blockedError, address, family);
+                    }
+                }
+            }
+
+            callback(null, address, family);
+        });
+    }
+
+    /**
+     * Returns an undici Agent configured with secure DNS lookup.
+     */
+    static getSecureDispatcher(): Agent {
+        return new Agent({
+            connect: {
+                lookup: IPGuard.secureLookup as any
+            }
+        });
     }
 
     private static expandIPv6(ip: string): string {
