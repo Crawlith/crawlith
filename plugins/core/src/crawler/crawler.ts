@@ -2,8 +2,8 @@ import { request } from 'undici';
 import pLimit from 'p-limit';
 import chalk from 'chalk';
 import robotsParser from 'robots-parser';
-import { Graph } from '../graph/graph.js';
-import { Fetcher, FetchOptions } from './fetcher.js';
+import { Graph, GraphNode } from '../graph/graph.js';
+import { Fetcher, FetchOptions, FetchResult } from './fetcher.js';
 import { Parser } from './parser.js';
 import { Sitemap } from './sitemap.js';
 import { normalizeUrl } from './normalize.js';
@@ -343,15 +343,7 @@ export class Crawler {
     this.flushMetrics();
   }
 
-  private async processPage(item: QueueItem): Promise<void> {
-    const { url, depth } = item;
-    if (this.scopeManager!.isUrlEligible(url) !== 'allowed') {
-      this.bufferPage(url, depth, 0, { securityError: 'blocked_by_domain_filter' });
-      return;
-    }
-
-    const prevNode = this.options.previousGraph?.nodes.get(url);
-
+  private async fetchPage(url: string, depth: number, prevNode?: GraphNode): Promise<FetchResult | null> {
     try {
       const res = await this.fetcher!.fetch(url, {
         maxBytes: this.options.maxBytes,
@@ -363,55 +355,131 @@ export class Crawler {
       if (this.options.debug) {
         console.log(`${chalk.gray(`[D:${depth}]`)} ${res.status} ${chalk.blue(url)}`);
       }
+      return res;
+    } catch (e) {
+      console.error(`Error processing ${url}:`, e);
+      return null;
+    }
+  }
+
+  private handleCachedResponse(url: string, finalUrl: string, depth: number, prevNode: GraphNode): void {
+    this.bufferPage(finalUrl, depth, 200, {
+      html: prevNode.html,
+      canonical_url: prevNode.canonical,
+      content_hash: prevNode.contentHash,
+      simhash: prevNode.simhash,
+      etag: prevNode.etag,
+      last_modified: prevNode.lastModified,
+      noindex: prevNode.noindex ? 1 : 0,
+      nofollow: prevNode.nofollow ? 1 : 0
+    });
+    this.bufferMetrics(finalUrl, {
+      crawl_status: 'cached'
+    });
+
+    // Re-discovery links from previous graph to continue crawling if needed
+    const prevLinks = this.options.previousGraph?.getEdges()
+      .filter(e => e.source === url)
+      .map(e => e.target);
+
+    if (prevLinks) {
+      for (const link of prevLinks) {
+        const normalizedLink = normalizeUrl(link, '', this.options);
+        if (normalizedLink && normalizedLink !== finalUrl) {
+          this.bufferPage(normalizedLink, depth + 1, 0);
+          this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
+          if (this.shouldEnqueue(normalizedLink, depth + 1)) {
+            this.addToQueue(normalizedLink, depth + 1);
+          }
+        }
+      }
+    }
+  }
+
+  private handleRedirects(chain: FetchResult['redirectChain'], depth: number): void {
+    for (const step of chain) {
+      const source = normalizeUrl(step.url, '', this.options);
+      const target = normalizeUrl(step.target, '', this.options);
+      if (source && target) {
+        this.bufferPage(source, depth, step.status);
+        this.bufferPage(target, depth, 0);
+        this.bufferEdge(source, target);
+      }
+    }
+  }
+
+  private handleSuccessResponse(res: FetchResult, finalUrl: string, depth: number): void {
+    const contentTypeHeader = res.headers['content-type'];
+    const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : (contentTypeHeader || '');
+    if (!contentType || !contentType.toLowerCase().includes('text/html')) {
+      this.bufferPage(finalUrl, depth, typeof res.status === 'number' ? res.status : 0);
+      return;
+    }
+
+    const parseResult = this.parser!.parse(res.body, finalUrl, res.status as number);
+
+    this.bufferPage(finalUrl, depth, res.status as number, {
+      html: parseResult.html,
+      canonical_url: parseResult.canonical || undefined,
+      noindex: parseResult.noindex ? 1 : 0,
+      nofollow: parseResult.nofollow ? 1 : 0,
+      content_hash: parseResult.contentHash,
+      simhash: parseResult.simhash,
+      soft404_score: parseResult.soft404Score,
+      etag: res.etag,
+      last_modified: res.lastModified,
+      retries: res.retries
+    });
+
+    try {
+      const contentAnalysis = analyzeContent(parseResult.html);
+      const linkAnalysis = analyzeLinks(parseResult.html, finalUrl, this.rootOrigin);
+      const thinScore = calculateThinContentScore(contentAnalysis, 0);
+
+      this.bufferMetrics(finalUrl, {
+        crawl_status: 'fetched',
+        word_count: contentAnalysis.wordCount,
+        thin_content_score: thinScore,
+        external_link_ratio: linkAnalysis.externalRatio
+      });
+    } catch (e) {
+      console.error(`Error calculating per-page metrics for ${finalUrl}:`, e);
+    }
+
+    for (const linkItem of parseResult.links) {
+      const normalizedLink = normalizeUrl(linkItem.url, '', this.options);
+      if (normalizedLink && normalizedLink !== finalUrl) {
+        this.bufferPage(normalizedLink, depth + 1, 0);
+        this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
+        if (this.shouldEnqueue(normalizedLink, depth + 1)) {
+          this.addToQueue(normalizedLink, depth + 1);
+        }
+      }
+    }
+  }
+
+  private async processPage(item: QueueItem): Promise<void> {
+    const { url, depth } = item;
+    if (this.scopeManager!.isUrlEligible(url) !== 'allowed') {
+      this.bufferPage(url, depth, 0, { securityError: 'blocked_by_domain_filter' });
+      return;
+    }
+
+    try {
+      const prevNode = this.options.previousGraph?.nodes.get(url);
+      const res = await this.fetchPage(url, depth, prevNode);
+
+      if (!res) return;
 
       const finalUrl = normalizeUrl(res.finalUrl, '', this.options);
       if (!finalUrl) return;
 
       if (res.status === 304 && prevNode) {
-        this.bufferPage(finalUrl, depth, 200, {
-          html: prevNode.html,
-          canonical_url: prevNode.canonical,
-          content_hash: prevNode.contentHash,
-          simhash: prevNode.simhash,
-          etag: prevNode.etag,
-          last_modified: prevNode.lastModified,
-          noindex: prevNode.noindex ? 1 : 0,
-          nofollow: prevNode.nofollow ? 1 : 0
-        });
-        this.bufferMetrics(finalUrl, {
-          crawl_status: 'cached'
-        });
-
-        // Re-discovery links from previous graph to continue crawling if needed
-        const prevLinks = this.options.previousGraph?.getEdges()
-          .filter(e => e.source === url)
-          .map(e => e.target);
-
-        if (prevLinks) {
-          for (const link of prevLinks) {
-            const normalizedLink = normalizeUrl(link, '', this.options);
-            if (normalizedLink && normalizedLink !== finalUrl) {
-              this.bufferPage(normalizedLink, depth + 1, 0);
-              this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
-              if (this.shouldEnqueue(normalizedLink, depth + 1)) {
-                this.addToQueue(normalizedLink, depth + 1);
-              }
-            }
-          }
-        }
+        this.handleCachedResponse(url, finalUrl, depth, prevNode);
         return;
       }
 
-      const chain = res.redirectChain;
-      for (const step of chain) {
-        const source = normalizeUrl(step.url, '', this.options);
-        const target = normalizeUrl(step.target, '', this.options);
-        if (source && target) {
-          this.bufferPage(source, depth, step.status);
-          this.bufferPage(target, depth, 0);
-          this.bufferEdge(source, target);
-        }
-      }
+      this.handleRedirects(res.redirectChain, depth);
 
       const isStringStatus = typeof res.status === 'string';
       if (isStringStatus || (typeof res.status === 'number' && res.status >= 300)) {
@@ -423,53 +491,7 @@ export class Crawler {
       }
 
       if (res.status === 200) {
-        const contentTypeHeader = res.headers['content-type'];
-        const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : (contentTypeHeader || '');
-        if (!contentType || !contentType.toLowerCase().includes('text/html')) {
-          this.bufferPage(finalUrl, depth, res.status);
-          return;
-        }
-
-        const parseResult = this.parser!.parse(res.body, finalUrl, res.status);
-
-        this.bufferPage(finalUrl, depth, res.status, {
-          html: parseResult.html,
-          canonical_url: parseResult.canonical || undefined,
-          noindex: parseResult.noindex ? 1 : 0,
-          nofollow: parseResult.nofollow ? 1 : 0,
-          content_hash: parseResult.contentHash,
-          simhash: parseResult.simhash,
-          soft404_score: parseResult.soft404Score,
-          etag: res.etag,
-          last_modified: res.lastModified,
-          retries: res.retries
-        });
-
-        try {
-          const contentAnalysis = analyzeContent(parseResult.html);
-          const linkAnalysis = analyzeLinks(parseResult.html, finalUrl, this.rootOrigin);
-          const thinScore = calculateThinContentScore(contentAnalysis, 0);
-
-          this.bufferMetrics(finalUrl, {
-            crawl_status: 'fetched',
-            word_count: contentAnalysis.wordCount,
-            thin_content_score: thinScore,
-            external_link_ratio: linkAnalysis.externalRatio
-          });
-        } catch (e) {
-          console.error(`Error calculating per-page metrics for ${finalUrl}:`, e);
-        }
-
-        for (const linkItem of parseResult.links) {
-          const normalizedLink = normalizeUrl(linkItem.url, '', this.options);
-          if (normalizedLink && normalizedLink !== finalUrl) {
-            this.bufferPage(normalizedLink, depth + 1, 0);
-            this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
-            if (this.shouldEnqueue(normalizedLink, depth + 1)) {
-              this.addToQueue(normalizedLink, depth + 1);
-            }
-          }
-        }
+        this.handleSuccessResponse(res, finalUrl, depth);
       }
     } catch (e) {
       console.error(`Error processing ${url}:`, e);
