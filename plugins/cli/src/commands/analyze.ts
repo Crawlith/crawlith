@@ -30,7 +30,6 @@ export const analyze = new Command('analyze')
     try {
       const result = await analyzeSite(url, {
         live: options.live,
-        html: options.html,
         seo: options.seo,
         content: options.content,
         accessibility: options.accessibility,
