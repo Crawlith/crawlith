@@ -5,6 +5,7 @@ import { calculateMetrics, Metrics } from '../graph/metrics.js';
 import { Graph, ClusterInfo } from '../graph/graph.js';
 import { analyzeContent, calculateThinContentScore } from './content.js';
 import { analyzeH1, analyzeMetaDescription, analyzeTitle, H1Analysis, TextFieldAnalysis } from './seo.js';
+import { DataNotFoundError } from '../errors.js';
 import { analyzeImageAlts, ImageAltAnalysis } from './images.js';
 import { analyzeLinks, LinkRatioAnalysis } from './links.js';
 import { analyzeStructuredData, StructuredDataResult } from './structuredData.js';
@@ -142,10 +143,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
         crawlData = await runLiveCrawl(normalizedRoot, options, context);
       }
     } catch (error: any) {
-      const isNotFound = error.code === 'ENOENT' ||
-        error.message.includes('Crawl data not found') ||
-        error.message.includes('No completed snapshot found') ||
-        error.message.includes('not found in database');
+      const isNotFound = error instanceof DataNotFoundError || error.code === 'ENODATA' || error.code === 'ENOENT';
       if (isNotFound) {
         options.live = true; // Force live mode
         if (context) {
@@ -441,7 +439,7 @@ async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
   }
 
   if (!snapshot) {
-    throw new Error(`No crawl data found for ${rootUrl} in database.`);
+    throw new DataNotFoundError(`Crawl data not found in database: ${rootUrl}`);
   }
 
   const graph = loadGraphFromSnapshot(snapshot.id);

@@ -5,7 +5,7 @@ import { crawls } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
-
+import { clean } from './commands/clean.js';
 import { version } from './utils/version.js';
 
 const program = new Command();
@@ -17,7 +17,8 @@ program
   .addCommand(crawls)
   .addCommand(analyze)
   .addCommand(ui)
-  .addCommand(probe);
+  .addCommand(probe)
+  .addCommand(clean);
 
 program.configureHelp({
   padWidth() {
