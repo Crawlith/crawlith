@@ -6,7 +6,7 @@ import { sitegraph } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
-
+import { clean } from './commands/clean.js';
 import { version, pkg } from './utils/version.js';
 
 const program = new Command();
@@ -31,10 +31,11 @@ program
   .name('crawlith')
   .description('Modular crawl intelligence engine for serious SEO analysis.')
   .version(version)
-  .addCommand(sitegraph)
+  .addCommand(crawls)
   .addCommand(analyze)
   .addCommand(ui)
-  .addCommand(probe);
+  .addCommand(probe)
+  .addCommand(clean);
 
 program.configureHelp({
   padWidth() {

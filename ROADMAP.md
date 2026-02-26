@@ -79,7 +79,7 @@
 - [ ] Visual issue highlighting
 - [ ] Export graph as GEXF / GraphML
 - [ ] JSON schema versioning + validation
-- [ ] JSON output for `sitegraph` command
+- [ ] JSON output for `crawl` command
 
 ---
 
