@@ -38,7 +38,6 @@ describe('analyze integration', () => {
       pageRepo.upsertPage({
         site_id: siteId,
         normalized_url: p.url,
-        first_seen_snapshot_id: snapshotId,
         last_seen_snapshot_id: snapshotId,
         http_status: p.status || 200,
         html: p.html || '',

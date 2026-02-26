@@ -33,8 +33,4 @@ export class SiteRepository {
     }
     return site!;
   }
-
-  deleteSite(id: number): void {
-    this.db.prepare('DELETE FROM sites WHERE id = ?').run(id);
-  }
 }

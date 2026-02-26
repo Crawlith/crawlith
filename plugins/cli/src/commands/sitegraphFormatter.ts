@@ -42,7 +42,7 @@ export const DEFAULT_HEALTH_WEIGHTS: HealthScoreWeights = {
   blockedByRobots: 100
 };
 
-export interface CrawlIssueCounts {
+export interface SitegraphIssueCounts {
   orphanPages: number;
   brokenInternalLinks: number;
   redirectChains: number;
@@ -70,11 +70,11 @@ export interface HealthScoreBreakdown {
   weights: HealthScoreWeights;
 }
 
-export interface CrawlInsightReport {
+export interface SitegraphInsightReport {
   pages: number;
   fetchedPages?: number;
   health: HealthScoreBreakdown;
-  issues: CrawlIssueCounts;
+  issues: SitegraphIssueCounts;
   summary: {
     crawlDepth: number;
     internalLinks: number;
@@ -105,7 +105,7 @@ export function healthStatusLabel(score: number, hasCritical: boolean = false): 
 
 export function calculateHealthScore(
   totalPages: number,
-  issues: Pick<CrawlIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots'>,
+  issues: Pick<SitegraphIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots'>,
   weights: HealthScoreWeights = DEFAULT_HEALTH_WEIGHTS
 ): HealthScoreBreakdown {
   const safePages = Math.max(totalPages, 1);
@@ -144,7 +144,7 @@ export function calculateHealthScore(
   };
 }
 
-export function collectCrawlIssues(graph: Graph, metrics: Metrics): CrawlIssueCounts {
+export function collectSitegraphIssues(graph: Graph, metrics: Metrics): SitegraphIssueCounts {
   const nodes = graph.getNodes();
 
   let brokenInternalLinks = 0;
@@ -251,12 +251,12 @@ export function collectCrawlIssues(graph: Graph, metrics: Metrics): CrawlIssueCo
   };
 }
 
-export function buildCrawlInsightReport(
+export function buildSitegraphInsightReport(
   graph: Graph,
   metrics: Metrics,
   weights: HealthScoreWeights = DEFAULT_HEALTH_WEIGHTS
-): CrawlInsightReport {
-  const issues = collectCrawlIssues(graph, metrics);
+): SitegraphInsightReport {
+  const issues = collectSitegraphIssues(graph, metrics);
   const health = calculateHealthScore(metrics.totalPages, issues, weights);
 
   return {
@@ -288,7 +288,7 @@ export function buildCrawlInsightReport(
   };
 }
 
-export function hasCriticalIssues(report: CrawlInsightReport): boolean {
+export function hasCriticalIssues(report: SitegraphInsightReport): boolean {
   const { issues } = report;
   return (
     issues.orphanPages > 0 ||
@@ -304,11 +304,11 @@ export function hasCriticalIssues(report: CrawlInsightReport): boolean {
 function addLine(lines: string[], condition: boolean, text: string) {
   if (condition) lines.push(text);
 }
-export function renderInsightOutput(report: CrawlInsightReport, snapshotId: number): string {
+export function renderInsightOutput(report: SitegraphInsightReport, snapshotId: number): string {
   const lines: string[] = [];
 
   // Header
-  lines.push(`CRAWLITH — Crawl`);
+  lines.push(`CRAWLITH — Sitegraph`);
   lines.push('');
   lines.push(`# ${snapshotId}`);
   lines.push('');
