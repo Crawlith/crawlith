@@ -6,6 +6,7 @@ import { sitegraphCommand } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
+import { sites } from './commands/sites.js';
 
 import { version, pkg } from './utils/version.js';
 
@@ -34,7 +35,8 @@ program
   .addCommand(sitegraphCommand)
   .addCommand(analyze)
   .addCommand(ui)
-  .addCommand(probe);
+  .addCommand(probe)
+  .addCommand(sites);
 
 program.configureHelp({
   padWidth() {
