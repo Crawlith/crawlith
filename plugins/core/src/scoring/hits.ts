@@ -108,30 +108,22 @@ export function computeHITS(graph: Graph, options: HITSOptions = {}): void {
     classifyLinkRoles(eligibleNodes);
 }
 
-function classifyLinkRoles(nodes: GraphNode[]): void {
+export function classifyLinkRoles(nodes: GraphNode[]): void {
     if (nodes.length === 0) return;
 
     const authScores = nodes.map(n => n.authorityScore || 0).sort((a, b) => a - b);
     const hubScores = nodes.map(n => n.hubScore || 0).sort((a, b) => a - b);
 
     // Use 75th percentile as "high" threshold
-    // Using median (50th percentile) as per original implementation,
-    // but the comment said "Use 75th percentile" while code used median.
-    // I'll stick to median to avoid breaking existing behavior, but correct the comment or logic?
-    // The original code:
-    // const medianAuth = authScores[Math.floor(authScores.length / 2)];
-    // const isHighAuth = auth > medianAuth && auth > 0.0001;
-    // So it uses median. I'll keep it as median.
-
-    const medianAuth = authScores[Math.floor(authScores.length / 2)];
-    const medianHub = hubScores[Math.floor(hubScores.length / 2)];
+    const highAuth = authScores[Math.floor(authScores.length * 0.75)];
+    const highHub = hubScores[Math.floor(hubScores.length * 0.75)];
 
     for (const node of nodes) {
         const auth = node.authorityScore || 0;
         const hub = node.hubScore || 0;
 
-        const isHighAuth = auth > medianAuth && auth > 0.0001;
-        const isHighHub = hub > medianHub && hub > 0.0001;
+        const isHighAuth = auth > highAuth && auth > 0.0001;
+        const isHighHub = hub > highHub && hub > 0.0001;
 
         if (isHighAuth && isHighHub) {
             node.linkRole = 'power';
