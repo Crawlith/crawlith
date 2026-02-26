@@ -22,8 +22,8 @@ export class LockManager {
     return path.join(os.homedir(), '.crawlith', 'locks');
   }
 
-  static async acquireLock(commandName: string, targetUrl: string, options: any, context: EngineContext, force: boolean = false): Promise<void> {
-    this.context = context;
+  static async acquireLock(commandName: string, targetUrl: string, options: any, context?: EngineContext, force: boolean = false): Promise<void> {
+    this.context = context || null;
     const lockHash = generateLockKey(commandName, targetUrl, options);
 
     // Ensure lock directory exists
@@ -48,14 +48,14 @@ export class LockManager {
       }
 
       if (force) {
-        context.emit({ type: 'warn', message: 'Force mode enabled. Overriding existing lock.' });
+        this.log('warn', 'Force mode enabled. Overriding existing lock.');
         try { unlinkSync(lockPath); } catch { /* ignore */ }
       } else {
         if (!isStale) {
-          context.emit({ type: 'error', message: `Crawlith: command already running for ${targetUrl} (PID ${pid})` });
+          this.log('error', `Crawlith: command already running for ${targetUrl} (PID ${pid})`);
           process.exit(1);
         } else {
-          context.emit({ type: 'info', message: 'Detected stale lock. Continuing execution.' });
+          this.log('info', 'Detected stale lock. Continuing execution.');
           try { unlinkSync(lockPath); } catch { /* ignore */ }
         }
       }
@@ -78,7 +78,7 @@ export class LockManager {
       this.registerHandlers();
     } catch (error: any) {
       if (error.code === 'EEXIST') {
-        context.emit({ type: 'error', message: `Crawlith: command already running for ${targetUrl} (Race condition)` });
+        this.log('error', `Crawlith: command already running for ${targetUrl} (Race condition)`);
         process.exit(1);
       }
       throw error;
@@ -93,6 +93,17 @@ export class LockManager {
       } catch (_error) {
         // Ignore errors during cleanup
       }
+    }
+  }
+
+  private static log(type: 'info' | 'warn' | 'error', message: string, error?: unknown) {
+    if (this.context) {
+      this.context.emit({ type, message, error });
+    } else {
+      // Fallback for legacy usage or when no context provided
+      if (type === 'error') console.error(message, error || '');
+      else if (type === 'warn') console.warn(message);
+      else console.log(message);
     }
   }
 
@@ -113,9 +124,7 @@ export class LockManager {
       process.exit(143);
     });
     process.on('uncaughtException', (err) => {
-      if (this.context) {
-        this.context.emit({ type: 'error', message: 'Uncaught Exception', error: err });
-      }
+      this.log('error', 'Uncaught Exception', err);
       cleanup();
       process.exit(1);
     });

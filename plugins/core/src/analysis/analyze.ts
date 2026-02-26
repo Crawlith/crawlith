@@ -93,7 +93,7 @@ interface CrawlData {
  * @param options Analysis options
  * @param context Engine context for event emission
  */
-export async function analyzeSite(url: string, options: AnalyzeOptions, context: EngineContext): Promise<AnalysisResult> {
+export async function analyzeSite(url: string, options: AnalyzeOptions, context?: EngineContext): Promise<AnalysisResult> {
   const normalizedRoot = normalizeUrl(url, '', { stripQuery: false });
   if (!normalizedRoot) {
     throw new Error('Invalid URL for analysis');
@@ -112,7 +112,11 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context:
         error.message.includes('No completed snapshot found') ||
         error.message.includes('not found in database');
       if (isNotFound) {
-        context.emit({ type: 'info', message: 'No local crawl data found. Switching to live analysis mode...' });
+        if (context) {
+          context.emit({ type: 'info', message: 'No local crawl data found. Switching to live analysis mode...' });
+        } else {
+          console.log('No local crawl data found. Switching to live analysis mode...');
+        }
         crawlData = await runLiveCrawl(normalizedRoot, options, context);
       } else {
         throw error;
@@ -406,7 +410,7 @@ async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
 }
 
 
-async function runLiveCrawl(url: string, options: AnalyzeOptions, context: EngineContext): Promise<CrawlData> {
+async function runLiveCrawl(url: string, options: AnalyzeOptions, context?: EngineContext): Promise<CrawlData> {
   const snapshotId = await crawl(url, {
     limit: 1,
     depth: 0,

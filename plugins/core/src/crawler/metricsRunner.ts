@@ -8,28 +8,38 @@ import { calculateMetrics } from '../graph/metrics.js';
 import { computeHITS } from '../scoring/hits.js';
 import { EngineContext } from '../events.js';
 
-export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context: EngineContext, limitReached: boolean = false) {
+export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false) {
     const db = getDb();
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
     const pageRepo = new PageRepository(db);
 
+    // Fallback emitter
+    const emit = (event: any) => {
+        if (context) {
+            context.emit(event);
+        } else {
+            if (event.type === 'error') console.error(event.message);
+            else if (event.type !== 'debug') console.log(event.message || event.phase);
+        }
+    };
+
     const snapshot = snapshotRepo.getSnapshot(snapshotId);
     if (!snapshot) {
-        context.emit({ type: 'error', message: `Snapshot ${snapshotId} not found` });
+        emit({ type: 'error', message: `Snapshot ${snapshotId} not found` });
         return;
     }
 
-    context.emit({ type: 'metrics:start', phase: 'Loading graph' });
+    emit({ type: 'metrics:start', phase: 'Loading graph' });
     const graph = loadGraphFromSnapshot(snapshotId);
 
-    context.emit({ type: 'metrics:start', phase: 'Computing PageRank' });
+    emit({ type: 'metrics:start', phase: 'Computing PageRank' });
     computePageRank(graph);
 
-    context.emit({ type: 'metrics:start', phase: 'Computing HITS' });
+    emit({ type: 'metrics:start', phase: 'Computing HITS' });
     computeHITS(graph);
 
-    context.emit({ type: 'metrics:start', phase: 'Updating metrics in DB' });
+    emit({ type: 'metrics:start', phase: 'Updating metrics in DB' });
     const nodes = graph.getNodes();
 
     // Pre-fetch all page IDs to avoid N+1 queries
@@ -101,7 +111,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
     });
     tx();
 
-    context.emit({ type: 'metrics:start', phase: 'Computing aggregate stats' });
+    emit({ type: 'metrics:start', phase: 'Computing aggregate stats' });
     const metrics = calculateMetrics(graph, maxDepth);
 
     let totalScore = 0;
@@ -126,5 +136,5 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
         limit_reached: limitReached ? 1 : 0
     });
 
-    context.emit({ type: 'metrics:complete', durationMs: 0 });
+    emit({ type: 'metrics:complete', durationMs: 0 });
 }

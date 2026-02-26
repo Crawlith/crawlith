@@ -44,6 +44,19 @@ interface QueueItem {
   depth: number;
 }
 
+// Fallback context for backward compatibility or when no context is provided
+const nullContext: EngineContext = {
+  emit: (event) => {
+    // Basic console fallback for critical events if no listener is attached
+    // This maintains some visibility for consumers not using the event system
+    if (event.type === 'error') {
+      console.error(event.message, event.error || '');
+    } else if (event.type === 'warn') {
+      console.warn(event.message);
+    }
+  }
+};
+
 export class Crawler {
   private startUrl: string;
   private options: CrawlOptions;
@@ -86,10 +99,10 @@ export class Crawler {
   private trapDetector: TrapDetector | null = null;
   private robots: any = null;
 
-  constructor(startUrl: string, options: CrawlOptions, context: EngineContext) {
+  constructor(startUrl: string, options: CrawlOptions, context?: EngineContext) {
     this.startUrl = startUrl;
     this.options = options;
-    this.context = context;
+    this.context = context || nullContext;
     this.visited = new Set<string>();
     this.uniqueQueue = new Set<string>();
     this.queue = [];
