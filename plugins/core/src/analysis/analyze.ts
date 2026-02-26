@@ -5,7 +5,6 @@ import { calculateMetrics, Metrics } from '../graph/metrics.js';
 import { Graph, ClusterInfo } from '../graph/graph.js';
 import { analyzeContent, calculateThinContentScore } from './content.js';
 import { analyzeH1, analyzeMetaDescription, analyzeTitle, H1Analysis, TextFieldAnalysis } from './seo.js';
-import { DataNotFoundError } from '../errors.js';
 import { analyzeImageAlts, ImageAltAnalysis } from './images.js';
 import { analyzeLinks, LinkRatioAnalysis } from './links.js';
 import { analyzeStructuredData, StructuredDataResult } from './structuredData.js';
@@ -41,6 +40,7 @@ export interface AnalyzeOptions {
   debug?: boolean;
   clusterThreshold?: number;
   minClusterSize?: number;
+  allPages?: boolean;
 }
 
 export interface PageAnalysis {
@@ -143,7 +143,10 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
         crawlData = await runLiveCrawl(normalizedRoot, options, context);
       }
     } catch (error: any) {
-      const isNotFound = error instanceof DataNotFoundError || error.code === 'ENODATA' || error.code === 'ENOENT';
+      const isNotFound = error.code === 'ENOENT' ||
+        error.message.includes('Crawl data not found') ||
+        error.message.includes('No completed snapshot found') ||
+        error.message.includes('not found in database');
       if (isNotFound) {
         options.live = true; // Force live mode
         if (context) {
@@ -178,7 +181,13 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
   // Filter to only the requested URL
   const targetPage = filteredPages.find(p => p.url === normalizedRoot);
-  const resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : []);
+  let resultPages: PageAnalysis[];
+
+  if (options.allPages) {
+    resultPages = filteredPages;
+  } else {
+    resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : []);
+  }
 
   const duplicateTitles = pages.filter((page) => page.title.status === 'duplicate').length;
   const thinPages = pages.filter((page) => page.thinScore >= 70).length;
@@ -439,7 +448,7 @@ async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
   }
 
   if (!snapshot) {
-    throw new DataNotFoundError(`Crawl data not found in database: ${rootUrl}`);
+    throw new Error(`No crawl data found for ${rootUrl} in database.`);
   }
 
   const graph = loadGraphFromSnapshot(snapshot.id);

@@ -99,9 +99,9 @@ describe('PageRepository', () => {
 
   it('should get ID by URL', () => {
     const pageData = {
-      site_id: 1,
-      normalized_url: 'http://example.com/id-test',
-      last_seen_snapshot_id: 1,
+        site_id: 1,
+        normalized_url: 'http://example.com/id-test',
+        last_seen_snapshot_id: 1,
     };
     repo.upsertPage(pageData);
 

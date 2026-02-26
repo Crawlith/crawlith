@@ -8,7 +8,7 @@ Primary crawl snapshot. Contains discovered pages, internal links, and crawl met
 ## `metrics.json`
 Calculated graph metrics including PageRank scores, depth distribution, and structural entropy.
 
-## `crawl.html` (with `--visualize`)
+## `sitegraph.html` (with `--visualize`)
 Enhanced interactive D3.js visualization. This is the primary visual report for exploring the link graph.
 
 ## `graph.html`

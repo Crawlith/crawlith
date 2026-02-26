@@ -1,4 +1,4 @@
-export function renderCrawlCsvNodes(graphData: any): string {
+export function renderSitegraphCsvNodes(graphData: any): string {
     const nodeHeaders = ['URL', 'Depth', 'Status', 'InboundLinks', 'OutboundLinks', 'PageRankScore'];
     const nodeRows = graphData.nodes.map((n: any) => {
         const outbound = graphData.edges.filter((e: any) => e.source === n.url).length;
@@ -9,13 +9,13 @@ export function renderCrawlCsvNodes(graphData: any): string {
     return [nodeHeaders.join(','), ...nodeRows].join('\n');
 }
 
-export function renderCrawlCsvEdges(graphData: any): string {
+export function renderSitegraphCsvEdges(graphData: any): string {
     const edgeHeaders = ['Source', 'Target', 'Weight'];
     const edgeRows = graphData.edges.map((e: any) => [e.source, e.target, e.weight].join(','));
     return [edgeHeaders.join(','), ...edgeRows].join('\n');
 }
 
-export function renderCrawlMarkdown(url: string, graphData: any, metrics: any, graph: any): string {
+export function renderSitegraphMarkdown(url: string, graphData: any, metrics: any, graph: any): string {
     const md = [
         `# Crawlith Crawl Summary - ${url}`,
         '',

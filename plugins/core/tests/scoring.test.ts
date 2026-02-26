@@ -15,7 +15,7 @@ const basePage: PageAnalysis = {
   structuredData: { present: true, valid: true, types: ['Article'] },
   seoScore: 0,
   meta: {
-    canonical: 'https://example.com'
+    crawlStatus: 'ok'
   }
 };
 
@@ -45,7 +45,6 @@ test('aggregate site score includes existing metrics signals', () => {
     nearOrphans: [],
     deepPages: [],
     topAuthorityPages: [{ url: 'a', authority: 1 }],
-    topPageRankPages: [{ url: 'a', score: 1 }],
     averageOutDegree: 1,
     maxDepthFound: 1,
     crawlEfficiencyScore: 0.8,

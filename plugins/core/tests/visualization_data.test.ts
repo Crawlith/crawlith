@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SITEGRAPH_HTML } from '../src/report/crawl_template.js';
+import { SITEGRAPH_HTML } from '../src/report/sitegraph_template.js';
 import { Graph } from '../src/graph/graph.js';
 import { computePageRank } from '../src/graph/pagerank.js';
 

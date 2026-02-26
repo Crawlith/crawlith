@@ -2,11 +2,11 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import updateNotifier from 'update-notifier';
-import { sitegraph } from './commands/crawl.js';
+import { sitegraphCommand } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
-import { clean } from './commands/clean.js';
+
 import { version, pkg } from './utils/version.js';
 
 const program = new Command();
@@ -31,11 +31,10 @@ program
   .name('crawlith')
   .description('Modular crawl intelligence engine for serious SEO analysis.')
   .version(version)
-  .addCommand(crawls)
+  .addCommand(sitegraphCommand)
   .addCommand(analyze)
   .addCommand(ui)
-  .addCommand(probe)
-  .addCommand(clean);
+  .addCommand(probe);
 
 program.configureHelp({
   padWidth() {

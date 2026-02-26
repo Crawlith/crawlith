@@ -9,7 +9,7 @@ npm install -g crawlith
 ## Run without installing
 
 ```bash
-npx crawlith crawl https://example.com
+npx crawlith sitegraph https://example.com
 ```
 
 ## Check installed version
