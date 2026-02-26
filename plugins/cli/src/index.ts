@@ -21,8 +21,8 @@ const notifier = updateNotifier({
 // Check if we should notify
 // We need to be careful not to trigger on JSON output commands
 const isJson = process.argv.includes('--json') ||
-               process.argv.includes('--format=json') ||
-               (process.argv.indexOf('--format') !== -1 && process.argv[process.argv.indexOf('--format') + 1] === 'json');
+  process.argv.includes('--format=json') ||
+  (process.argv.indexOf('--format') !== -1 && process.argv[process.argv.indexOf('--format') + 1] === 'json');
 
 if (process.stdout.isTTY && !isJson) {
   notifier.notify();
