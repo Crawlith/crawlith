@@ -1,17 +1,21 @@
-import React from 'react';
-import { primaryMetrics } from '../../data';
+import React, { useContext } from 'react';
+import { DashboardContext } from '../../App';
 
 interface HealthScoreCardProps {
   showCompare: boolean;
 }
 
 export const HealthScoreCard = ({ showCompare }: HealthScoreCardProps) => {
-  const { value, delta, status } = primaryMetrics.healthScore;
+  const { overview } = useContext(DashboardContext);
+
+  if (!overview) return <div className="animate-pulse bg-slate-100 h-48 rounded-2xl"></div>;
+
+  const { score: value, delta, status } = overview.health;
 
   // Determine color based on score
   const getColor = (score: number) => {
-    if (score >= 85) return 'text-green-500 stroke-green-500';
-    if (score >= 70) return 'text-amber-500 stroke-amber-500';
+    if (score >= 80) return 'text-green-500 stroke-green-500';
+    if (score >= 50) return 'text-amber-500 stroke-amber-500';
     return 'text-red-500 stroke-red-500';
   };
 
@@ -22,10 +26,10 @@ export const HealthScoreCard = ({ showCompare }: HealthScoreCardProps) => {
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between relative overflow-hidden group hover:border-blue-500/30 transition-all duration-300">
-      <div className="z-10">
+      <div className="z-10 relative">
         <h3 className="text-slate-500 dark:text-slate-400 font-medium text-sm mb-1 uppercase tracking-wider">Health Score</h3>
         <div className="flex items-baseline gap-2">
-          <span className={`text-4xl font-bold ${colorClass.split(' ')[0]}`}>{value}</span>
+          <span className={`text-4xl font-bold ${colorClass.split(' ')[0]}`}>{value ? value.toFixed(0) : 0}</span>
           <span className="text-slate-400 dark:text-slate-600 text-lg">/100</span>
         </div>
 
@@ -39,7 +43,7 @@ export const HealthScoreCard = ({ showCompare }: HealthScoreCardProps) => {
           </span>
           {showCompare && delta !== undefined && (
             <span className={`text-xs font-semibold ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {delta > 0 ? '+' : ''}{delta} vs prev
+              {delta > 0 ? '+' : ''}{delta.toFixed(1)} vs prev
             </span>
           )}
         </div>

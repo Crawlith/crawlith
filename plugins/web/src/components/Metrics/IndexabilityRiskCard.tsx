@@ -1,16 +1,25 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Search } from 'lucide-react';
-import { primaryMetrics } from '../../data';
+import { DashboardContext } from '../../App';
 
 interface IndexabilityRiskCardProps {
   showCompare: boolean;
 }
 
 export const IndexabilityRiskCard = ({ showCompare: _showCompare }: IndexabilityRiskCardProps) => {
-  const { total, breakdown } = primaryMetrics.indexabilityRisk;
+  const { overview } = useContext(DashboardContext);
+
+  if (!overview) return <div className="animate-pulse bg-slate-100 h-48 rounded-2xl"></div>;
+
+  const { orphanPages, noindexPages } = overview.totals;
+  // TODO: Add metrics for canonical issues and low internal links
+  const canonicalIssues = 0;
+  const lowInternalLinks = 0;
+
+  const total = orphanPages + noindexPages + canonicalIssues + lowInternalLinks;
 
   // Calculate percentages for the mini chart
-  const totalBreakdown = Object.values(breakdown).reduce((a, b) => a + b, 0);
+  const totalBreakdown = total > 0 ? total : 1; // avoid divide by zero
   const getPercent = (val: number) => (val / totalBreakdown) * 100;
 
   return (
@@ -27,17 +36,17 @@ export const IndexabilityRiskCard = ({ showCompare: _showCompare }: Indexability
 
         {/* Mini Stacked Bar Chart */}
         <div className="h-2 w-full flex rounded-full overflow-hidden mb-4 bg-slate-100 dark:bg-slate-800">
-          <div style={{ width: `${getPercent(breakdown.orphanPages)}%` }} className="bg-orange-500" title="Orphan Pages" />
-          <div style={{ width: `${getPercent(breakdown.noindexPages)}%` }} className="bg-slate-500" title="Noindex" />
-          <div style={{ width: `${getPercent(breakdown.canonicalIssues)}%` }} className="bg-amber-400" title="Canonical Issues" />
-          <div style={{ width: `${getPercent(breakdown.lowInternalLinks)}%` }} className="bg-blue-400" title="Low Internal Links" />
+          <div style={{ width: `${getPercent(orphanPages)}%` }} className="bg-orange-500" title="Orphan Pages" />
+          <div style={{ width: `${getPercent(noindexPages)}%` }} className="bg-slate-500" title="Noindex" />
+          <div style={{ width: `${getPercent(canonicalIssues)}%` }} className="bg-amber-400" title="Canonical Issues" />
+          <div style={{ width: `${getPercent(lowInternalLinks)}%` }} className="bg-blue-400" title="Low Internal Links" />
         </div>
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-          <RiskItem label="Orphan Pages" value={breakdown.orphanPages} color="bg-orange-500" />
-          <RiskItem label="Noindex" value={breakdown.noindexPages} color="bg-slate-500" />
-          <RiskItem label="Canonical Issues" value={breakdown.canonicalIssues} color="bg-amber-400" />
-          <RiskItem label="Low Internal Links" value={breakdown.lowInternalLinks} color="bg-blue-400" />
+          <RiskItem label="Orphan Pages" value={orphanPages} color="bg-orange-500" />
+          <RiskItem label="Noindex" value={noindexPages} color="bg-slate-500" />
+          <RiskItem label="Canonical Issues" value={canonicalIssues} color="bg-amber-400" />
+          <RiskItem label="Low Internal Links" value={lowInternalLinks} color="bg-blue-400" />
         </div>
       </div>
 

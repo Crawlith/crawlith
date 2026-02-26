@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { AlertTriangle, TrendingDown } from 'lucide-react';
-import { primaryMetrics } from '../../data';
+import { DashboardContext } from '../../App';
 
 interface CriticalIssuesCardProps {
   showCompare: boolean;
 }
 
 export const CriticalIssuesCard = ({ showCompare }: CriticalIssuesCardProps) => {
-  const { total, delta, affectsHighPrPages, breakdown } = primaryMetrics.criticalIssues;
+  const { overview } = useContext(DashboardContext);
+
+  if (!overview) return <div className="animate-pulse bg-slate-100 h-48 rounded-2xl"></div>;
+
+  const { brokenLinks, redirectChains } = overview.totals;
+  // TODO: Add metrics for 5xx errors and canonical conflicts once available in API
+  const serverErrors = 0;
+  const canonicalConflicts = 0;
+
+  const total = brokenLinks + redirectChains + serverErrors + canonicalConflicts;
+  const delta = 0; // TODO: Calculate delta
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-red-500/30 transition-all duration-300 relative overflow-hidden">
@@ -29,17 +39,18 @@ export const CriticalIssuesCard = ({ showCompare }: CriticalIssuesCardProps) => 
         </div>
 
         <div className="text-right">
+             {/* Placeholder for "affects high PR pages" metric */}
            <div className="text-xs text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded border border-red-100 dark:border-red-900/30">
-             {affectsHighPrPages} on High PR Pages
+             Needs Attention
            </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 mt-4 z-10">
-        <MetricItem label="404 Not Found" value={breakdown.notFound} />
-        <MetricItem label="5xx Errors" value={breakdown.serverErrors} />
-        <MetricItem label="Redirect Chains" value={breakdown.redirectChains} />
-        <MetricItem label="Canonical Conflicts" value={breakdown.canonicalConflicts} />
+        <MetricItem label="Broken Links" value={brokenLinks} />
+        <MetricItem label="5xx Errors" value={serverErrors} />
+        <MetricItem label="Redirect Chains" value={redirectChains} />
+        <MetricItem label="Canonical Conflicts" value={canonicalConflicts} />
       </div>
 
       {/* Decorative background */}
