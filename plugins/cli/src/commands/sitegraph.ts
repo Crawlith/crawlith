@@ -18,7 +18,7 @@ import { buildSitegraphInsightReport, hasCriticalIssues, renderInsightOutput, re
 import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.js';
 
 export const sitegraph = new Command('sitegraph')
-  .description('Crawl a website and generate a link graph')
+  .description('Crawl site and build internal link graph')
   .argument('[url]', 'URL to crawl')
   .option('-l, --limit <number>', 'max pages', '500')
   .option('-d, --depth <number>', 'max click depth', '5')
@@ -92,8 +92,9 @@ export const sitegraph = new Command('sitegraph')
       }
 
       if (!url) {
-        console.error(chalk.red('❌ Error: URL argument is required for crawling'));
-        process.exit(1);
+        console.error(chalk.red('\n❌ Error: URL argument is required for crawling\n'));
+        sitegraph.outputHelp();
+        process.exit(0);
       }
 
       // Acquire process lock

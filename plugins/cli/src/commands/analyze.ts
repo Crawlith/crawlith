@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import path from 'node:path';
 import { analyzeSite } from '@crawlith/core';
 import {
@@ -10,7 +11,7 @@ import { parseExportFormats, runAnalysisExports } from '../utils/exportRunner.js
 
 export const analyze = new Command('analyze')
   .description('Analyze SEO and content quality from crawl data')
-  .argument('<url>', 'URL to analyze')
+  .argument('[url]', 'URL to analyze')
   .option('--live', 'Perform a live crawl before analysis')
   .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html)', false)
   .option('--format <type>', 'Output format to terminal (text, json)', 'text')
@@ -28,6 +29,12 @@ export const analyze = new Command('analyze')
   .option('-o, --output <path>', 'Output directory for reports', './crawlith-reports')
   .action(async (url, options) => {
     try {
+      if (!url) {
+        console.error(chalk.red('\n❌ Error: URL argument is required for analysis\n'));
+        analyze.outputHelp();
+        process.exit(0);
+      }
+
       const result = await analyzeSite(url, {
         live: options.live,
         seo: options.seo,

@@ -12,11 +12,17 @@ import path from 'node:path';
 
 export const exportCmd = new Command('export')
     .description('Export latest snapshot data for a site')
-    .argument('<url>', 'URL or domain of the site')
+    .argument('[url]', 'URL or domain of the site')
     .option('-o, --output <path>', 'Output directory (e.g. ./crawlith-reports)', './crawlith-reports')
     .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html,visualize)', 'json')
     .action(async (url, options) => {
         try {
+            if (!url) {
+                console.error(chalk.red('\n❌ Error: URL argument is required for export\n'));
+                exportCmd.outputHelp();
+                process.exit(0);
+            }
+
             const db = getDb();
             const siteRepo = new SiteRepository(db);
             const snapshotRepo = new SnapshotRepository(db);
