@@ -3,12 +3,12 @@
 The main command is:
 
 ```bash
-crawlith sitegraph <url>
+crawlith crawl <url>
 ```
 
 ## What it does
 
-`crawlith sitegraph` crawls pages on the target site and builds an internal link graph.
+`crawlith crawl` crawls pages on the target site and builds an internal link graph.
 
 ## What it outputs
 
@@ -29,7 +29,7 @@ Crawlith now provides an "Insight-First" output by default. This groups results 
 Crawlith can generate a full structured JSON report using the `--json` flag. This is useful for CI/CD pipelines and automated analysis.
 
 ```bash
-crawlith sitegraph https://example.com --json
+crawlith crawl https://example.com --json
 ```
 
 ## CI/CD Integration
@@ -37,17 +37,17 @@ crawlith sitegraph https://example.com --json
 Use the `--fail-on-critical` flag to make the CLI exit with code 1 if any critical issues are detected.
 
 ```bash
-crawlith sitegraph https://example.com --fail-on-critical
+crawlith crawl https://example.com --fail-on-critical
 ```
 
 ## Examples
 
 ```bash
-crawlith sitegraph https://example.com
+crawlith crawl https://example.com
 ```
 
 ```bash
-crawlith sitegraph https://example.com --output ./reports/example --visualize
+crawlith crawl https://example.com --output ./reports/example --visualize
 ```
 
 ## Exporting Snapshots
