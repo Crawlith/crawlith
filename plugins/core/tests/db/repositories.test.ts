@@ -58,14 +58,14 @@ describe('PageRepository', () => {
     const siteId = 1;
     const snapshotId = 1;
     const insertStmt = db.prepare(`
-      INSERT INTO pages (site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO pages (site_id, normalized_url, last_seen_snapshot_id)
+      VALUES (?, ?, ?)
     `);
 
     db.transaction(() => {
-      insertStmt.run(siteId, 'http://example.com/1', snapshotId, snapshotId);
-      insertStmt.run(siteId, 'http://example.com/2', snapshotId, snapshotId);
-      insertStmt.run(siteId, 'http://example.com/3', snapshotId, snapshotId);
+      insertStmt.run(siteId, 'http://example.com/1', snapshotId);
+      insertStmt.run(siteId, 'http://example.com/2', snapshotId);
+      insertStmt.run(siteId, 'http://example.com/3', snapshotId);
     })();
 
     const iterator = repo.getPagesIteratorBySnapshot(snapshotId);

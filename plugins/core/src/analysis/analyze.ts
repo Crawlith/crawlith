@@ -40,7 +40,7 @@ export interface AnalyzeOptions {
   debug?: boolean;
   clusterThreshold?: number;
   minClusterSize?: number;
-  scope?: 'page' | 'site';
+  allPages?: boolean;
 }
 
 export interface PageAnalysis {
@@ -179,12 +179,13 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     ? pages.map((page) => filterPageModules(page, activeModules))
     : pages;
 
-  // Filter to only the requested URL unless site scope is requested
+  // Filter to only the requested URL
+  const targetPage = filteredPages.find(p => p.url === normalizedRoot);
   let resultPages: PageAnalysis[];
-  if (options.scope === 'site') {
+
+  if (options.allPages) {
     resultPages = filteredPages;
   } else {
-    const targetPage = filteredPages.find(p => p.url === normalizedRoot);
     resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : []);
   }
 

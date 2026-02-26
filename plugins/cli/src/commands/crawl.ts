@@ -19,7 +19,7 @@ import { buildSitegraphInsightReport, hasCriticalIssues, renderInsightOutput, re
 import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.js';
 import { OutputController } from '../output/controller.js';
 
-export const sitegraph = new Command('crawl')
+export const sitegraphCommand = new Command('crawl')
   .description('Crawl an entire website and build its internal link graph, metrics, and SEO structure.')
   .argument('[url]', 'URL to crawl')
   .option('-l, --limit <number>', 'max pages', '500')
@@ -63,7 +63,7 @@ export const sitegraph = new Command('crawl')
 
     if (!url) {
       console.error(chalk.red('\n❌ Error: URL argument is required for crawling\n'));
-      sitegraph.outputHelp();
+      sitegraphCommand.outputHelp();
       process.exit(0);
     }
 
@@ -190,7 +190,6 @@ export const sitegraph = new Command('crawl')
       }, context);
       // Load graph from DB (single source of truth)
       const graph = loadGraphFromSnapshot(snapshotId);
-      const nodes = graph.getNodes();
       // if (nodes.length === 0) {
       //   console.log(chalk.red('\n❌ No pages were crawled.'));
       //   console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));

@@ -69,7 +69,7 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const result = await analyzeSite('https://example.com', { scope: 'site' }, mockContext);
+    const result = await analyzeSite('https://example.com', { allPages: true }, mockContext);
 
     expect(result.site_summary.pages_analyzed).toBe(3);
     expect(result.site_summary.duplicate_titles).toBe(2);
@@ -117,7 +117,7 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const result = await analyzeSite('https://example.com', { scope: 'site' }, mockContext);
+    const result = await analyzeSite('https://example.com', { allPages: true }, mockContext);
     expect(result.site_summary.pages_analyzed).toBe(3);
   });
 
