@@ -70,4 +70,15 @@ describe('ScopeManager', () => {
         expect(manager.isUrlEligible('https://other.com/')).toBe('allowed');
         expect(manager.isUrlEligible('https://google.com/')).toBe('blocked_by_domain_filter');
     });
+
+    it('should handle trailing dots in hostnames', () => {
+        const manager = new ScopeManager({
+            rootUrl: 'https://example.com',
+            allowedDomains: ['example.com.'],
+            includeSubdomains: false
+        });
+
+        expect(manager.isUrlEligible('https://example.com./')).toBe('allowed');
+        expect(manager.isUrlEligible('https://example.com/')).toBe('allowed');
+    });
 });
