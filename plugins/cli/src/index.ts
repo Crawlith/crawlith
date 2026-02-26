@@ -1,14 +1,31 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
+import updateNotifier from 'update-notifier';
 import { sitegraph } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
 
-import { version } from './utils/version.js';
+import { version, pkg } from './utils/version.js';
 
 const program = new Command();
+
+// Initialize update notifier
+const notifier = updateNotifier({
+  pkg,
+  updateCheckInterval: 1000 * 60 * 60 * 12 // 12 hours
+});
+
+// Check if we should notify
+// We need to be careful not to trigger on JSON output commands
+const isJson = process.argv.includes('--json') ||
+               process.argv.includes('--format=json') ||
+               (process.argv.indexOf('--format') !== -1 && process.argv[process.argv.indexOf('--format') + 1] === 'json');
+
+if (process.stdout.isTTY && !isJson) {
+  notifier.notify();
+}
 
 program
   .name('crawlith')

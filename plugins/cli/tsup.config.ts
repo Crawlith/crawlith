@@ -5,5 +5,9 @@ export default defineConfig({
     format: ['esm'],
     dts: true,
     clean: true,
-    noExternal: ['@crawlith/server', '@crawlith/web']
+    shims: true,
+    noExternal: ['@crawlith/server', '@crawlith/web'],
+    banner: {
+        js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`
+    }
 });
