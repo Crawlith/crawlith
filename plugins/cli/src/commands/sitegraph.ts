@@ -153,15 +153,22 @@ export const sitegraph = new Command('sitegraph')
         userAgent: options.ua,
         concurrency: options.concurrency ? parseInt(options.concurrency, 10) : 2
       });
+      // Load graph from DB (single source of truth)
+      const graph = loadGraphFromSnapshot(snapshotId);
+      const nodes = graph.getNodes();
+
+      if (nodes.length === 0) {
+        console.log(chalk.red('\n❌ No pages were crawled.'));
+        console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
+        console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
+        process.exit(1);
+      }
+
       process.stdout.write(chalk.gray('📊 Calculating metrics and saving to database... '));
       runPostCrawlMetrics(snapshotId, depth);
       process.stdout.write(chalk.green('Done\n'));
 
-      // Load graph from DB (single source of truth)
-      const graph = loadGraphFromSnapshot(snapshotId);
-      const nodes = graph.getNodes();
-      console.log(chalk.green(`\n✅ Crawl complete. Found ${chalk.bold(nodes.length)} pages.`));
-      console.log(chalk.gray(`   Snapshot ID: ${snapshotId}`));
+      console.log(chalk.green(`\n✅ Crawl complete.`));
 
       process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
       detectDuplicates(graph, { collapse: !options.noCollapse });
@@ -211,7 +218,7 @@ export const sitegraph = new Command('sitegraph')
       if (options.format === 'json') {
         console.log(JSON.stringify(insightReport, null, 2));
       } else {
-        process.stdout.write(renderInsightOutput(insightReport));
+        process.stdout.write(renderInsightOutput(insightReport, snapshotId));
       }
 
       if (options.scoreBreakdown) {
@@ -226,7 +233,7 @@ export const sitegraph = new Command('sitegraph')
         console.log(`Total Found: ${graph.sessionStats.totalFound}`);
       }
 
-      console.log(`\n💾 Data stored in database (snapshot #${snapshotId})`);
+      console.log("\n💾 run `crawlith ui` to view the full report");
       if (exportFormats.length > 0) {
         const urlObj = new URL(url);
         const domainFolder = urlObj.hostname.replace('www.', '');

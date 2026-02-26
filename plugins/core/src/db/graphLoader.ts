@@ -69,7 +69,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             duplicateType: m?.duplicate_type ?? undefined,
             isClusterPrimary: m?.is_cluster_primary ? true : undefined,
             // Additional metrics
-            crawlStatus: m?.crawl_status || undefined,
+            crawlStatus: m?.crawl_status || (p.security_error?.includes('robots.txt') ? 'blocked' : undefined),
             wordCount: m?.word_count != null ? m.word_count : undefined,
             thinContentScore: m?.thin_content_score != null ? m.thin_content_score : undefined,
             externalLinkRatio: m?.external_link_ratio != null ? m.external_link_ratio : undefined,

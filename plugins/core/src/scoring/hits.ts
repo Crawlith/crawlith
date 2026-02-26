@@ -14,9 +14,10 @@ export function computeHITS(graph: Graph, options: HITSOptions = {}): void {
     const nodes = graph.getNodes();
 
     // 1. Filter eligible nodes
-    // Eligibility: status 200, non-redirect (redirectChain empty), not noindex, non-external
+    // Eligibility: status 200 (crawled) or status 0 (discovered)
+    // Non-redirect, not noindex (if known), non-external
     const eligibleNodes = nodes.filter(n =>
-        n.status === 200 &&
+        (n.status === 200 || n.status === 0) &&
         (!n.redirectChain || n.redirectChain.length === 0) &&
         !n.noindex
     );
@@ -125,13 +126,17 @@ function classifyLinkRoles(nodes: GraphNode[]): void {
 
     const medianAuth = authScores[Math.floor(authScores.length / 2)];
     const medianHub = hubScores[Math.floor(hubScores.length / 2)];
+    const maxAuth = authScores[authScores.length - 1];
+    const maxHub = hubScores[hubScores.length - 1];
 
     for (const node of nodes) {
         const auth = node.authorityScore || 0;
         const hub = node.hubScore || 0;
 
-        const isHighAuth = auth > medianAuth && auth > 0.0001;
-        const isHighHub = hub > medianHub && hub > 0.0001;
+        // A node is high if it's above median, OR if it's the max (to handle uniform distributions)
+        // auth > 0 check is essential.
+        const isHighAuth = (auth > medianAuth || (auth === maxAuth && auth > 0)) && auth > 0.00001;
+        const isHighHub = (hub > medianHub || (hub === maxHub && hub > 0)) && hub > 0.00001;
 
         if (isHighAuth && isHighHub) {
             node.linkRole = 'power';
@@ -139,7 +144,7 @@ function classifyLinkRoles(nodes: GraphNode[]): void {
             node.linkRole = 'authority';
         } else if (isHighHub) {
             node.linkRole = 'hub';
-        } else if (auth > 0.0001 && hub > 0.0001) {
+        } else if (auth > 0.00001 && hub > 0.00001) {
             node.linkRole = 'balanced';
         } else {
             node.linkRole = 'peripheral';

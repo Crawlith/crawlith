@@ -19,7 +19,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, limitR
         return;
     }
 
-    console.log('Loading graph for metrics calculation...');
+
     const graph = loadGraphFromSnapshot(snapshotId);
 
     console.log('Computing PageRank...');
