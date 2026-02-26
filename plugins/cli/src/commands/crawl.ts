@@ -15,11 +15,11 @@ import {
   LockManager,
   EngineContext
 } from '@crawlith/core';
-import { buildSitegraphInsightReport, hasCriticalIssues, renderInsightOutput, renderScoreBreakdown } from './sitegraphFormatter.js';
-import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.js';
+import { buildCrawlInsightReport, hasCriticalIssues, renderInsightOutput, renderScoreBreakdown } from './crawlFormatter.js';
+import { parseExportFormats, runCrawlExports } from '../utils/exportRunner.js';
 import { OutputController } from '../output/controller.js';
 
-export const sitegraphCommand = new Command('crawl')
+export const crawlCommand = new Command('crawl')
   .description('Crawl an entire website and build its internal link graph, metrics, and SEO structure.')
   .argument('[url]', 'URL to crawl')
   .option('-l, --limit <number>', 'max pages', '500')
@@ -63,7 +63,7 @@ export const sitegraphCommand = new Command('crawl')
 
     if (!url) {
       console.error(chalk.red('\n❌ Error: URL argument is required for crawling\n'));
-      sitegraphCommand.outputHelp();
+      crawlCommand.outputHelp();
       process.exit(0);
     }
 
@@ -131,7 +131,7 @@ export const sitegraphCommand = new Command('crawl')
       }
 
       // Acquire process lock
-      await LockManager.acquireLock('sitegraph', url, options, context, options.force);
+      await LockManager.acquireLock('crawl', url, options, context, options.force);
 
       if (options.format !== 'json') {
         console.log(chalk.bold.cyan(`\n🚀 Starting Crawlith Site Crawler`));
@@ -246,7 +246,7 @@ export const sitegraphCommand = new Command('crawl')
         const domainFolder = urlObj.hostname.replace('www.', '');
         const outputDir = path.join(path.resolve(options.output), domainFolder);
 
-        await runSitegraphExports(
+        await runCrawlExports(
           exportFormats,
           outputDir,
           url,
@@ -257,7 +257,7 @@ export const sitegraphCommand = new Command('crawl')
       }
 
       // === Console output (always from DB) ===
-      const insightReport = buildSitegraphInsightReport(graph, metrics);
+      const insightReport = buildCrawlInsightReport(graph, metrics);
       if (options.format === 'json') {
         process.stdout.write(JSON.stringify(insightReport, null, 2));
       } else {

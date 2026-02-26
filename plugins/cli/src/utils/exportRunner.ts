@@ -3,9 +3,9 @@ import fs from 'node:fs/promises';
 import chalk from 'chalk';
 import {
     generateHtml,
-    renderSitegraphMarkdown,
-    renderSitegraphCsvNodes,
-    renderSitegraphCsvEdges,
+    renderCrawlMarkdown,
+    renderCrawlCsvNodes,
+    renderCrawlCsvEdges,
     renderAnalysisHtml,
     renderAnalysisMarkdown,
     renderAnalysisCsv,
@@ -18,7 +18,7 @@ export function parseExportFormats(exportOption: string | boolean | undefined): 
     return (exportOption as string).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 }
 
-export async function runSitegraphExports(
+export async function runCrawlExports(
     formats: string[],
     outputDir: string,
     url: string,
@@ -43,19 +43,19 @@ export async function runSitegraphExports(
     }
 
     if (formats.includes('visualize')) {
-        const siteGraphHtml = generateHtml(graphData, metrics);
-        await fs.writeFile(path.join(outputDir, 'sitegraph.html'), siteGraphHtml);
-        console.log(chalk.green(`Visualization saved to ${path.join(outputDir, 'sitegraph.html')}`));
+        const CrawlHtml = generateHtml(graphData, metrics);
+        await fs.writeFile(path.join(outputDir, 'crawl.html'), CrawlHtml);
+        console.log(chalk.green(`Visualization saved to ${path.join(outputDir, 'crawl.html')}`));
     }
 
     if (formats.includes('csv')) {
-        await fs.writeFile(path.join(outputDir, 'nodes.csv'), renderSitegraphCsvNodes(graphData));
-        await fs.writeFile(path.join(outputDir, 'edges.csv'), renderSitegraphCsvEdges(graphData));
+        await fs.writeFile(path.join(outputDir, 'nodes.csv'), renderCrawlCsvNodes(graphData));
+        await fs.writeFile(path.join(outputDir, 'edges.csv'), renderCrawlCsvEdges(graphData));
         console.log(chalk.green(`CSV exports saved to ${outputDir} (nodes.csv, edges.csv)`));
     }
 
     if (formats.includes('markdown')) {
-        const md = renderSitegraphMarkdown(url, graphData, metrics, graphObj);
+        const md = renderCrawlMarkdown(url, graphData, metrics, graphObj);
         await fs.writeFile(path.join(outputDir, 'summary.md'), md);
         console.log(chalk.green(`Markdown summary saved to ${path.join(outputDir, 'summary.md')}`));
     }

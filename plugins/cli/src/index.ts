@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import updateNotifier from 'update-notifier';
-import { sitegraphCommand } from './commands/crawl.js';
+import { crawlCommand } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
@@ -32,7 +32,7 @@ program
   .name('crawlith')
   .description('Modular crawl intelligence engine for serious SEO analysis.')
   .version(version)
-  .addCommand(sitegraphCommand)
+  .addCommand(crawlCommand)
   .addCommand(analyze)
   .addCommand(ui)
   .addCommand(probe)

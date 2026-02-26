@@ -33,10 +33,10 @@ npm link ./plugins/cli
 
 ## Usage
 
-### Sitegraph Crawl
+### Crawl Crawl
 Crawl a site and run analysis:
 ```bash
-crawlith sitegraph https://example.com [options]
+crawlith crawl https://example.com [options]
 ```
 
 ### Web UI Dashboard

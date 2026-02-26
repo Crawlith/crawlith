@@ -4,8 +4,8 @@ import {
   healthStatusLabel,
   renderInsightOutput,
   hasCriticalIssues,
-  buildSitegraphInsightReport
-} from '../src/commands/sitegraphFormatter.js';
+  buildCrawlInsightReport
+} from '../src/commands/crawlFormatter.js';
 import { Graph, Metrics } from '@crawlith/core';
 
 function createMetrics(overrides: Partial<Metrics> = {}): Metrics {
@@ -73,13 +73,13 @@ describe('section rendering', () => {
     graph.updateNodeData('https://example.com/b', { pageRank: 0.87, html: '<p>no heading</p>', canonical: 'https://example.com/c' });
     graph.duplicateClusters = [{ id: 'x', type: 'near', representative: 'https://example.com/a', size: 2, severity: 'high' }];
 
-    const report = buildSitegraphInsightReport(
+    const report = buildCrawlInsightReport(
       graph,
       createMetrics({ orphanPages: ['https://example.com/b'] })
     );
 
     const output = renderInsightOutput(report, 123);
-    expect(output).toContain('CRAWLITH — Sitegraph');
+    expect(output).toContain('CRAWLITH — Crawl');
     expect(output).toContain('Critical');
     expect(output).toContain('Warnings');
     expect(output).toContain('Opportunities');
@@ -94,7 +94,7 @@ describe('section rendering', () => {
     graph.addNode('https://example.com/a', 0, 200);
     graph.updateNodeData('https://example.com/a', { html: '<h1>A</h1><p>enough words '.repeat(30) + '</p>' });
 
-    const report = buildSitegraphInsightReport(graph, createMetrics({ totalPages: 1, topPageRankPages: [] }));
+    const report = buildCrawlInsightReport(graph, createMetrics({ totalPages: 1, topPageRankPages: [] }));
     const output = renderInsightOutput(report, 123);
     expect(output).not.toContain('Critical');
   });

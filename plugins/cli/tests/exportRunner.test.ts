@@ -1,12 +1,12 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { runSitegraphExports } from '../src/utils/exportRunner.js';
+import { runCrawlExports } from '../src/utils/exportRunner.js';
 import fs from 'node:fs/promises';
 
 vi.mock('node:fs/promises', () => ({
-  default: {
-    mkdir: vi.fn(),
-    writeFile: vi.fn(),
-  }
+    default: {
+        mkdir: vi.fn(),
+        writeFile: vi.fn(),
+    }
 }));
 
 describe('exportRunner', () => {
@@ -16,7 +16,7 @@ describe('exportRunner', () => {
         (fs.writeFile as any).mockResolvedValue(undefined);
     });
 
-    test('visualize export generates sitegraph.html using generateHtml logic', async () => {
+    test('visualize export generates crawl.html using generateHtml logic', async () => {
         const mockGraphData = {
             nodes: [{ url: 'http://example.com', html: '<div>content</div>' }],
             edges: []
@@ -24,17 +24,17 @@ describe('exportRunner', () => {
         const mockMetrics = { totalPages: 1 };
         const outputDir = '/tmp/output';
 
-        await runSitegraphExports(['visualize'], outputDir, 'http://example.com', mockGraphData, mockMetrics, {});
+        await runCrawlExports(['visualize'], outputDir, 'http://example.com', mockGraphData, mockMetrics, {});
 
         expect(fs.mkdir).toHaveBeenCalledWith(outputDir, { recursive: true });
 
-        // Find the call for sitegraph.html
+        // Find the call for crawl.html
         const writeFileMock = fs.writeFile as any;
         const calls = writeFileMock.mock.calls;
-        const sitegraphCall = calls.find((args: any[]) => args[0].endsWith('sitegraph.html'));
+        const crawlCall = calls.find((args: any[]) => args[0].endsWith('crawl.html'));
 
-        expect(sitegraphCall).toBeDefined();
-        const writtenContent = sitegraphCall[1];
+        expect(crawlCall).toBeDefined();
+        const writtenContent = crawlCall[1];
 
         expect(writtenContent).toContain('window.GRAPH_DATA =');
         expect(writtenContent).not.toContain('<div>content</div>');
@@ -54,7 +54,7 @@ describe('exportRunner', () => {
         const mockMetrics = { totalPages: 1 };
         const outputDir = '/tmp/output';
 
-        await runSitegraphExports(['html'], outputDir, 'http://example.com', mockGraphData, mockMetrics, {});
+        await runCrawlExports(['html'], outputDir, 'http://example.com', mockGraphData, mockMetrics, {});
 
         const writeFileMock = fs.writeFile as any;
         const calls = writeFileMock.mock.calls;
