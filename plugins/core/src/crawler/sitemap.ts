@@ -1,8 +1,11 @@
 import { request } from 'undici';
 import * as cheerio from 'cheerio';
 import { normalizeUrl } from './normalize.js';
+import { EngineContext } from '../events.js';
 
 export class Sitemap {
+  constructor(private context?: EngineContext) {}
+
   /**
    * Fetches and parses a sitemap (or sitemap index) to extract URLs.
    * Recursively handles sitemap indexes with loop detection and depth limits.
@@ -67,7 +70,7 @@ export class Sitemap {
         await res.body.dump();
       }
     } catch (e) {
-      console.warn(`Failed to fetch sitemap ${url}:`, e);
+      this.context?.emit({ type: 'warn', message: `Failed to fetch sitemap ${url}`, context: e });
     }
   }
 }

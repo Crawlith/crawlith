@@ -1,6 +1,7 @@
-import { test, expect, beforeEach } from 'vitest';
+import { test, expect, beforeEach, vi } from 'vitest';
 import { Sitemap } from '../src/crawler/sitemap.js';
 import { MockAgent, setGlobalDispatcher } from 'undici';
+import { EngineContext } from '../src/events.js';
 
 let mockAgent: MockAgent;
 
@@ -85,4 +86,15 @@ test('handles fetch errors gracefully', async () => {
   const sitemap = new Sitemap();
   const urls = await sitemap.fetch('https://example.com/error.xml');
   expect(urls.length).toBe(0);
+});
+
+test('emits warning on fetch error', async () => {
+  const client = mockAgent.get('https://example.com');
+  client.intercept({ path: '/error.xml', method: 'GET' }).replyWithError(new Error('Network error'));
+
+  const mockContext: EngineContext = { emit: vi.fn() };
+  const sitemap = new Sitemap(mockContext);
+  await sitemap.fetch('https://example.com/error.xml');
+
+  expect(mockContext.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'warn' }));
 });

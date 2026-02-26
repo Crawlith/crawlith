@@ -67,6 +67,8 @@ crawlith export https://example.com --export json,html,visualize,csv
 - `--detect-traps`: Identify limitless dynamic parameter spaces
 - `--export [formats]`: Comma-separated list for export generation
 - `--fail-on-critical`: Exit with code 1 if critical issues are found
+- `--format <type>`: Output format (`pretty` or `json`). Default: `pretty`
+- `--log-level <level>`: Logging level (`normal`, `verbose`, `debug`). Default: `normal`
 
 ## Architecture
 

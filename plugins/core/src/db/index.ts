@@ -52,6 +52,7 @@ export function getDb(): Database.Database {
   // Integrity check on startup
   const integrity = db.pragma('integrity_check', { simple: true });
   if (integrity !== 'ok') {
+    // Reverted to console.warn to avoid breaking change
     console.warn('Database integrity check failed:', integrity);
   }
 

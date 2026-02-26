@@ -3,8 +3,11 @@ import * as cheerio from 'cheerio';
 /**
  * Extracts all links from an HTML document.
  * Returns absolute URLs.
+ * @param html The HTML content string
+ * @param baseUrl The base URL to resolve relative links against
+ * @param onError Optional callback for handling extraction errors
  */
-export function extractLinks(html: string, baseUrl: string): string[] {
+export function extractLinks(html: string, baseUrl: string, onError?: (error: unknown) => void): string[] {
   try {
     const $ = cheerio.load(html);
     const links = new Set<string>();
@@ -28,7 +31,9 @@ export function extractLinks(html: string, baseUrl: string): string[] {
 
     return Array.from(links);
   } catch (e) {
-    console.error(`Error extracting links from ${baseUrl}:`, e);
+    if (onError) {
+      onError(e);
+    }
     return [];
   }
 }
