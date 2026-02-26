@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,81 +14,329 @@
       --accent-color: #4a90e2;
       --sidebar-width: 300px;
     }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-color); color: var(--text-color); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
     /* Layout */
-    header { padding: 0 20px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; height: 60px; box-sizing: border-box; z-index: 10; }
-    main { flex: 1; display: flex; overflow: hidden; position: relative; }
-    #graph-container { flex: 1; position: relative; overflow: hidden; background: var(--bg-color); }
-    #details-panel { width: var(--sidebar-width); background: var(--panel-bg); border-left: 1px solid var(--border-color); padding: 20px; overflow-y: auto; box-sizing: border-box; display: none; flex-direction: column; gap: 15px; }
-    #details-panel.visible { display: flex; }
-    footer { padding: 5px 20px; background: var(--panel-bg); border-top: 1px solid var(--border-color); font-size: 0.8rem; text-align: center; color: #666; height: 30px; display: flex; align-items: center; justify-content: center; }
+    header {
+      padding: 0 20px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 60px;
+      box-sizing: border-box;
+      z-index: 10;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #graph-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: var(--bg-color);
+    }
+
+    #details-panel {
+      width: var(--sidebar-width);
+      background: var(--panel-bg);
+      border-left: 1px solid var(--border-color);
+      padding: 20px;
+      overflow-y: auto;
+      box-sizing: border-box;
+      display: none;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    #details-panel.visible {
+      display: flex;
+    }
+
+    footer {
+      padding: 5px 20px;
+      background: var(--panel-bg);
+      border-top: 1px solid var(--border-color);
+      font-size: 0.8rem;
+      text-align: center;
+      color: #666;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
     /* Header Components */
-    .brand { font-weight: bold; font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
-    .brand span { color: var(--accent-color); }
-    #metrics-summary { font-size: 0.9rem; color: #aaa; display: flex; gap: 20px; }
-    .metric { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
-    .metric-value { font-weight: bold; color: var(--text-color); }
-    .metric-label { font-size: 0.7rem; }
+    .brand {
+      font-weight: bold;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-    #controls { display: flex; gap: 10px; align-items: center; }
-    .btn-group { display: flex; background: #333; border-radius: 4px; overflow: hidden; }
-    button { background: transparent; color: #aaa; border: none; padding: 6px 12px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
-    button:hover { color: white; background: rgba(255,255,255,0.1); }
-    button.active { background: var(--accent-color); color: white; }
+    .brand span {
+      color: var(--accent-color);
+    }
+
+    #metrics-summary {
+      font-size: 0.9rem;
+      color: #aaa;
+      display: flex;
+      gap: 20px;
+    }
+
+    .metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1.1;
+    }
+
+    .metric-value {
+      font-weight: bold;
+      color: var(--text-color);
+    }
+
+    .metric-label {
+      font-size: 0.7rem;
+    }
+
+    #controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-group {
+      display: flex;
+      background: #333;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    button {
+      background: transparent;
+      color: #aaa;
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    button.active {
+      background: var(--accent-color);
+      color: white;
+    }
 
     /* Search */
-    #search-container { position: absolute; top: 15px; left: 15px; z-index: 5; }
-    #search-input { background: rgba(30,30,30,0.9); border: 1px solid #444; color: white; padding: 8px 12px; border-radius: 20px; width: 200px; outline: none; transition: width 0.3s; }
-    #search-input:focus { width: 280px; border-color: var(--accent-color); }
+    #search-container {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 5;
+    }
+
+    #search-input {
+      background: rgba(30, 30, 30, 0.9);
+      border: 1px solid #444;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 20px;
+      width: 200px;
+      outline: none;
+      transition: width 0.3s;
+    }
+
+    #search-input:focus {
+      width: 280px;
+      border-color: var(--accent-color);
+    }
 
     /* Graph */
-    svg { width: 100%; height: 100%; display: block; }
-    .node { cursor: pointer; transition: stroke-width 0.1s; }
-    .link { stroke: #555; stroke-opacity: 0.3; fill: none; pointer-events: none; }
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .node {
+      cursor: pointer;
+      transition: stroke-width 0.1s;
+    }
+
+    .link {
+      stroke: #555;
+      stroke-opacity: 0.3;
+      fill: none;
+      pointer-events: none;
+    }
 
     /* Interaction States */
-    .node.highlight { stroke: #fff; stroke-width: 2px; }
-    .link.highlight { stroke-opacity: 0.8; stroke: #999; }
-    .node.faded { opacity: 0.1; }
-    .link.faded { opacity: 0.05; }
+    .node.highlight {
+      stroke: #fff;
+      stroke-width: 2px;
+    }
+
+    .link.highlight {
+      stroke-opacity: 0.8;
+      stroke: #999;
+    }
+
+    .node.faded {
+      opacity: 0.1;
+    }
+
+    .link.faded {
+      opacity: 0.05;
+    }
 
     /* Details Panel Content */
-    .detail-section { border-bottom: 1px solid #333; padding-bottom: 10px; }
-    .detail-section:last-child { border-bottom: none; }
-    .detail-label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .detail-value { font-size: 0.95rem; word-break: break-all; }
-    .detail-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; font-size: 0.85rem; }
-    .detail-list li { padding: 4px 0; border-bottom: 1px solid #2a2a2a; }
-    .detail-list a { color: var(--accent-color); text-decoration: none; }
-    .detail-list a:hover { text-decoration: underline; }
+    .detail-section {
+      border-bottom: 1px solid #333;
+      padding-bottom: 10px;
+    }
 
-    .status-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.75rem; font-weight: bold; margin-top: 5px; }
-    .status-ok { background: #2e7d32; color: white; }
-    .status-warn { background: #f9a825; color: black; }
-    .status-error { background: #c62828; color: white; }
+    .detail-section:last-child {
+      border-bottom: none;
+    }
+
+    .detail-label {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .detail-value {
+      font-size: 0.95rem;
+      word-break: break-all;
+    }
+
+    .detail-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 150px;
+      overflow-y: auto;
+      font-size: 0.85rem;
+    }
+
+    .detail-list li {
+      padding: 4px 0;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    .detail-list a {
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+
+    .detail-list a:hover {
+      text-decoration: underline;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+
+    .status-ok {
+      background: #2e7d32;
+      color: white;
+    }
+
+    .status-warn {
+      background: #f9a825;
+      color: black;
+    }
+
+    .status-error {
+      background: #c62828;
+      color: white;
+    }
 
     /* Tooltip */
-    #tooltip { position: absolute; background: rgba(20,20,20,0.95); color: white; padding: 10px; border-radius: 6px; pointer-events: none; font-size: 12px; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #444; display: none; transform: translate(-50%, -100%); margin-top: -10px; white-space: nowrap; }
+    #tooltip {
+      position: absolute;
+      background: rgba(20, 20, 20, 0.95);
+      color: white;
+      padding: 10px;
+      border-radius: 6px;
+      pointer-events: none;
+      font-size: 12px;
+      z-index: 100;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      border: 1px solid #444;
+      display: none;
+      transform: translate(-50%, -100%);
+      margin-top: -10px;
+      white-space: nowrap;
+    }
 
     /* Responsive Sidebar */
     @media (max-width: 768px) {
-      #details-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: -5px 0 15px rgba(0,0,0,0.5); transform: translateX(100%); transition: transform 0.3s ease; }
-      #details-panel.visible { transform: translateX(0); }
-      #metrics-summary { display: none; }
+      #details-panel {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 20;
+        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+      }
+
+      #details-panel.visible {
+        transform: translateX(0);
+      }
+
+      #metrics-summary {
+        display: none;
+      }
     }
   </style>
 </head>
+
 <body>
   <header>
-    <div class="brand"><span>Crawlith</span> SiteGraph</div>
+    <div class="brand"><span>Crawlith</span> Crawl</div>
 
     <div id="metrics-summary">
       <div class="metric"><span class="metric-value" id="m-pages">-</span><span class="metric-label">Pages</span></div>
-      <div class="metric"><span class="metric-value" id="m-depth">-</span><span class="metric-label">Max Depth</span></div>
-      <div class="metric"><span class="metric-value" id="m-eff">-</span><span class="metric-label">Efficiency</span></div>
-      <div class="metric"><span class="metric-value" id="m-orphan">-</span><span class="metric-label">Orphans</span></div>
+      <div class="metric"><span class="metric-value" id="m-depth">-</span><span class="metric-label">Max Depth</span>
+      </div>
+      <div class="metric"><span class="metric-value" id="m-eff">-</span><span class="metric-label">Efficiency</span>
+      </div>
+      <div class="metric"><span class="metric-value" id="m-orphan">-</span><span class="metric-label">Orphans</span>
+      </div>
     </div>
 
     <div id="controls">
@@ -129,7 +378,7 @@
       </div>
       <div class="detail-section">
         <div class="detail-label">In-links (<span id="d-in-count">0</span>)</div>
-         <!-- List could be populated here if we had the reverse index, for now just count -->
+        <!-- List could be populated here if we had the reverse index, for now just count -->
       </div>
       <div class="detail-section">
         <div class="detail-label">Out-links (<span id="d-out-count">0</span>)</div>
@@ -187,22 +436,22 @@
 
         // 2. Fallback to fetching JSON files (for web server usage)
         if (!graphData || !metricsData) {
-            try {
-                const [graphRes, metricsRes] = await Promise.all([
-                    fetch('graph.json'),
-                    fetch('metrics.json')
-                ]);
-                if (graphRes.ok && metricsRes.ok) {
-                    graphData = await graphRes.json();
-                    metricsData = await metricsRes.json();
-                }
-            } catch (e) {
-                console.warn("Fetch failed, possibly due to CORS or missing files.", e);
+          try {
+            const [graphRes, metricsRes] = await Promise.all([
+              fetch('graph.json'),
+              fetch('metrics.json')
+            ]);
+            if (graphRes.ok && metricsRes.ok) {
+              graphData = await graphRes.json();
+              metricsData = await metricsRes.json();
             }
+          } catch (e) {
+            console.warn("Fetch failed, possibly due to CORS or missing files.", e);
+          }
         }
 
         if (!graphData || !metricsData) {
-            throw new Error("No data available. Ensure graph.json exists or data is injected.");
+          throw new Error("No data available. Ensure graph.json exists or data is injected.");
         }
 
         state.metrics = metricsData;
@@ -323,12 +572,12 @@
         const depthSpacing = height / (state.maxDepth + 2);
         // Hierarchical: Nodes pushed to Y levels based on depth
         state.simulation.force("y", d3.forceY(d => {
-           return (d.depth * depthSpacing) - (height/2) + 50; // Offset to start from top
+          return (d.depth * depthSpacing) - (height / 2) + 50; // Offset to start from top
         }).strength(1));
         // We rely on "center" force to keep X centered, but maybe add weak forceX?
         // Let's add weak forceX to prevent wide spread
         state.simulation.force("x", d3.forceX(0).strength(0.05));
-        state.simulation.force("center", d3.forceCenter(width/2, height/2)); // Recenter
+        state.simulation.force("center", d3.forceCenter(width / 2, height / 2)); // Recenter
 
       } else if (mode === 'radial') {
         const maxRadius = Math.min(width, height) / 2 - 50;
@@ -401,7 +650,7 @@
         });
 
       svg.call(state.zoom)
-         .call(state.zoom.transform, d3.zoomIdentity.translate(state.width/2, state.height/2).scale(0.8).translate(-state.width/2, -state.height/2)); // Initial zoom out
+        .call(state.zoom.transform, d3.zoomIdentity.translate(state.width / 2, state.height / 2).scale(0.8).translate(-state.width / 2, -state.height / 2)); // Initial zoom out
     }
 
     function ticked() {
@@ -431,18 +680,18 @@
       });
 
       // Layout Toggle
-      d3.select("#btn-hierarchical").on("click", function() {
+      d3.select("#btn-hierarchical").on("click", function () {
         setMode('hierarchical', this);
       });
-      d3.select("#btn-radial").on("click", function() {
+      d3.select("#btn-radial").on("click", function () {
         setMode('radial', this);
       });
 
       // Authority Toggle
-      d3.select("#btn-auth-pagerank").on("click", function() {
+      d3.select("#btn-auth-pagerank").on("click", function () {
         setAuthorityMode('pagerank', this);
       });
-      d3.select("#btn-auth-structural").on("click", function() {
+      d3.select("#btn-auth-structural").on("click", function () {
         setAuthorityMode('structural', this);
       });
     }
@@ -552,7 +801,7 @@
             .text(new URL(target.url).pathname);
         });
         if (adj.out.length > 50) {
-            list.append("li").text(`...and ${adj.out.length - 50} more`);
+          list.append("li").text(`...and ${adj.out.length - 50} more`);
         }
       } else {
         list.append("li").text("No outgoing links");
@@ -572,7 +821,7 @@
             selectNode(found);
             // Center view on node
             const transform = d3.zoomIdentity
-              .translate(state.width/2, state.height/2)
+              .translate(state.width / 2, state.height / 2)
               .scale(2)
               .translate(-found.x, -found.y);
 
@@ -589,7 +838,7 @@
         state.height = height;
         state.simulation.force("center", d3.forceCenter(width / 2, height / 2));
         if (state.mode === 'hierarchical') {
-            // Re-evaluate Y force if needed, but usually center is enough
+          // Re-evaluate Y force if needed, but usually center is enough
         }
         state.simulation.alpha(0.3).restart();
       });
@@ -620,10 +869,11 @@
 
     // Start
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+      document.addEventListener('DOMContentLoaded', init);
     } else {
-        init();
+      init();
     }
   </script>
 </body>
+
 </html>

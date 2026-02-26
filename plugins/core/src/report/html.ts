@@ -1,5 +1,5 @@
 import { Metrics } from '../graph/metrics.js';
-import { SITEGRAPH_HTML } from './sitegraph_template.js';
+import { Crawl_HTML } from './crawl_template.js';
 
 function safeJson(data: any): string {
     return JSON.stringify(data).replace(/</g, '\\u003c');
@@ -19,7 +19,7 @@ export function generateHtml(graphData: any, metrics: Metrics): string {
     const graphJson = safeJson(vizGraphData);
     const metricsJson = safeJson(metrics);
 
-    return SITEGRAPH_HTML.replace('</body>', `<script>
+    return Crawl_HTML.replace('</body>', `<script>
         window.GRAPH_DATA = ${graphJson};
         window.METRICS_DATA = ${metricsJson};
     </script>

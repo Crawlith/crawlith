@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SITEGRAPH_HTML } from '../src/report/sitegraph_template.js';
+import { Crawl_HTML } from '../src/report/crawl_template.js';
 import { Graph } from '../src/graph/graph.js';
 import { computePageRank } from '../src/graph/pagerank.js';
 
@@ -23,24 +23,24 @@ describe('Visualization Data & Template', () => {
     });
 
     it('should contain UI toggle buttons for Authority Mode', () => {
-        expect(SITEGRAPH_HTML).toContain('id="btn-auth-pagerank"');
-        expect(SITEGRAPH_HTML).toContain('id="btn-auth-structural"');
+        expect(Crawl_HTML).toContain('id="btn-auth-pagerank"');
+        expect(Crawl_HTML).toContain('id="btn-auth-structural"');
     });
 
     it('should contain setAuthorityMode function', () => {
         // Use regex to be flexible with whitespace
-        expect(SITEGRAPH_HTML).toMatch(/function\s+setAuthorityMode\s*\(mode,\s*btn\)/);
-        expect(SITEGRAPH_HTML).toContain('n.authority = mode === \'pagerank\' ? n.pageRankAuthority : n.structuralAuthority');
+        expect(Crawl_HTML).toMatch(/function\s+setAuthorityMode\s*\(mode,\s*btn\)/);
+        expect(Crawl_HTML).toContain('n.authority = mode === \'pagerank\' ? n.pageRankAuthority : n.structuralAuthority');
     });
 
     it('should contain logic to calculate pageRankAuthority from pageRankScore', () => {
-        expect(SITEGRAPH_HTML).toContain('n.pageRankAuthority = n.pageRankScore / 100');
-        expect(SITEGRAPH_HTML).toContain('n.structuralAuthority = Math.log(1 + n.inLinks)');
+        expect(Crawl_HTML).toContain('n.pageRankAuthority = n.pageRankScore / 100');
+        expect(Crawl_HTML).toContain('n.structuralAuthority = Math.log(1 + n.inLinks)');
     });
 
     it('should update details panel to show both metrics', () => {
-        expect(SITEGRAPH_HTML).toContain('id="d-auth-container"');
-        expect(SITEGRAPH_HTML).toContain('In-Degree: ${structVal}');
-        expect(SITEGRAPH_HTML).toContain('PR: <strong>${prVal}</strong>');
+        expect(Crawl_HTML).toContain('id="d-auth-container"');
+        expect(Crawl_HTML).toContain('In-Degree: ${structVal}');
+        expect(Crawl_HTML).toContain('PR: <strong>${prVal}</strong>');
     });
 });

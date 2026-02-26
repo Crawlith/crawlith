@@ -7,7 +7,7 @@ import {
     loadGraphFromSnapshot,
     calculateMetrics
 } from '@crawlith/core';
-import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.js';
+import { parseExportFormats, runCrawlExports } from '../utils/exportRunner.js';
 import path from 'node:path';
 
 export const exportCmd = new Command('export')
@@ -57,7 +57,7 @@ export const exportCmd = new Command('export')
 
             const exportFormats = parseExportFormats(options.export);
             if (exportFormats.length > 0) {
-                await runSitegraphExports(
+                await runCrawlExports(
                     exportFormats,
                     outputDir,
                     url,
