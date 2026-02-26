@@ -20,13 +20,13 @@ export const IssuesTable = () => {
 
       // Handle special sorting for impactScore (numeric) vs others (string)
       if (key === 'impactScore' || key === 'pageRank') {
-         // @ts-ignore
+         // @ts-expect-error - Types are loosely defined for dynamic sorting keys
          return direction === 'asc' ? a[key] - b[key] : b[key] - a[key];
       }
 
-      // @ts-ignore
+      // @ts-expect-error - Types are loosely defined for dynamic sorting keys
       if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
-      // @ts-ignore
+      // @ts-expect-error - Types are loosely defined for dynamic sorting keys
       if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
       return 0;
     });

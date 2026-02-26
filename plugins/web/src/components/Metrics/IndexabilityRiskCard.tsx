@@ -1,12 +1,12 @@
 import React from 'react';
-import { Search, Info } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { primaryMetrics } from '../../data';
 
 interface IndexabilityRiskCardProps {
   showCompare: boolean;
 }
 
-export const IndexabilityRiskCard = ({ showCompare }: IndexabilityRiskCardProps) => {
+export const IndexabilityRiskCard = ({ showCompare: _showCompare }: IndexabilityRiskCardProps) => {
   const { total, breakdown } = primaryMetrics.indexabilityRisk;
 
   // Calculate percentages for the mini chart

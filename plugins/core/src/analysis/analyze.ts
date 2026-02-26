@@ -119,7 +119,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
       const robotsParser = (robotsParserModule as any).default || robotsParserModule;
       robots = (robotsParser as any)(robotsUrl, robotsRes.body);
     }
-  } catch (e) {
+  } catch (_e) {
     // Silence robots fetch errors, fallback to existing or none
   }
   if (options.live) {

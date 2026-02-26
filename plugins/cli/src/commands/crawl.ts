@@ -190,7 +190,7 @@ export const sitegraph = new Command('crawl')
       }, context);
       // Load graph from DB (single source of truth)
       const graph = loadGraphFromSnapshot(snapshotId);
-      const nodes = graph.getNodes();
+      const _nodes = graph.getNodes();
       // if (nodes.length === 0) {
       //   console.log(chalk.red('\n❌ No pages were crawled.'));
       //   console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));

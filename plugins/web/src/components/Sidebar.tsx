@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { LayoutDashboard, Network, FileText, Settings, Layers, ChevronRight, X } from 'lucide-react';
 
 interface SidebarProps {
