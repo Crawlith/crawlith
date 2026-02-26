@@ -36,7 +36,6 @@ describe('extractLinks', () => {
     });
 
     test('should handle cheerio errors gracefully', () => {
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         const error = new Error('Cheerio error');
 
         // Mock cheerio.load to throw an error
@@ -47,14 +46,10 @@ describe('extractLinks', () => {
         const links = extractLinks('<html></html>', 'https://example.com');
 
         expect(links).toEqual([]);
-        expect(consoleSpy).toHaveBeenCalledWith(
-            expect.stringContaining('Error extracting links from https://example.com'),
-            error
-        );
+        // No console error expected
     });
 
     test('should handle non-Error exceptions gracefully', () => {
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
         const error = 'String error'; // Simulate a thrown string
 
         vi.mocked(cheerio.load).mockImplementationOnce(() => {
@@ -64,10 +59,7 @@ describe('extractLinks', () => {
         const links = extractLinks('<html></html>', 'https://example.com');
 
         expect(links).toEqual([]);
-        expect(consoleSpy).toHaveBeenCalledWith(
-            expect.stringContaining('Error extracting links from https://example.com'),
-            error
-        );
+        // No console error expected
     });
 
     test('should ignore invalid URLs that cause URL constructor to throw', () => {

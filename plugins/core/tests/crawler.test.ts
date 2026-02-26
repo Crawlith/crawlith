@@ -4,8 +4,10 @@ import { loadGraphFromSnapshot } from '../src/db/graphLoader.js';
 import { closeDb } from '../src/db/index.js';
 import { MockAgent, setGlobalDispatcher } from 'undici';
 import { IPGuard } from '../src/core/security/ipGuard.js';
+import { EngineContext } from '../src/events.js';
 
 let mockAgent: MockAgent;
+const mockContext: EngineContext = { emit: vi.fn() };
 
 beforeEach(() => {
   process.env.CRAWLITH_DB_PATH = ':memory:';
@@ -72,7 +74,7 @@ test('crawler should crawl and build graph', async () => {
     depth: 2,
     ignoreRobots: false,
     rate: 1000
-  });
+  }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   const nodes = graph.getNodes();
@@ -114,7 +116,7 @@ test('hard page limit', async () => {
     depth: 5,
     ignoreRobots: true,
     rate: 1000
-  });
+  }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   // Should have visited root + 1 other page (total 2 nodes with status > 0)
@@ -142,7 +144,7 @@ test('hard depth cap', async () => {
     depth: 20, // requested 20, but internal hard cap is 10
     ignoreRobots: true,
     rate: 1000
-  });
+  }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   const crawledNodes = graph.getNodes().filter(n => n.status > 0);
@@ -176,7 +178,7 @@ test('parameter explosion control', async () => {
     stripQuery: false,
     detectTraps: true,
     rate: 1000
-  });
+  }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   // Should only crawl 5 variations + root
@@ -209,7 +211,7 @@ test('redirect safety', async () => {
     depth: 5,
     ignoreRobots: true,
     rate: 1000
-  });
+  }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   const destNode = graph.nodes.get('https://redirect.com/dest');
@@ -227,7 +229,7 @@ test('redirect safety', async () => {
   clientLoop.intercept({ path: '/b', method: 'GET' }).reply(301, '', { headers: { location: '/a' } });
   // We might mock /a again if it retries, but it shouldn't infinitely loop
 
-  const snapshotIdLoop = await crawl('https://loop.com', { limit: 10, depth: 5, ignoreRobots: true, rate: 1000 });
+  const snapshotIdLoop = await crawl('https://loop.com', { limit: 10, depth: 5, ignoreRobots: true, rate: 1000 }, mockContext);
   const graphLoop = loadGraphFromSnapshot(snapshotIdLoop);
   // It should eventually stop
   expect(graphLoop.getNodes().length).toBeGreaterThan(0);
@@ -250,7 +252,7 @@ test('mime check', async () => {
     <html><a href="/data">Data</a></html>
   `, { headers: { 'content-type': 'text/html' } });
 
-  const snapshotId = await crawl('https://mime.com/start', { limit: 10, depth: 5, ignoreRobots: true, rate: 1000 });
+  const snapshotId = await crawl('https://mime.com/start', { limit: 10, depth: 5, ignoreRobots: true, rate: 1000 }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   // /data should be in graph
@@ -271,7 +273,7 @@ test('self-link guard', async () => {
 
   client.intercept({ path: '/other', method: 'GET' }).reply(200, '', { headers: { 'content-type': 'text/html' } });
 
-  const snapshotId = await crawl('https://self.com', { limit: 10, depth: 5, ignoreRobots: true, rate: 1000 });
+  const snapshotId = await crawl('https://self.com', { limit: 10, depth: 5, ignoreRobots: true, rate: 1000 }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   const edges = graph.getEdges();
@@ -292,7 +294,7 @@ test('limit warning', async () => {
 
   client.intercept({ path: '/1', method: 'GET' }).reply(200, '', { headers: { 'content-type': 'text/html' } });
 
-  const snapshotId = await crawl('https://warn.com', { limit: 2, depth: 5, ignoreRobots: true, rate: 1000 });
+  const snapshotId = await crawl('https://warn.com', { limit: 2, depth: 5, ignoreRobots: true, rate: 1000 }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   expect(graph.limitReached).toBe(true);
@@ -319,7 +321,7 @@ test('seeds from sitemap', async () => {
     ignoreRobots: true,
     sitemap: 'true',
     rate: 1000
-  });
+  }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
   const page1 = graph.nodes.get('https://sitemap-seed.com/page1');
@@ -336,7 +338,7 @@ test('incremental crawl uses etags', async () => {
     headers: { 'content-type': 'text/html', 'etag': '"v1"' }
   });
 
-  const snapshotId1 = await crawl('https://incremental.com', { limit: 10, depth: 1, ignoreRobots: true, rate: 1000 });
+  const snapshotId1 = await crawl('https://incremental.com', { limit: 10, depth: 1, ignoreRobots: true, rate: 1000 }, mockContext);
   const graph1 = loadGraphFromSnapshot(snapshotId1);
   const node1 = graph1.nodes.get('https://incremental.com/');
   expect(node1?.etag).toBe('"v1"');
@@ -354,7 +356,7 @@ test('incremental crawl uses etags', async () => {
     ignoreRobots: true,
     previousGraph: graph1,
     rate: 1000
-  });
+  }, mockContext);
   const graph2 = loadGraphFromSnapshot(snapshotId2);
 
   const node2 = graph2.nodes.get('https://incremental.com/');

@@ -6,6 +6,7 @@ import { existsSync, unlinkSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { isPidAlive } from '../../src/lock/pidCheck.js';
+import { EngineContext } from '../../src/events.js';
 
 // Mock fs and os
 vi.mock('node:fs/promises');
@@ -14,6 +15,8 @@ vi.mock('node:os');
 vi.mock('../../src/lock/pidCheck.js', () => ({
   isPidAlive: vi.fn()
 }));
+
+const mockContext: EngineContext = { emit: vi.fn() };
 
 describe('LockManager', () => {
   const mockHomeDir = '/home/user';
@@ -40,22 +43,18 @@ describe('LockManager', () => {
     vi.spyOn(process, 'exit').mockImplementation((code) => {
       throw new Error(`Process exit ${code}`);
     });
-
-    // Mock console to suppress noise
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-
     // Reset static state if any (LockManager stores lockFilePath)
     LockManager.releaseLock();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // Reset static state
+    LockManager.releaseLock();
   });
 
   it('should acquire lock when no lock exists', async () => {
-    await LockManager.acquireLock(command, target, options);
+    await LockManager.acquireLock(command, target, options, mockContext);
 
     expect(fs.mkdir).toHaveBeenCalledWith(lockDir, { recursive: true });
     expect(fs.writeFile).toHaveBeenCalledWith(
@@ -76,9 +75,9 @@ describe('LockManager', () => {
     }));
     vi.mocked(isPidAlive).mockReturnValue(true);
 
-    await expect(LockManager.acquireLock(command, target, options)).rejects.toThrow('Process exit 1');
+    await expect(LockManager.acquireLock(command, target, options, mockContext)).rejects.toThrow('Process exit 1');
 
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('already running'));
+    expect(mockContext.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', message: expect.stringContaining('already running') }));
   });
 
   it('should clear stale lock and acquire if PID is dead', async () => {
@@ -92,11 +91,11 @@ describe('LockManager', () => {
     }));
     vi.mocked(isPidAlive).mockReturnValue(false);
 
-    await LockManager.acquireLock(command, target, options);
+    await LockManager.acquireLock(command, target, options, mockContext);
 
     expect(unlinkSync).toHaveBeenCalledWith(lockPath);
     expect(fs.writeFile).toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Detected stale lock'));
+    expect(mockContext.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'info', message: expect.stringContaining('Detected stale lock') }));
   });
 
   it('should override lock if force is true', async () => {
@@ -107,24 +106,24 @@ describe('LockManager', () => {
     }));
     vi.mocked(isPidAlive).mockReturnValue(true);
 
-    await LockManager.acquireLock(command, target, options, true); // force = true
+    await LockManager.acquireLock(command, target, options, mockContext, true); // force = true
 
     expect(unlinkSync).toHaveBeenCalledWith(lockPath);
     expect(fs.writeFile).toHaveBeenCalled();
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Force mode enabled'));
+    expect(mockContext.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'warn', message: expect.stringContaining('Force mode enabled') }));
   });
 
   it('should handle race condition (EEXIST)', async () => {
     vi.mocked(existsSync).mockReturnValue(false);
     vi.mocked(fs.writeFile).mockRejectedValue({ code: 'EEXIST' });
 
-    await expect(LockManager.acquireLock(command, target, options)).rejects.toThrow('Process exit 1');
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Race condition'));
+    await expect(LockManager.acquireLock(command, target, options, mockContext)).rejects.toThrow('Process exit 1');
+    expect(mockContext.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', message: expect.stringContaining('Race condition') }));
   });
 
   it('should release lock on exit', async () => {
     // Acquire first (existsSync returns false by default from beforeEach)
-    await LockManager.acquireLock(command, target, options);
+    await LockManager.acquireLock(command, target, options, mockContext);
 
     // Simulate file exists for release
     vi.mocked(existsSync).mockReturnValue(true);
@@ -137,7 +136,7 @@ describe('LockManager', () => {
 
   it('should register signal handlers and cleanup on SIGINT', async () => {
     const processOnSpy = vi.spyOn(process, 'on');
-    await LockManager.acquireLock(command, target, options);
+    await LockManager.acquireLock(command, target, options, mockContext);
 
     // Find the handler
     const sigintCall = processOnSpy.mock.calls.find(call => call[0] === 'SIGINT');
@@ -149,8 +148,8 @@ describe('LockManager', () => {
     try {
       handler();
     } catch (e: any) {
-       // Expect process.exit(130) which throws error in our mock
-       expect(e.message).toBe('Process exit 130');
+      // Expect process.exit(130) which throws error in our mock
+      expect(e.message).toBe('Process exit 130');
     }
 
     expect(unlinkSync).toHaveBeenCalledWith(lockPath);
@@ -158,7 +157,7 @@ describe('LockManager', () => {
 
   it('should register signal handlers and cleanup on SIGTERM', async () => {
     const processOnSpy = vi.spyOn(process, 'on');
-    await LockManager.acquireLock(command, target, options);
+    await LockManager.acquireLock(command, target, options, mockContext);
 
     // Find the handler
     const sigtermCall = processOnSpy.mock.calls.find(call => call[0] === 'SIGTERM');
@@ -170,30 +169,30 @@ describe('LockManager', () => {
     try {
       handler();
     } catch (e: any) {
-       expect(e.message).toBe('Process exit 143');
+      expect(e.message).toBe('Process exit 143');
     }
 
     expect(unlinkSync).toHaveBeenCalledWith(lockPath);
   });
 
   it('should register signal handlers and cleanup on uncaughtException', async () => {
-      const processOnSpy = vi.spyOn(process, 'on');
-      await LockManager.acquireLock(command, target, options);
+    const processOnSpy = vi.spyOn(process, 'on');
+    await LockManager.acquireLock(command, target, options, mockContext);
 
-      // Find the handler
-      const uncaughtExceptionCall = processOnSpy.mock.calls.find(call => call[0] === 'uncaughtException');
-      expect(uncaughtExceptionCall).toBeDefined();
-      const handler = uncaughtExceptionCall![1] as (err: Error) => void;
+    // Find the handler
+    const uncaughtExceptionCall = processOnSpy.mock.calls.find(call => call[0] === 'uncaughtException');
+    expect(uncaughtExceptionCall).toBeDefined();
+    const handler = uncaughtExceptionCall![1] as (err: Error) => void;
 
-      // Trigger handler
-      vi.mocked(existsSync).mockReturnValue(true);
-      try {
-        handler(new Error('Test error'));
-      } catch (e: any) {
-         expect(e.message).toBe('Process exit 1');
-      }
+    // Trigger handler
+    vi.mocked(existsSync).mockReturnValue(true);
+    try {
+      handler(new Error('Test error'));
+    } catch (e: any) {
+      expect(e.message).toBe('Process exit 1');
+    }
 
-      expect(unlinkSync).toHaveBeenCalledWith(lockPath);
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Uncaught Exception'), expect.any(Error));
-    });
+    expect(unlinkSync).toHaveBeenCalledWith(lockPath);
+    expect(mockContext.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', message: expect.stringContaining('Uncaught Exception'), error: expect.any(Error) }));
+  });
 });

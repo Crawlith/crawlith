@@ -1,4 +1,4 @@
-import { describe, expect, test, afterEach } from 'vitest';
+import { describe, expect, test, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { analyzeSite, renderAnalysisHtml } from '../src/analysis/analyze.js';
@@ -7,6 +7,9 @@ import { SiteRepository } from '../src/db/repositories/SiteRepository.js';
 import { SnapshotRepository } from '../src/db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../src/db/repositories/PageRepository.js';
 import { EdgeRepository } from '../src/db/repositories/EdgeRepository.js';
+import { EngineContext } from '../src/events.js';
+
+const mockContext: EngineContext = { emit: vi.fn() };
 
 describe('analyze integration', () => {
   const fixturePath = path.resolve(import.meta.dirname, 'fixtures/analyze-crawl.json');
@@ -66,7 +69,7 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const result = await analyzeSite('https://example.com', {});
+    const result = await analyzeSite('https://example.com', {}, mockContext);
 
     expect(result.site_summary.pages_analyzed).toBe(3);
     expect(result.site_summary.duplicate_titles).toBe(2);
@@ -83,15 +86,15 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const seoOnly = await analyzeSite('https://example.com', { seo: true });
+    const seoOnly = await analyzeSite('https://example.com', { seo: true }, mockContext);
     expect(seoOnly.pages[0].content.wordCount).toBe(0);
     expect(seoOnly.pages[0].images.totalImages).toBe(0);
 
-    const contentOnly = await analyzeSite('https://example.com', { content: true });
+    const contentOnly = await analyzeSite('https://example.com', { content: true }, mockContext);
     expect(contentOnly.pages[0].title.status).toBe('missing');
     expect(contentOnly.pages[0].thinScore).toBeGreaterThanOrEqual(0);
 
-    const accessibilityOnly = await analyzeSite('https://example.com', { accessibility: true });
+    const accessibilityOnly = await analyzeSite('https://example.com', { accessibility: true }, mockContext);
     expect(accessibilityOnly.pages[0].images.totalImages).toBeGreaterThan(0);
     expect(accessibilityOnly.pages[0].title.status).toBe('missing');
   });
@@ -101,7 +104,7 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const result = await analyzeSite('https://example.com', {});
+    const result = await analyzeSite('https://example.com', {}, mockContext);
     const html = renderAnalysisHtml(result);
     expect(html).toContain('<table');
     expect(html).toContain('Analysis');
@@ -114,7 +117,7 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const result = await analyzeSite('https://example.com', {});
+    const result = await analyzeSite('https://example.com', {}, mockContext);
     expect(result.site_summary.pages_analyzed).toBe(3);
   });
 
@@ -124,7 +127,7 @@ describe('analyze integration', () => {
 
     await setupTestDb(data);
 
-    const result = await analyzeSite('https://example.com', {});
+    const result = await analyzeSite('https://example.com', {}, mockContext);
     expect(result.pages[0].content.wordCount).toBe(1000);
   });
 });
