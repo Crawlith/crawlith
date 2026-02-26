@@ -9,6 +9,10 @@ export default {
     extend: {
         colors: {
             "slate-850": "#1e293b",
+        },
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'Menlo', 'monospace'],
         }
     },
   },

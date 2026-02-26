@@ -1,4 +1,4 @@
-import { healthMetrics } from '../data.js';
+import { healthMetrics } from '../data';
 import { Activity, Link, Ghost, Copy, Layers, TrendingUp } from 'lucide-react';
 
 export const HealthSnapshot = () => {

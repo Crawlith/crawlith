@@ -4,6 +4,24 @@
 
 @layer base {
   body {
-    @apply antialiased;
+    @apply antialiased text-slate-900 dark:text-slate-100 bg-gray-50 dark:bg-[#0b1120];
   }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400 dark:bg-slate-600;
 }
