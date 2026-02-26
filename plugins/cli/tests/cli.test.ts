@@ -1,5 +1,5 @@
 import { test, expect, vi, beforeEach } from 'vitest';
-import { sitegraphCommand as sitegraph } from '../src/commands/crawl.js';
+import { sitegraphCommand } from '../src/commands/crawl.js';
 import { analyze } from '../src/commands/page.js';
 import * as core from '@crawlith/core';
 import fs from 'node:fs/promises';
@@ -55,7 +55,7 @@ test('sitegraph command execution (DB-only, no file writes)', async () => {
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
 
   // Run the command — no export flags, so no file writes
-  await sitegraph.parseAsync(['https://example.com', '--limit', '10'], { from: 'user' });
+  await sitegraphCommand.parseAsync(['https://example.com', '--limit', '10'], { from: 'user' });
 
   expect(core.crawl).toHaveBeenCalledWith('https://example.com', expect.objectContaining({
     limit: 10
@@ -69,7 +69,7 @@ test('sitegraph command execution (DB-only, no file writes)', async () => {
   expect(core.generateHtml).not.toHaveBeenCalled();
 
   const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-  await sitegraph.parseAsync(['https://example.com', '--limit', '10'], { from: 'user' });
+  await sitegraphCommand.parseAsync(['https://example.com', '--limit', '10'], { from: 'user' });
   expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('# 123'));
   stdoutSpy.mockRestore();
 
@@ -103,7 +103,7 @@ test('sitegraph --export html flag triggers file export', async () => {
   // Need to mock process.stdout.write because sitegraph uses it
   const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-  await sitegraph.parseAsync(['https://example.com', '--limit', '10', '--export', 'html', '--output', 'test-output'], { from: 'user' });
+  await sitegraphCommand.parseAsync(['https://example.com', '--limit', '10', '--export', 'html', '--output', 'test-output'], { from: 'user' });
 
   expect(core.generateHtml).toHaveBeenCalled();
   expect(fs.mkdir).toHaveBeenCalledWith(expect.stringContaining('test-output'), { recursive: true });
@@ -120,7 +120,7 @@ test('sitegraph validates orphan severity flag dependency', async () => {
   }) as never);
 
   await expect(
-    sitegraph.parseAsync(['https://example.com', '--orphan-severity'], { from: 'user' })
+    sitegraphCommand.parseAsync(['https://example.com', '--orphan-severity'], { from: 'user' })
   ).rejects.toThrow('exit:1');
 
   errorSpy.mockRestore();
@@ -158,7 +158,7 @@ test('sitegraph exits with code 1 when --fail-on-critical is set', async () => {
   const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
   await expect(
-    sitegraph.parseAsync(['https://example.com', '--fail-on-critical'], { from: 'user' })
+    sitegraphCommand.parseAsync(['https://example.com', '--fail-on-critical'], { from: 'user' })
   ).rejects.toThrow('exit:1');
 
   logSpy.mockRestore();
@@ -238,7 +238,7 @@ test('sitegraph diff execution via --compare', async () => {
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
   const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
-  await sitegraph.parseAsync(['node', 'sitegraph', 'https://example.com', '--compare', 'old.json', 'new.json']);
+  await sitegraphCommand.parseAsync(['node', 'sitegraph', 'https://example.com', '--compare', 'old.json', 'new.json']);
 
   expect(fs.readFile).toHaveBeenCalledTimes(2);
   expect(core.compareGraphs).toHaveBeenCalled();
