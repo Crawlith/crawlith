@@ -9,7 +9,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup && cp -r ../web/dist ./dist/ui",
+    "build": "tsup && rm -rf dist/ui && cp -r ../web/dist ./dist/ui",
     "test": "vitest run"
   },
   "dependencies": {
