@@ -40,6 +40,7 @@ export interface AnalyzeOptions {
   debug?: boolean;
   clusterThreshold?: number;
   minClusterSize?: number;
+  allPages?: boolean;
 }
 
 export interface PageAnalysis {
@@ -180,7 +181,13 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
   // Filter to only the requested URL
   const targetPage = filteredPages.find(p => p.url === normalizedRoot);
-  const resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : []);
+  let resultPages: PageAnalysis[];
+
+  if (options.allPages) {
+    resultPages = filteredPages;
+  } else {
+    resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : []);
+  }
 
   const duplicateTitles = pages.filter((page) => page.title.status === 'duplicate').length;
   const thinPages = pages.filter((page) => page.thinScore >= 70).length;
