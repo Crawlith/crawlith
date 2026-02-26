@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { CommandModule } from 'yargs';
 import path from 'node:path';
 import { analyzeSite, EngineContext } from '@crawlith/core';
 import { OutputController } from '../output/controller.js';
@@ -8,41 +8,77 @@ import {
   hasAnalyzeCriticalIssues,
   renderAnalyzeInsightOutput
 } from './analyzeFormatter.js';
+import { withOutputOptions, withExportOption } from './shared.js';
 
-export const analyze = new Command('analyze')
-  .description('Analyze SEO and content quality from crawl data')
-  .argument('<url>', 'URL to analyze')
-  .option('--live', 'Perform a live crawl before analysis')
-  .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html)', false)
-  .option('--format <type>', 'Output format (pretty, json)', 'pretty')
-  .option('--log-level <level>', 'Log level (normal, verbose, debug)', 'normal')
-  // Backward compatibility flags
-  .option('--json', 'Use JSON output (deprecated, use --format=json)')
-  .option('--debug', 'Use debug logging (deprecated, use --log-level=debug)')
-  .option('--verbose', 'Use verbose logging (deprecated, use --log-level=verbose)')
-
-  .option('--seo', 'Show only SEO module output')
-  .option('--content', 'Show only content module output')
-  .option('--accessibility', 'Show only accessibility module output')
-  .option('--fail-on-critical', 'exit code 1 if critical issues exist')
-  .option('--rate <number>', 'requests per second (for live crawl)', '2')
-  .option('--proxy <url>', 'proxy URL (for live crawl)')
-  .option('--ua <string>', 'custom User-Agent (for live crawl)')
-  .option('--max-redirects <number>', 'max redirect hops (for live crawl)', '2')
-  .option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10')
-  .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
-  .option('-o, --output <path>', 'Output directory for reports', './crawlith-reports')
-  .action(async (url, options) => {
-    // 1. Normalize Options
-    if (options.json) options.format = 'json';
-    if (options.debug) options.logLevel = 'debug';
-    if (options.verbose) options.logLevel = 'verbose';
-    if (options.format === 'text') options.format = 'pretty'; // Compat
-
+export const analyzeCommand: CommandModule = {
+  command: 'analyze <url>',
+  describe: 'Analyze SEO and content quality from crawl data',
+  builder: (y) => {
+    return withOutputOptions(withExportOption(y))
+      .positional('url', {
+        type: 'string',
+        describe: 'URL to analyze'
+      })
+      .option('live', {
+        type: 'boolean',
+        describe: 'Perform a live crawl before analysis'
+      })
+      .option('seo', {
+        type: 'boolean',
+        describe: 'Show only SEO module output'
+      })
+      .option('content', {
+        type: 'boolean',
+        describe: 'Show only content module output'
+      })
+      .option('accessibility', {
+        type: 'boolean',
+        describe: 'Show only accessibility module output'
+      })
+      .option('fail-on-critical', {
+        type: 'boolean',
+        describe: 'exit code 1 if critical issues exist'
+      })
+      .option('rate', {
+        type: 'number',
+        default: 2,
+        describe: 'requests per second (for live crawl)'
+      })
+      .option('proxy', {
+        type: 'string',
+        describe: 'proxy URL (for live crawl)'
+      })
+      .option('ua', {
+        type: 'string',
+        describe: 'custom User-Agent (for live crawl)'
+      })
+      .option('max-redirects', {
+        type: 'number',
+        default: 2,
+        describe: 'max redirect hops (for live crawl)'
+      })
+      .option('cluster-threshold', {
+        type: 'number',
+        default: 10,
+        describe: 'Hamming distance for content clusters'
+      })
+      .option('min-cluster-size', {
+        type: 'number',
+        default: 3,
+        describe: 'minimum pages per cluster'
+      })
+      .option('output', {
+        alias: 'o',
+        type: 'string',
+        default: './crawlith-reports',
+        describe: 'Output directory for reports'
+      });
+  },
+  handler: async (argv: any) => {
     // 2. Initialize Output Controller
     const controller = new OutputController({
-      format: options.format as any,
-      logLevel: options.logLevel as any
+      format: argv.format as any,
+      logLevel: argv['log-level'] as any
     });
 
     // 3. Create Engine Context
@@ -51,19 +87,21 @@ export const analyze = new Command('analyze')
     };
 
     try {
+      const url = argv.url;
+
       // 4. Run Analysis
       const result = await analyzeSite(url, {
-        live: options.live,
-        seo: options.seo,
-        content: options.content,
-        accessibility: options.accessibility,
-        rate: options.rate ? parseFloat(options.rate) : 2,
-        proxyUrl: options.proxy,
-        userAgent: options.ua,
-        maxRedirects: options.maxRedirects ? parseInt(options.maxRedirects, 10) : 2,
-        debug: options.logLevel === 'debug',
-        clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
-        minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3
+        live: argv.live,
+        seo: argv.seo,
+        content: argv.content,
+        accessibility: argv.accessibility,
+        rate: argv.rate,
+        proxyUrl: argv.proxy,
+        userAgent: argv.ua,
+        maxRedirects: argv['max-redirects'],
+        debug: argv['log-level'] === 'debug',
+        clusterThreshold: argv['cluster-threshold'],
+        minClusterSize: argv['min-cluster-size']
       }, context);
 
       // 5. Render Output
@@ -73,7 +111,7 @@ export const analyze = new Command('analyze')
       });
 
       // 6. Check Critical Issues
-      if (options.failOnCritical) {
+      if (argv['fail-on-critical']) {
         const report = buildAnalyzeInsightReport(result);
         if (hasAnalyzeCriticalIssues(report)) {
           process.exit(1);
@@ -81,16 +119,16 @@ export const analyze = new Command('analyze')
       }
 
       // 7. Handle Exports
-      if (options.export) {
-        const formats = (typeof options.export === 'string'
-          ? options.export.split(',')
-          : (options.export === true ? ['json'] : [])
-        ).map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (argv.export) {
+        const formats = (typeof argv.export === 'string'
+          ? argv.export.split(',')
+          : (argv.export === true ? ['json'] : [])
+        ).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
 
         if (formats.length > 0) {
           const urlObj = new URL(url);
           const domainFolder = urlObj.hostname.replace('www.', '');
-          const outputDir = path.join(path.resolve(options.output), domainFolder);
+          const outputDir = path.join(path.resolve(argv.output), domainFolder);
 
           for (const fmt of formats) {
             if (['json', 'csv', 'markdown', 'html'].includes(fmt)) {
@@ -108,4 +146,5 @@ export const analyze = new Command('analyze')
       context.emit({ type: 'error', message: 'Analysis failed', error });
       process.exit(1);
     }
-  });
+  }
+};

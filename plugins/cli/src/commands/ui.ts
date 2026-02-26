@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { CommandModule } from 'yargs';
 import chalk from 'chalk';
 import open from 'open';
 import fs from 'node:fs';
@@ -10,16 +10,32 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, 'ui');
 
-export const ui = new Command('ui')
-  .description('Start the Crawlith UI Dashboard')
-  .option('--site <url>', 'Site URL to display in dashboard', 'https://example.com')
-  .option('--port <number>', 'Port to run server on', '23484')
-  .option('--host <address>', 'Host to bind server to', '127.0.0.1')
-  .action(async (options) => {
+export const uiCommand: CommandModule = {
+  command: 'ui',
+  describe: 'Start the Crawlith UI Dashboard',
+  builder: (y) => {
+    return y
+      .option('site', {
+        type: 'string',
+        default: 'https://example.com',
+        describe: 'Site URL to display in dashboard'
+      })
+      .option('port', {
+        type: 'number',
+        default: 23484,
+        describe: 'Port to run server on'
+      })
+      .option('host', {
+        type: 'string',
+        default: '127.0.0.1',
+        describe: 'Host to bind server to'
+      });
+  },
+  handler: async (argv: any) => {
     try {
-      const port = parseInt(options.port, 10);
-      const host = options.host;
-      const siteUrl = options.site;
+      const port = argv.port;
+      const host = argv.host;
+      const siteUrl = argv.site;
 
       console.log(chalk.bold.cyan(`\n🚀 Starting Crawlith UI`));
 
@@ -47,4 +63,5 @@ export const ui = new Command('ui')
       console.error(chalk.red('\n❌ Error starting UI:'), error);
       process.exit(1);
     }
-  });
+  }
+};

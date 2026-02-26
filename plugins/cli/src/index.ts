@@ -1,24 +1,13 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 import chalk from 'chalk';
-import { sitegraph } from './commands/sitegraph.js';
-import { analyze } from './commands/analyze.js';
-import { ui } from './commands/ui.js';
-import { audit } from './commands/audit.js';
-import { exportCmd } from './commands/export.js';
+import { sitegraphCommand } from './commands/sitegraph.js';
+import { analyzeCommand } from './commands/analyze.js';
+import { uiCommand } from './commands/ui.js';
+import { auditCommand } from './commands/audit.js';
+import { exportCommand } from './commands/export.js';
 import { version } from '@crawlith/core';
-
-const program = new Command();
-
-program
-  .name('crawlith')
-  .description('A Node.js + TypeScript CLI tool for crawling websites and generating internal link graphs.')
-  .version(version)
-  .addCommand(sitegraph)
-  .addCommand(analyze)
-  .addCommand(ui)
-  .addCommand(audit)
-  .addCommand(exportCmd);
 
 // show a nice title on help or when no arguments
 if (process.argv.length <= 2 || process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -26,4 +15,19 @@ if (process.argv.length <= 2 || process.argv.includes('--help') || process.argv.
   console.log(chalk.gray('The lightweight SEO Link Graph & Analysis Tool\n'));
 }
 
-program.parse(process.argv);
+yargs(hideBin(process.argv))
+  .scriptName('crawlith')
+  .version(version)
+  .command(sitegraphCommand)
+  .command(analyzeCommand)
+  .command(uiCommand)
+  .command(auditCommand)
+  .command(exportCommand)
+  .recommendCommands()
+  .demandCommand(1, 'You need to specify a command')
+  .strict()
+  .completion()
+  .help()
+  .alias('h', 'help')
+  .alias('v', 'version')
+  .parse();

@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { CommandModule } from 'yargs';
 import chalk from 'chalk';
 import {
     getDb,
@@ -9,57 +9,74 @@ import {
 } from '@crawlith/core';
 import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.js';
 import path from 'node:path';
+import { withExportOption } from './shared.js';
 
-export const exportCmd = new Command('export')
-    .description('Export latest snapshot data for a site')
-    .argument('<url>', 'URL or domain of the site')
-    .option('-o, --output <path>', 'Output directory (e.g. ./crawlith-reports)', './crawlith-reports')
-    .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html,visualize)', 'json')
-    .action(async (url, options) => {
-        try {
-            const db = getDb();
-            const siteRepo = new SiteRepository(db);
-            const snapshotRepo = new SnapshotRepository(db);
+export const exportCommand: CommandModule = {
+  command: 'export <url>',
+  describe: 'Export latest snapshot data for a site',
+  builder: (y) => {
+    return withExportOption(y)
+      .positional('url', {
+        type: 'string',
+        describe: 'URL or domain of the site'
+      })
+      .option('output', {
+        alias: 'o',
+        type: 'string',
+        default: './crawlith-reports',
+        describe: 'Output directory (e.g. ./crawlith-reports)'
+      });
+  },
+  handler: async (argv: any) => {
+    try {
+      const db = getDb();
+      const siteRepo = new SiteRepository(db);
+      const snapshotRepo = new SnapshotRepository(db);
 
-            const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
-            const domain = urlObj.hostname;
-            const site = siteRepo.getSite(domain);
+      const url = argv.url;
+      const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
+      const domain = urlObj.hostname;
+      const site = siteRepo.getSite(domain);
 
-            if (!site) {
-                console.error(chalk.red(`❌ Site not found in database: ${domain}`));
-                process.exit(1);
-            }
+      if (!site) {
+          console.error(chalk.red(`❌ Site not found in database: ${domain}`));
+          process.exit(1);
+      }
 
-            const snapshot = snapshotRepo.getLatestSnapshot(site.id, 'completed');
-            if (!snapshot) {
-                console.error(chalk.red(`❌ No completed snapshots found for site: ${domain}`));
-                process.exit(1);
-            }
+      const snapshot = snapshotRepo.getLatestSnapshot(site.id, 'completed');
+      if (!snapshot) {
+          console.error(chalk.red(`❌ No completed snapshots found for site: ${domain}`));
+          process.exit(1);
+      }
 
-            console.log(chalk.cyan(`Exporting snapshot #${snapshot.id} for ${domain}...`));
+      console.log(chalk.cyan(`Exporting snapshot #${snapshot.id} for ${domain}...`));
 
-            const graph = loadGraphFromSnapshot(snapshot.id);
-            const maxDepth = Math.max(...graph.getNodes().map((n: any) => n.depth), 0);
-            const metrics = calculateMetrics(graph, maxDepth);
+      const graph = loadGraphFromSnapshot(snapshot.id);
+      const maxDepth = Math.max(...graph.getNodes().map((n: any) => n.depth), 0);
+      const metrics = calculateMetrics(graph, maxDepth);
 
-            const outputDir = path.join(path.resolve(options.output), domain);
+      const outputDir = path.join(path.resolve(argv.output), domain);
 
-            const exportFormats = parseExportFormats(options.export);
-            if (exportFormats.length > 0) {
-                await runSitegraphExports(
-                    exportFormats,
-                    outputDir,
-                    url,
-                    graph.toJSON(),
-                    metrics,
-                    graph
-                );
-                console.log(chalk.green(`✅ Exported successfully to ${outputDir}`));
-            } else {
-                console.log(chalk.yellow(`No export formats specified. Use --export json,html,etc.`));
-            }
-        } catch (error) {
-            console.error(chalk.red('❌ Export failed:'), error);
-            process.exit(1);
-        }
-    });
+      // Default to json if not specified
+      const exportArg = argv.export || 'json';
+      const exportFormats = parseExportFormats(exportArg);
+
+      if (exportFormats.length > 0) {
+          await runSitegraphExports(
+              exportFormats,
+              outputDir,
+              url,
+              graph.toJSON(),
+              metrics,
+              graph
+          );
+          console.log(chalk.green(`✅ Exported successfully to ${outputDir}`));
+      } else {
+          console.log(chalk.yellow(`No export formats specified. Use --export json,html,etc.`));
+      }
+    } catch (error) {
+      console.error(chalk.red('❌ Export failed:'), error);
+      process.exit(1);
+    }
+  }
+};
