@@ -1,6 +1,5 @@
 import { request } from 'undici';
 import pLimit from 'p-limit';
-import chalk from 'chalk';
 import robotsParser from 'robots-parser';
 import { Graph, GraphNode } from '../graph/graph.js';
 import { Fetcher, FetchResult } from './fetcher.js';
@@ -17,6 +16,7 @@ import { EdgeRepository } from '../db/repositories/EdgeRepository.js';
 import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { analyzeContent, calculateThinContentScore } from '../analysis/content.js';
 import { analyzeLinks } from '../analysis/links.js';
+import { EngineContext } from '../events.js';
 
 export interface CrawlOptions {
   limit: number;
@@ -47,6 +47,7 @@ interface QueueItem {
 export class Crawler {
   private startUrl: string;
   private options: CrawlOptions;
+  private context: EngineContext;
   private visited: Set<string>;
   private uniqueQueue: Set<string>;
   private queue: QueueItem[];
@@ -85,9 +86,10 @@ export class Crawler {
   private trapDetector: TrapDetector | null = null;
   private robots: any = null;
 
-  constructor(startUrl: string, options: CrawlOptions) {
+  constructor(startUrl: string, options: CrawlOptions, context: EngineContext) {
     this.startUrl = startUrl;
     this.options = options;
+    this.context = context;
     this.visited = new Set<string>();
     this.uniqueQueue = new Set<string>();
     this.queue = [];
@@ -140,7 +142,7 @@ export class Crawler {
     });
 
     this.parser = new Parser();
-    this.sitemapFetcher = new Sitemap();
+    this.sitemapFetcher = new Sitemap(this.context);
     this.trapDetector = new TrapDetector();
   }
 
@@ -161,7 +163,7 @@ export class Crawler {
           await res.body.dump();
         }
       } catch {
-        console.warn('Failed to fetch robots.txt, proceeding...');
+        this.context.emit({ type: 'warn', message: 'Failed to fetch robots.txt, proceeding...' });
       }
     }
   }
@@ -184,6 +186,7 @@ export class Crawler {
     if (!this.uniqueQueue.has(u)) {
       this.uniqueQueue.add(u);
       this.queue.push({ url: u, depth: d });
+      this.context.emit({ type: 'queue:enqueue', url: u, depth: d });
 
       const currentDiscovery = this.discoveryDepths.get(u);
       if (currentDiscovery === undefined || d < currentDiscovery) {
@@ -198,7 +201,7 @@ export class Crawler {
       try {
         const sitemapUrl = this.options.sitemap === 'true' ? new URL('/sitemap.xml', this.rootOrigin).toString() : this.options.sitemap;
         if (sitemapUrl.startsWith('http')) {
-          console.log(`Fetching sitemap: ${sitemapUrl}`);
+          this.context.emit({ type: 'info', message: 'Fetching sitemap', context: { url: sitemapUrl } });
           const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
           for (const u of sitemapUrls) {
             const normalized = normalizeUrl(u, '', this.options);
@@ -206,7 +209,7 @@ export class Crawler {
           }
         }
       } catch (e) {
-        console.warn('Sitemap fetch failed', e);
+        this.context.emit({ type: 'warn', message: 'Sitemap fetch failed', context: e });
       }
     }
 
@@ -344,7 +347,9 @@ export class Crawler {
   }
 
   private async fetchPage(url: string, depth: number, prevNode?: GraphNode): Promise<FetchResult | null> {
+    const startTime = Date.now();
     try {
+      this.context.emit({ type: 'crawl:start', url });
       const res = await this.fetcher!.fetch(url, {
         maxBytes: this.options.maxBytes,
         crawlDelay: this.robots ? this.robots.getCrawlDelay('crawlith') : undefined,
@@ -352,12 +357,19 @@ export class Crawler {
         lastModified: prevNode?.lastModified
       });
 
-      if (this.options.debug) {
-        console.log(`${chalk.gray(`[D:${depth}]`)} ${res.status} ${chalk.blue(url)}`);
-      }
+      const durationMs = Date.now() - startTime;
+
+      this.context.emit({
+        type: 'crawl:success',
+        url,
+        status: typeof res.status === 'number' ? res.status : 0,
+        durationMs,
+        depth
+      });
+
       return res;
     } catch (e) {
-      console.error(`Error processing ${url}:`, e);
+      this.context.emit({ type: 'crawl:error', url, error: String(e), depth });
       return null;
     }
   }
@@ -443,7 +455,7 @@ export class Crawler {
         external_link_ratio: linkAnalysis.externalRatio
       });
     } catch (e) {
-      console.error(`Error calculating per-page metrics for ${finalUrl}:`, e);
+      this.context.emit({ type: 'error', message: 'Error calculating per-page metrics', error: e, context: { url: finalUrl } });
     }
 
     for (const linkItem of parseResult.links) {
@@ -494,7 +506,7 @@ export class Crawler {
         this.handleSuccessResponse(res, finalUrl, depth);
       }
     } catch (e) {
-      console.error(`Error processing ${url}:`, e);
+      this.context.emit({ type: 'crawl:error', url, error: String(e), depth });
     }
   }
 
@@ -527,6 +539,7 @@ export class Crawler {
             this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
               limit_reached: 1
             });
+            this.context.emit({ type: 'crawl:limit-reached', limit: this.options.limit });
             resolve(this.snapshotId!);
           }
           return;

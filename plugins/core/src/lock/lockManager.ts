@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
-import { existsSync, unlinkSync, readFileSync } from 'node:fs';
+import { existsSync, unlinkSync, readFileSync, writeFile } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import chalk from 'chalk';
 import { generateLockKey } from './hashKey.js';
 import { isPidAlive } from './pidCheck.js';
+import { EngineContext } from '../events.js';
 
 interface LockData {
   pid: number;
@@ -16,16 +16,17 @@ interface LockData {
 
 export class LockManager {
   private static lockFilePath: string | null = null;
+  private static context: EngineContext | null = null;
 
   private static get lockDir(): string {
     return path.join(os.homedir(), '.crawlith', 'locks');
   }
 
-  static async acquireLock(commandName: string, targetUrl: string, options: any, force: boolean = false): Promise<void> {
+  static async acquireLock(commandName: string, targetUrl: string, options: any, context: EngineContext, force: boolean = false): Promise<void> {
+    this.context = context;
     const lockHash = generateLockKey(commandName, targetUrl, options);
 
     // Ensure lock directory exists
-    // We can use sync or async here. Since this is one-time setup, async is fine.
     await fs.mkdir(this.lockDir, { recursive: true });
 
     const lockPath = path.join(this.lockDir, `${lockHash}.lock`);
@@ -43,18 +44,18 @@ export class LockManager {
       } catch (_e) {
         // Corrupted -> Treat as stale
         isStale = true;
-        pid = 0; // Fallback, though unused if isStale is true
+        pid = 0;
       }
 
       if (force) {
-        console.warn(chalk.yellow('Force mode enabled. Overriding existing lock.'));
+        context.emit({ type: 'warn', message: 'Force mode enabled. Overriding existing lock.' });
         try { unlinkSync(lockPath); } catch { /* ignore */ }
       } else {
         if (!isStale) {
-          console.error(chalk.red(`Crawlith: command already running for ${targetUrl} (PID ${pid})`));
+          context.emit({ type: 'error', message: `Crawlith: command already running for ${targetUrl} (PID ${pid})` });
           process.exit(1);
         } else {
-          console.log(chalk.gray('Detected stale lock. Continuing execution.'));
+          context.emit({ type: 'info', message: 'Detected stale lock. Continuing execution.' });
           try { unlinkSync(lockPath); } catch { /* ignore */ }
         }
       }
@@ -71,14 +72,15 @@ export class LockManager {
       };
 
       // 'wx' flag ensures atomic creation, failing if file exists
+      // Using writeFileSync or fs.writeFile (callback) wrapped in promise?
+      // Using fs.writeFile from 'node:fs/promises' which I imported as fs.
       await fs.writeFile(lockPath, JSON.stringify(data, null, 2), { flag: 'wx', encoding: 'utf-8' });
 
       this.lockFilePath = lockPath;
       this.registerHandlers();
     } catch (error: any) {
       if (error.code === 'EEXIST') {
-        // Race condition: another process created lock between our check and open
-        console.error(chalk.red(`Crawlith: command already running for ${targetUrl} (Race condition)`));
+        context.emit({ type: 'error', message: `Crawlith: command already running for ${targetUrl} (Race condition)` });
         process.exit(1);
       }
       throw error;
@@ -102,11 +104,8 @@ export class LockManager {
       this.releaseLock();
     };
 
-    // process.on('exit') is only called when process.exit() is called or event loop empties.
-    // It requires synchronous cleanup.
     process.on('exit', cleanup);
 
-    // Signals
     process.on('SIGINT', () => {
       cleanup();
       process.exit(130);
@@ -116,7 +115,9 @@ export class LockManager {
       process.exit(143);
     });
     process.on('uncaughtException', (err) => {
-      console.error(chalk.red('Uncaught Exception:'), err);
+      if (this.context) {
+        this.context.emit({ type: 'error', message: 'Uncaught Exception', error: err });
+      }
       cleanup();
       process.exit(1);
     });

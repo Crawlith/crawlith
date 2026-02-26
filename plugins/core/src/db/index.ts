@@ -52,7 +52,7 @@ export function getDb(): Database.Database {
   // Integrity check on startup
   const integrity = db.pragma('integrity_check', { simple: true });
   if (integrity !== 'ok') {
-    console.warn('Database integrity check failed:', integrity);
+    throw new Error(`Database integrity check failed: ${integrity}`);
   }
 
   // Initialize schema

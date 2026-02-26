@@ -15,6 +15,7 @@ import { SiteRepository } from '../db/repositories/SiteRepository.js';
 import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../db/repositories/PageRepository.js';
 import { ANALYSIS_LIST_TEMPLATE, ANALYSIS_PAGE_TEMPLATE } from './templates.js';
+import { EngineContext } from '../events.js';
 
 export interface CrawlPage {
   url: string;
@@ -90,8 +91,9 @@ interface CrawlData {
  *
  * @param url The root URL to analyze
  * @param options Analysis options
+ * @param context Engine context for event emission
  */
-export async function analyzeSite(url: string, options: AnalyzeOptions): Promise<AnalysisResult> {
+export async function analyzeSite(url: string, options: AnalyzeOptions, context: EngineContext): Promise<AnalysisResult> {
   const normalizedRoot = normalizeUrl(url, '', { stripQuery: false });
   if (!normalizedRoot) {
     throw new Error('Invalid URL for analysis');
@@ -100,7 +102,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions): Promise
   let crawlData: CrawlData;
 
   if (options.live) {
-    crawlData = await runLiveCrawl(normalizedRoot, options);
+    crawlData = await runLiveCrawl(normalizedRoot, options, context);
   } else {
     try {
       crawlData = await loadCrawlData(normalizedRoot);
@@ -110,8 +112,8 @@ export async function analyzeSite(url: string, options: AnalyzeOptions): Promise
         error.message.includes('No completed snapshot found') ||
         error.message.includes('not found in database');
       if (isNotFound) {
-        console.log('No local crawl data found. Switching to live analysis mode...');
-        crawlData = await runLiveCrawl(normalizedRoot, options);
+        context.emit({ type: 'info', message: 'No local crawl data found. Switching to live analysis mode...' });
+        crawlData = await runLiveCrawl(normalizedRoot, options, context);
       } else {
         throw error;
       }
@@ -404,7 +406,7 @@ async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
 }
 
 
-async function runLiveCrawl(url: string, options: AnalyzeOptions): Promise<CrawlData> {
+async function runLiveCrawl(url: string, options: AnalyzeOptions, context: EngineContext): Promise<CrawlData> {
   const snapshotId = await crawl(url, {
     limit: 1,
     depth: 0,
@@ -413,7 +415,7 @@ async function runLiveCrawl(url: string, options: AnalyzeOptions): Promise<Crawl
     userAgent: options.userAgent,
     maxRedirects: options.maxRedirects,
     debug: options.debug
-  }) as number;
+  }, context) as number;
   const graph = loadGraphFromSnapshot(snapshotId);
   const pages = graph.getNodes().map((node) => ({
     url: node.url,
