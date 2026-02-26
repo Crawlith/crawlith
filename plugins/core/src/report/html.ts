@@ -1,5 +1,5 @@
 import { Metrics } from '../graph/metrics.js';
-import { SITEGRAPH_HTML } from './crawl_template.js';
+import { SITEGRAPH_HTML } from './sitegraph_template.js';
 
 function safeJson(data: any): string {
     return JSON.stringify(data).replace(/</g, '\\u003c');

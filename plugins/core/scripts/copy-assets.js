@@ -7,20 +7,20 @@ const __dirname = path.dirname(__filename);
 
 // Ensure dist directories exist
 const reportDestDir = path.join(__dirname, '../dist/report');
-if (!fs.existsSync(reportDestDir)) {
-  fs.mkdirSync(reportDestDir, { recursive: true });
+if (!fs.existsSync(reportDestDir)){
+    fs.mkdirSync(reportDestDir, { recursive: true });
 }
 
 const analysisDestDir = path.join(__dirname, '../dist/analysis');
-if (!fs.existsSync(analysisDestDir)) {
-  fs.mkdirSync(analysisDestDir, { recursive: true });
+if (!fs.existsSync(analysisDestDir)){
+    fs.mkdirSync(analysisDestDir, { recursive: true });
 }
 
 // Copy Report Assets
-const crawlSrc = path.join(__dirname, '../src/report/crawl.html');
-const crawlDest = path.join(reportDestDir, 'crawl.html');
-if (fs.existsSync(crawlSrc)) {
-  fs.copyFileSync(crawlSrc, crawlDest);
+const sitegraphSrc = path.join(__dirname, '../src/report/sitegraph.html');
+const sitegraphDest = path.join(reportDestDir, 'sitegraph.html');
+if (fs.existsSync(sitegraphSrc)) {
+  fs.copyFileSync(sitegraphSrc, sitegraphDest);
 }
 
 // Copy Analysis Assets

@@ -15,6 +15,10 @@ export class SiteRepository {
     return this.db.prepare('SELECT * FROM sites WHERE domain = ?').get(domain) as Site | undefined;
   }
 
+  getAllSites(): Site[] {
+    return this.db.prepare('SELECT * FROM sites ORDER BY domain ASC').all() as Site[];
+  }
+
   createSite(domain: string): number {
     const stmt = this.db.prepare('INSERT INTO sites (domain) VALUES (?)');
     const info = stmt.run(domain);
@@ -28,9 +32,5 @@ export class SiteRepository {
       site = this.getSite(domain);
     }
     return site!;
-  }
-
-  deleteSite(id: number): void {
-    this.db.prepare('DELETE FROM sites WHERE id = ?').run(id);
   }
 }

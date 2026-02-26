@@ -38,7 +38,6 @@ describe('analyze integration', () => {
       pageRepo.upsertPage({
         site_id: siteId,
         normalized_url: p.url,
-        first_seen_snapshot_id: snapshotId,
         last_seen_snapshot_id: snapshotId,
         http_status: p.status || 200,
         html: p.html || '',
@@ -70,7 +69,7 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const result = await analyzeSite('https://example.com', {}, mockContext);
+    const result = await analyzeSite('https://example.com', { scope: 'site' }, mockContext);
 
     expect(result.site_summary.pages_analyzed).toBe(3);
     expect(result.site_summary.duplicate_titles).toBe(2);
@@ -118,7 +117,7 @@ describe('analyze integration', () => {
     const rawData = JSON.parse(rawContent);
     await setupTestDb(rawData);
 
-    const result = await analyzeSite('https://example.com', {}, mockContext);
+    const result = await analyzeSite('https://example.com', { scope: 'site' }, mockContext);
     expect(result.site_summary.pages_analyzed).toBe(3);
   });
 

@@ -11,7 +11,7 @@ Sets the maximum crawl depth from the starting URL.
 Use this to keep crawls focused on top-level pages.
 
 ```bash
-crawlith crawl https://example.com --depth 3
+crawlith sitegraph https://example.com --depth 3
 ```
 
 Expected behavior: Crawl results include pages up to the specified depth.
@@ -23,7 +23,7 @@ Sets the maximum number of pages to crawl.
 This is useful when you want a quick sample instead of a full-site run.
 
 ```bash
-crawlith crawl https://example.com --limit 250
+crawlith sitegraph https://example.com --limit 250
 ```
 
 Expected behavior: The crawl stops when it reaches the page limit.
@@ -35,7 +35,7 @@ Controls how many pages Crawlith requests at the same time.
 Higher values can speed up crawls, but may increase load on the target site.
 
 ```bash
-crawlith crawl https://example.com --concurrency 10
+crawlith sitegraph https://example.com --concurrency 10
 ```
 
 Expected behavior: Crawl speed and request parallelism adjust based on the value.
@@ -47,7 +47,7 @@ Sets the folder where Crawlith writes crawl files.
 Use this when you want to separate reports by project or date.
 
 ```bash
-crawlith crawl https://example.com --output ./reports/july-audit
+crawlith sitegraph https://example.com --output ./reports/july-audit
 ```
 
 Expected behavior: Output files are written to the folder you provide.
@@ -59,7 +59,7 @@ Chooses output format.
 Use this to generate data in the format your workflow expects.
 
 ```bash
-crawlith crawl https://example.com --format json
+crawlith sitegraph https://example.com --format json
 ```
 
 Expected behavior: Crawlith writes output in the selected format.
@@ -73,7 +73,7 @@ Runs an incremental crawl instead of a full recrawl.
 Use this to focus on pages that changed since the last crawl.
 
 ```bash
-crawlith crawl https://example.com --incremental
+crawlith sitegraph https://example.com --incremental
 ```
 
 Expected behavior: Crawlith updates crawl output using prior crawl context.
@@ -85,7 +85,7 @@ Compares two crawl snapshots.
 This helps you see added, removed, or changed URLs between runs.
 
 ```bash
-crawlith crawl https://example.com --compare ./baseline/crawl.json ./latest/crawl.json
+crawlith sitegraph https://example.com --compare ./baseline/crawl.json ./latest/crawl.json
 ```
 
 Expected behavior: Crawlith generates a diff-style output file for crawl changes.
@@ -97,7 +97,7 @@ Uses sitemap URLs as crawl seeds.
 This helps discover important URLs quickly.
 
 ```bash
-crawlith crawl https://example.com --sitemap
+crawlith sitegraph https://example.com --sitemap
 ```
 
 Expected behavior: Sitemap URLs are included early in crawl discovery.
@@ -109,7 +109,7 @@ Enables duplicate-content detection.
 Use this to spot pages with very similar or repeated content.
 
 ```bash
-crawlith crawl https://example.com --detect-duplicates
+crawlith sitegraph https://example.com --detect-duplicates
 ```
 
 Expected behavior: Output includes duplicate-content findings.
@@ -121,7 +121,7 @@ Enables soft 404 detection.
 Use this to identify pages that appear successful but behave like missing pages.
 
 ```bash
-crawlith crawl https://example.com --detect-soft404
+crawlith sitegraph https://example.com --detect-soft404
 ```
 
 Expected behavior: Output includes potential soft 404 URLs.
@@ -133,7 +133,7 @@ Checks canonical URL signals.
 Use this to find missing, conflicting, or unexpected canonical patterns.
 
 ```bash
-crawlith crawl https://example.com --detect-canonicals
+crawlith sitegraph https://example.com --detect-canonicals
 ```
 
 Expected behavior: Output includes canonical-related findings.
@@ -145,7 +145,7 @@ Enables broken internal link checks.
 Use this to identify links that lead to error pages.
 
 ```bash
-crawlith crawl https://example.com --detect-broken-links
+crawlith sitegraph https://example.com --detect-broken-links
 ```
 
 Expected behavior: Output includes broken-link URLs and sources.
@@ -157,7 +157,7 @@ Enables redirect detection for crawled links.
 Use this to locate redirecting URLs that may slow navigation.
 
 ```bash
-crawlith crawl https://example.com --detect-redirects
+crawlith sitegraph https://example.com --detect-redirects
 ```
 
 Expected behavior: Output includes redirecting URLs and targets.
@@ -169,7 +169,7 @@ Enables crawl trap detection.
 Use this to find URL patterns that can create near-infinite crawl paths.
 
 ```bash
-crawlith crawl https://example.com --detect-traps
+crawlith sitegraph https://example.com --detect-traps
 ```
 
 Expected behavior: Output includes suspected crawl-trap patterns.

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { annotateOrphans, calculateOrphanSeverity, mapImpactLevel, type CrawlNode, type CrawlEdge } from '../src/scoring/orphanSeverity.js';
+import { annotateOrphans, calculateOrphanSeverity, mapImpactLevel, type SitegraphNode, type SitegraphEdge } from '../src/scoring/orphanSeverity.js';
 
-function baseNode(url: string, overrides: Partial<CrawlNode> = {}): CrawlNode {
+function baseNode(url: string, overrides: Partial<SitegraphNode> = {}): SitegraphNode {
   return {
     url,
     depth: 1,
@@ -14,11 +14,11 @@ function baseNode(url: string, overrides: Partial<CrawlNode> = {}): CrawlNode {
 
 describe('orphan detection and severity scoring', () => {
   test('hard orphan detection and homepage exclusion', () => {
-    const nodes: CrawlNode[] = [
+    const nodes: SitegraphNode[] = [
       baseNode('https://example.com/', { depth: 0, inLinks: 0 }),
       baseNode('https://example.com/orphan', { inLinks: 0 })
     ];
-    const edges: CrawlEdge[] = [];
+    const edges: SitegraphEdge[] = [];
 
     const result = annotateOrphans(nodes, edges, {
       enabled: true,
@@ -34,7 +34,7 @@ describe('orphan detection and severity scoring', () => {
 
   test('near orphan threshold override', () => {
     const nodes = [baseNode('https://example.com/near', { inLinks: 2 })];
-    const edges: CrawlEdge[] = [];
+    const edges: SitegraphEdge[] = [];
 
     const resultDefault = annotateOrphans(nodes, edges, {
       enabled: true,
@@ -54,14 +54,14 @@ describe('orphan detection and severity scoring', () => {
   });
 
   test('soft orphan detection only when enabled and inbound only from low-value sources', () => {
-    const nodes: CrawlNode[] = [
+    const nodes: SitegraphNode[] = [
       baseNode('https://example.com/tag/seo', { pageType: 'tag', outLinks: 1 }),
       baseNode('https://example.com/list?page=2', { pageType: 'pagination', outLinks: 1 }),
       baseNode('https://example.com/target', { inLinks: 2 }),
       baseNode('https://example.com/normal', { outLinks: 1 })
     ];
 
-    const edges: CrawlEdge[] = [
+    const edges: SitegraphEdge[] = [
       { source: 'https://example.com/tag/seo', target: 'https://example.com/target' },
       { source: 'https://example.com/list?page=2', target: 'https://example.com/target' }
     ];
@@ -129,14 +129,14 @@ describe('orphan detection and severity scoring', () => {
   });
 
   test('canonical consolidation, robots exclusion, and deterministic JSON output snapshot', () => {
-    const nodes: CrawlNode[] = [
+    const nodes: SitegraphNode[] = [
       baseNode('https://example.com/canonical', { inLinks: 0 }),
       baseNode('https://example.com/variant?a=1', { canonicalUrl: 'https://example.com/canonical', inLinks: 1 }),
       baseNode('https://example.com/blocked', { inLinks: 0, robotsExcluded: true }),
       baseNode('https://example.com/redirect-target', { inLinks: 1 })
     ];
 
-    const edges: CrawlEdge[] = [
+    const edges: SitegraphEdge[] = [
       { source: 'https://example.com/redirect-source', target: 'https://example.com/redirect-target' }
     ];
 

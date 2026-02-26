@@ -18,6 +18,11 @@ export class SnapshotRepository {
   constructor(private db: Database) { }
 
   createSnapshot(siteId: number, type: 'full' | 'partial' | 'incremental', status: 'running' | 'completed' | 'failed' = 'running'): number {
+    // Basic throttling or sleep if needed for tests, but generally SQLite is fast enough to have diff timestamps if not in same ms.
+    // However, if we run in memory, created_at is default current time.
+    // If two snapshots created in same second, ORDER BY created_at DESC is unstable or equal.
+    // We should rely on ID for stability if timestamps are equal, but the query uses created_at.
+    // Let's ensure we can also order by ID as tie-breaker.
     const stmt = this.db.prepare('INSERT INTO snapshots (site_id, type, status) VALUES (?, ?, ?)');
     const info = stmt.run(siteId, type, status);
     return info.lastInsertRowid as number;
@@ -30,8 +35,13 @@ export class SnapshotRepository {
       sql += ' AND status = ?';
       params.push(status);
     }
-    sql += ' ORDER BY created_at DESC LIMIT 1';
+    sql += ' ORDER BY created_at DESC, id DESC LIMIT 1';
     return this.db.prepare(sql).get(...params) as Snapshot | undefined;
+  }
+
+  getSnapshotCount(siteId: number): number {
+    const result = this.db.prepare('SELECT COUNT(*) as count FROM snapshots WHERE site_id = ?').get(siteId) as { count: number };
+    return result.count;
   }
 
   updateSnapshotStatus(id: number, status: 'completed' | 'failed', stats: Partial<Snapshot> = {}) {
@@ -70,16 +80,5 @@ export class SnapshotRepository {
 
   getSnapshot(id: number): Snapshot | undefined {
     return this.db.prepare('SELECT * FROM snapshots WHERE id = ?').get(id) as Snapshot | undefined;
-  }
-
-  deleteSnapshot(id: number): void {
-    const tx = this.db.transaction(() => {
-      // Unlink pages from this snapshot to prevent FK constraint violations or data inconsistencies
-      this.db.prepare('UPDATE pages SET first_seen_snapshot_id = NULL WHERE first_seen_snapshot_id = ?').run(id);
-      this.db.prepare('UPDATE pages SET last_seen_snapshot_id = NULL WHERE last_seen_snapshot_id = ?').run(id);
-      // Delete the snapshot
-      this.db.prepare('DELETE FROM snapshots WHERE id = ?').run(id);
-    });
-    tx();
   }
 }
