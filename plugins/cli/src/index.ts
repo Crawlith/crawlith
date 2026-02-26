@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { sitegraph } from './commands/crawl.js';
+import { crawls } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
@@ -14,7 +14,7 @@ program
   .name('crawlith')
   .description('Modular crawl intelligence engine for serious SEO analysis.')
   .version(version)
-  .addCommand(sitegraph)
+  .addCommand(crawls)
   .addCommand(analyze)
   .addCommand(ui)
   .addCommand(probe);

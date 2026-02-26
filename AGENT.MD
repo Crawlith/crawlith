@@ -24,7 +24,7 @@ Familiarize yourself with these core locations:
 - `plugins/core/src/crawler/crawl.ts`: Main BFS crawl orchestrator.
 - `plugins/core/src/crawler/fetcher.ts`: HTTP request handling and redirect logic.
 - `plugins/core/src/graph/metrics.ts`: Structural analysis algorithms.
-- `plugins/cli/src/commands/sitegraph.ts`: UI/Logic for the `sitegraph` CLI command.
+- `plugins/cli/src/commands/crawl.ts`: UI/Logic for the `crawl` CLI command.
 - `plugins/cli/src/commands/analyze.ts`: UI/Logic for the `analyze` CLI command.
 - `SECURITY.md`: Safety and compliance policies.
 
@@ -40,7 +40,7 @@ For all significant features or architectural changes, you **MUST** follow these
 
 ## 🚀 5. Current Priority Next Steps
 If the user asks what to work on, refer to these immediate goals:
-1. **Sitegraph JSON**: Implement `--json` for `sitegraph` to match the `analyze` command.
+1. **Crawl JSON**: Implement `--json` for `crawl` to match the `analyze` command.
 2. **JS Rendering (Beta)**: Explore optional Playwright/Puppeteer integration for SPA/React SEO audits.
 3. **Multi-Host Crawling**: Allow crawling cross-domain clusters (e.g., `brand-a.com` + `brand-b.com`) safely.
 4. **Schema Validation**: Add automated tests for the graph output format.

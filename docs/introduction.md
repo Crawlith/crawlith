@@ -7,7 +7,7 @@ It is built for marketers, SEO specialists, content teams, and site owners who w
 ## Quick start command
 
 ```bash
-crawlith sitegraph https://example.com
+crawlith crawl https://example.com
 ```
 
 ## Supported environments

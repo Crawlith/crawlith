@@ -22,7 +22,7 @@ const RELEVANT_FLAGS = [
 ];
 
 export function generateLockKey(commandName: string, targetUrl: string, options: any): string {
-  // Respect the query stripping option consistent with sitegraph logic
+  // Respect the query stripping option consistent with crawl logic
   const stripQuery = !options.query;
 
   const normalizedTarget = normalizeUrl(targetUrl, '', { stripQuery }) || targetUrl;

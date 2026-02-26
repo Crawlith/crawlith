@@ -1,7 +1,7 @@
 export type OrphanType = 'hard' | 'near' | 'soft' | 'crawl-only';
 export type ImpactLevel = 'low' | 'medium' | 'high' | 'critical';
 
-export interface SitegraphNode {
+export interface CrawlNode {
   url: string;
   depth: number;
   inLinks: number;
@@ -19,7 +19,7 @@ export interface SitegraphNode {
   isProductOrCommercial?: boolean;
 }
 
-export interface SitegraphEdge {
+export interface CrawlEdge {
   source: string;
   target: string;
 }
@@ -32,7 +32,7 @@ export interface OrphanScoringOptions {
   rootUrl?: string;
 }
 
-export type AnnotatedNode = SitegraphNode & {
+export type AnnotatedNode = CrawlNode & {
   orphan: boolean;
   orphanType?: OrphanType;
   orphanSeverity?: number;
@@ -46,7 +46,7 @@ const LOW_VALUE_PATTERNS = [
   /\/search(\/|\?|$)/i
 ];
 
-function isLowValuePage(node: SitegraphNode): boolean {
+function isLowValuePage(node: CrawlNode): boolean {
   const type = (node.pageType || '').toLowerCase();
   if (['pagination', 'tag', 'category', 'filter', 'search', 'archive'].includes(type)) {
     return true;
@@ -68,7 +68,7 @@ export function mapImpactLevel(score: number): ImpactLevel {
   return 'critical';
 }
 
-export function calculateOrphanSeverity(orphanType: OrphanType, node: SitegraphNode): number {
+export function calculateOrphanSeverity(orphanType: OrphanType, node: CrawlNode): number {
   let score = 0;
 
   switch (orphanType) {
@@ -106,7 +106,7 @@ export function calculateOrphanSeverity(orphanType: OrphanType, node: SitegraphN
   return clampScore(score);
 }
 
-function consolidateInboundByCanonical(nodes: SitegraphNode[]): Map<string, number> {
+function consolidateInboundByCanonical(nodes: CrawlNode[]): Map<string, number> {
   const canonicalInbound = new Map<string, number>();
   for (const node of nodes) {
     const canonical = node.canonicalUrl || node.url;
@@ -115,7 +115,7 @@ function consolidateInboundByCanonical(nodes: SitegraphNode[]): Map<string, numb
   return canonicalInbound;
 }
 
-export function annotateOrphans(nodes: SitegraphNode[], edges: SitegraphEdge[], options: OrphanScoringOptions): AnnotatedNode[] {
+export function annotateOrphans(nodes: CrawlNode[], edges: CrawlEdge[], options: OrphanScoringOptions): AnnotatedNode[] {
   if (!options.enabled) {
     return nodes.map((node) => ({ ...node, orphan: false }));
   }
@@ -144,7 +144,7 @@ export function annotateOrphans(nodes: SitegraphNode[], edges: SitegraphEdge[], 
       const inboundSources = edges
         .filter((edge) => edge.target === node.url)
         .map((edge) => nodeByUrl.get(edge.source))
-        .filter((source): source is SitegraphNode => Boolean(source));
+        .filter((source): source is CrawlNode => Boolean(source));
 
       if (inboundSources.length > 0 && inboundSources.every((source) => isLowValuePage(source))) {
         orphanType = 'soft';
