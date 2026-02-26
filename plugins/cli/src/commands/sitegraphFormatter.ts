@@ -24,6 +24,7 @@ export interface HealthScoreWeights {
   canonicalConflicts: number;
   lowInternalLinks: number;
   excessiveLinks: number;
+  blockedByRobots: number;
 }
 
 export const DEFAULT_HEALTH_WEIGHTS: HealthScoreWeights = {
@@ -36,7 +37,8 @@ export const DEFAULT_HEALTH_WEIGHTS: HealthScoreWeights = {
   noindexMisuse: 10,
   canonicalConflicts: 5,
   lowInternalLinks: 10,
-  excessiveLinks: 5
+  excessiveLinks: 5,
+  blockedByRobots: 25
 };
 
 export interface SitegraphIssueCounts {
@@ -57,6 +59,7 @@ export interface SitegraphIssueCounts {
   nearAuthorityThreshold: number;
   underlinkedHighAuthorityPages: number;
   externalLinks: number;
+  blockedByRobots: number;
 }
 
 export interface HealthScoreBreakdown {
@@ -89,7 +92,8 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function healthStatusLabel(score: number): string {
+export function healthStatusLabel(score: number, hasCritical: boolean = false): string {
+  if (hasCritical && score >= 75) return 'Needs Attention';
   if (score >= 90) return 'Excellent';
   if (score >= 75) return 'Good';
   if (score >= 50) return 'Needs Attention';
@@ -98,7 +102,7 @@ export function healthStatusLabel(score: number): string {
 
 export function calculateHealthScore(
   totalPages: number,
-  issues: Pick<SitegraphIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount'>,
+  issues: Pick<SitegraphIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots'>,
   weights: HealthScoreWeights = DEFAULT_HEALTH_WEIGHTS
 ): HealthScoreBreakdown {
   const safePages = Math.max(totalPages, 1);
@@ -113,15 +117,27 @@ export function calculateHealthScore(
     noindexMisuse: clamp((issues.accidentalNoindex / safePages) * weights.noindexMisuse, 0, weights.noindexMisuse),
     canonicalConflicts: clamp((issues.canonicalConflicts / safePages) * weights.canonicalConflicts, 0, weights.canonicalConflicts),
     lowInternalLinks: clamp((issues.lowInternalLinkCount / safePages) * weights.lowInternalLinks, 0, weights.lowInternalLinks),
-    excessiveLinks: clamp((issues.excessiveInternalLinkCount / safePages) * weights.excessiveLinks, 0, weights.excessiveLinks)
+    excessiveLinks: clamp((issues.excessiveInternalLinkCount / safePages) * weights.excessiveLinks, 0, weights.excessiveLinks),
+    blockedByRobots: clamp((issues.blockedByRobots / safePages) * weights.blockedByRobots, 0, weights.blockedByRobots)
   };
 
   const totalPenalty = Object.values(weightedPenalties).reduce((sum, value) => sum + value, 0);
   const score = Number(clamp(100 - totalPenalty, 0, 100).toFixed(1));
 
+  // Determine if there are critical issues for the label
+  const hasCritical = (
+    issues.orphanPages > 0 ||
+    issues.brokenInternalLinks > 0 ||
+    issues.redirectChains > 0 ||
+    issues.duplicateClusters > 0 ||
+    issues.canonicalConflicts > 0 ||
+    issues.accidentalNoindex > 0 ||
+    issues.blockedByRobots > 0
+  );
+
   return {
     score,
-    status: healthStatusLabel(score),
+    status: healthStatusLabel(score, hasCritical),
     weightedPenalties,
     weights
   };
@@ -145,7 +161,13 @@ export function collectSitegraphIssues(graph: Graph, metrics: Metrics): Sitegrap
   let underlinkedHighAuthorityPages = 0;
   let externalLinks = 0;
 
+  let blockedByRobots = 0;
+
   for (const node of nodes) {
+    if (node.crawlStatus === 'blocked') {
+      blockedByRobots += 1;
+    }
+
     brokenInternalLinks += node.brokenLinks?.length || 0;
     if ((node.redirectChain?.length || 0) > 1) {
       redirectChains += 1;
@@ -223,7 +245,8 @@ export function collectSitegraphIssues(graph: Graph, metrics: Metrics): Sitegrap
     cannibalizationClusters,
     nearAuthorityThreshold,
     underlinkedHighAuthorityPages,
-    externalLinks
+    externalLinks,
+    blockedByRobots
   };
 }
 
@@ -271,81 +294,116 @@ export function hasCriticalIssues(report: SitegraphInsightReport): boolean {
     issues.redirectChains > 0 ||
     issues.duplicateClusters > 0 ||
     issues.canonicalConflicts > 0 ||
-    issues.accidentalNoindex > 0
+    issues.accidentalNoindex > 0 ||
+    issues.blockedByRobots > 0
   );
 }
 
 function addLine(lines: string[], condition: boolean, text: string) {
   if (condition) lines.push(text);
 }
-
-export function renderInsightOutput(report: SitegraphInsightReport): string {
+export function renderInsightOutput(report: SitegraphInsightReport, snapshotId: number): string {
   const lines: string[] = [];
 
-  lines.push(`Pages: ${report.pages} Health Score: ${report.health.score}/100 Status: ${report.health.status}`);
+  // Header
+  lines.push(`CRAWLITH — Sitegraph`);
+  lines.push('');
+  lines.push(`# ${snapshotId}`);
+  lines.push('');
+  lines.push(`${report.pages} pages crawled`);
+  lines.push('');
+  lines.push(
+    `Health      ${report.health.score}/100   ${report.health.status}`
+  );
   lines.push('');
 
-  const criticalLines: string[] = [];
-  addLine(criticalLines, report.issues.orphanPages > 0, `${report.issues.orphanPages} orphan pages`);
-  addLine(criticalLines, report.issues.redirectChains > 0, `${report.issues.redirectChains} redirect chains`);
-  addLine(criticalLines, report.issues.brokenInternalLinks > 0, `${report.issues.brokenInternalLinks} broken internal links`);
-  addLine(criticalLines, report.issues.duplicateClusters > 0, `${report.issues.duplicateClusters} near-duplicate clusters`);
-  addLine(criticalLines, report.issues.canonicalConflicts > 0, `${report.issues.canonicalConflicts} canonical conflicts`);
-  addLine(criticalLines, report.issues.accidentalNoindex > 0, `${report.issues.accidentalNoindex} pages accidentally noindexed`);
+  // ===== Critical =====
+  const critical: string[] = [];
 
-  if (criticalLines.length > 0) {
-    lines.push('CRITICAL (Fix Now)');
-    lines.push(...criticalLines);
-  } else {
-    lines.push('No critical issues found.');
-  }
-  lines.push('');
+  addLine(critical, report.issues.orphanPages > 0, `${report.issues.orphanPages} orphan pages`);
+  addLine(critical, report.issues.redirectChains > 0, `${report.issues.redirectChains} redirect chains`);
+  addLine(critical, report.issues.brokenInternalLinks > 0, `${report.issues.brokenInternalLinks} broken internal links`);
+  addLine(critical, report.issues.duplicateClusters > 0, `${report.issues.duplicateClusters} near-duplicate clusters`);
+  addLine(critical, report.issues.canonicalConflicts > 0, `${report.issues.canonicalConflicts} canonical conflicts`);
+  addLine(critical, report.issues.accidentalNoindex > 0, `${report.issues.accidentalNoindex} pages accidentally noindexed`);
+  addLine(critical, report.issues.blockedByRobots > 0, `${report.issues.blockedByRobots} pages blocked by robots.txt`);
 
-  lines.push('WARNINGS');
-  lines.push(`${report.issues.missingH1} pages missing H1`);
-  lines.push(`${report.issues.thinContent} pages under ${THIN_CONTENT_THRESHOLD} words`);
-  lines.push(`${report.issues.excessiveInternalLinkCount} pages with >${EXCESSIVE_INTERNAL_LINK_THRESHOLD} internal links`);
-  lines.push(`${report.issues.lowInternalLinkCount} pages with low internal authority`);
-  lines.push(`${report.issues.highExternalLinkRatio} pages with high external link ratio`);
-  lines.push(`${report.issues.imageAltMissing} pages with missing image alt text`);
-
-  const opportunityLines: string[] = [];
-  addLine(opportunityLines, report.issues.strongPagesUnderLinking > 0, `${report.issues.strongPagesUnderLinking} strong pages could pass more link equity`);
-  addLine(opportunityLines, report.issues.cannibalizationClusters > 0, `${report.issues.cannibalizationClusters} cannibalization clusters`);
-  addLine(opportunityLines, report.issues.nearAuthorityThreshold > 0, `${report.issues.nearAuthorityThreshold} pages close to authority threshold`);
-  addLine(opportunityLines, report.issues.underlinkedHighAuthorityPages > 0, `${report.issues.underlinkedHighAuthorityPages} underlinked high-authority pages`);
-
-  if (opportunityLines.length > 0) {
+  if (critical.length > 0) {
+    lines.push(`Critical`);
+    for (const c of critical) lines.push(`  • ${c}`);
     lines.push('');
-    lines.push('OPPORTUNITIES');
-    lines.push(...opportunityLines);
   }
 
-  lines.push('');
-  lines.push(`Crawl Depth: ${report.summary.crawlDepth} Internal Links: ${report.summary.internalLinks} External Links: ${report.summary.externalLinks}`);
-  lines.push('');
-  lines.push('Top 10 PageRank Pages');
-  report.topAuthorityPages.forEach((page) => {
-    lines.push(`${page.url} (Score: ${page.score.toFixed(3)})`);
-  });
+  // ===== Warnings (non-zero only) =====
+  const warnings: string[] = [];
 
+  addLine(warnings, report.issues.missingH1 > 0, `${report.issues.missingH1} pages missing H1`);
+  addLine(warnings, report.issues.thinContent > 0, `${report.issues.thinContent} pages under ${THIN_CONTENT_THRESHOLD} words`);
+  addLine(warnings, report.issues.excessiveInternalLinkCount > 0, `${report.issues.excessiveInternalLinkCount} pages with >${EXCESSIVE_INTERNAL_LINK_THRESHOLD} internal links`);
+  addLine(warnings, report.issues.lowInternalLinkCount > 0, `${report.issues.lowInternalLinkCount} pages with low internal authority`);
+  addLine(warnings, report.issues.highExternalLinkRatio > 0, `${report.issues.highExternalLinkRatio} pages with high external ratio`);
+  addLine(warnings, report.issues.imageAltMissing > 0, `${report.issues.imageAltMissing} pages missing image alt`);
+
+  if (warnings.length > 0) {
+    lines.push(`Warnings`);
+    for (const w of warnings) lines.push(`  • ${w}`);
+    lines.push('');
+  }
+
+  // ===== Opportunities =====
+  const opportunities: string[] = [];
+
+  addLine(opportunities, report.issues.strongPagesUnderLinking > 0, `${report.issues.strongPagesUnderLinking} strong pages could pass more authority`);
+  addLine(opportunities, report.issues.cannibalizationClusters > 0, `${report.issues.cannibalizationClusters} cannibalization clusters`);
+  addLine(opportunities, report.issues.nearAuthorityThreshold > 0, `${report.issues.nearAuthorityThreshold} pages near authority threshold`);
+  addLine(opportunities, report.issues.underlinkedHighAuthorityPages > 0, `${report.issues.underlinkedHighAuthorityPages} underlinked high-authority pages`);
+
+  if (opportunities.length > 0) {
+    lines.push(`Opportunities`);
+    for (const o of opportunities) lines.push(`  • ${o}`);
+    lines.push('');
+  }
+
+  // ===== Structural Overview =====
+  lines.push(`Structure`);
+  lines.push(`  Depth Reached     ${report.summary.crawlDepth}`);
+  lines.push(`  Internal Links    ${report.summary.internalLinks}`);
+  lines.push(`  External Links    ${report.summary.externalLinks}`);
+  lines.push('');
+
+  // ===== Authority =====
+  if (report.topAuthorityPages.length > 0) {
+    lines.push(`Top Authority`);
+    for (const page of report.topAuthorityPages.slice(0, 10)) {
+      lines.push(`  ${page.url}   ${page.score.toFixed(3)}`);
+    }
+    lines.push('');
+  }
+
+  // ===== HITS =====
   if (report.hits) {
-    lines.push('');
-    lines.push('HITS Analysis');
-    lines.push(`Power Nodes: ${report.hits.powerNodes} | Authorities: ${report.hits.authorityNodes} | Hubs: ${report.hits.hubNodes}`);
+    lines.push(`HITS`);
+    lines.push(
+      `  Authorities ${report.hits.authorityNodes}   Hubs ${report.hits.hubNodes}   Power ${report.hits.powerNodes}`
+    );
 
     if (report.hits.topAuthorities.length > 0) {
-      lines.push('  Top Authorities (HITS):');
-      report.hits.topAuthorities.forEach(p => {
-        lines.push(`    ${p.url} (${p.score.toFixed(3)})`);
+      lines.push('');
+      lines.push(`Top Authorities`);
+      report.hits.topAuthorities.slice(0, 5).forEach(p => {
+        lines.push(`    ${p.url}   ${p.score.toFixed(3)}`);
       });
     }
+
     if (report.hits.topHubs.length > 0) {
-      lines.push('  Top Hubs (HITS):');
-      report.hits.topHubs.forEach(p => {
-        lines.push(`    ${p.url} (${p.score.toFixed(3)})`);
+      lines.push('');
+      lines.push(`Top Hubs`);
+      report.hits.topHubs.slice(0, 5).forEach(p => {
+        lines.push(`    ${p.url}   ${p.score.toFixed(3)}`);
       });
     }
+
+    lines.push('');
   }
 
   return `${lines.join('\n')}\n`;

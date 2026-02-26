@@ -20,7 +20,7 @@ import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.j
 import { OutputController } from '../output/controller.js';
 
 export const sitegraph = new Command('sitegraph')
-  .description('Crawl a website and generate a link graph')
+  .description('Crawl site and build internal link graph')
   .argument('[url]', 'URL to crawl')
   .option('-l, --limit <number>', 'max pages', '500')
   .option('-d, --depth <number>', 'max click depth', '5')
@@ -73,11 +73,11 @@ export const sitegraph = new Command('sitegraph')
 
     // 2. Initialize Controller
     const controller = new OutputController({
-        format: options.format,
-        logLevel: options.logLevel
+      format: options.format,
+      logLevel: options.logLevel
     });
     const context: EngineContext = {
-        emit: (e) => controller.handle(e)
+      emit: (e) => controller.handle(e)
     };
 
     try {
@@ -90,9 +90,9 @@ export const sitegraph = new Command('sitegraph')
 
         const [oldFile, newFile] = options.compare;
         if (options.format !== 'json') {
-            console.log(chalk.cyan(`\n🔍 Comparing Graphs`));
-            console.log(`${chalk.gray('Old:')} ${oldFile}`);
-            console.log(`${chalk.gray('New:')} ${newFile}\n`);
+          console.log(chalk.cyan(`\n🔍 Comparing Graphs`));
+          console.log(`${chalk.gray('Old:')} ${oldFile}`);
+          console.log(`${chalk.gray('New:')} ${newFile}\n`);
         }
 
         const oldJson = JSON.parse(await fs.readFile(oldFile, 'utf-8'));
@@ -104,36 +104,38 @@ export const sitegraph = new Command('sitegraph')
         const diffResult = compareGraphs(oldGraph, newGraph);
 
         if (options.format !== 'json') {
-            console.log(chalk.bold('📈 Comparison Results:'));
-            console.log(`- Added URLs:   ${chalk.green(diffResult.addedUrls.length)}`);
-            console.log(`- Removed URLs: ${chalk.red(diffResult.removedUrls.length)}`);
-            console.log(`- Status Changes: ${chalk.yellow(diffResult.changedStatus.length)}`);
+          console.log(chalk.bold('📈 Comparison Results:'));
+          console.log(`- Added URLs:   ${chalk.green(diffResult.addedUrls.length)}`);
+          console.log(`- Removed URLs: ${chalk.red(diffResult.removedUrls.length)}`);
+          console.log(`- Status Changes: ${chalk.yellow(diffResult.changedStatus.length)}`);
 
-            console.log(chalk.bold('\n📉 Metric Deltas:'));
-            Object.entries(diffResult.metricDeltas).forEach(([metric, delta]) => {
-                const deltaStr = delta > 0 ? chalk.green(`+${delta.toFixed(3)}`) : (delta < 0 ? chalk.red(delta.toFixed(3)) : chalk.gray('0'));
-                console.log(`  ${metric.padEnd(20)}: ${deltaStr}`);
-            });
+          console.log(chalk.bold('\n📉 Metric Deltas:'));
+          Object.entries(diffResult.metricDeltas).forEach(([metric, delta]) => {
+            const deltaStr = delta > 0 ? chalk.green(`+${delta.toFixed(3)}`) : (delta < 0 ? chalk.red(delta.toFixed(3)) : chalk.gray('0'));
+            console.log(`  ${metric.padEnd(20)}: ${deltaStr}`);
+          });
 
-            console.log('\n' + chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━') + '\n');
+          console.log('\n' + chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━') + '\n');
         } else {
-            console.log(JSON.stringify(diffResult, null, 2));
+          console.log(JSON.stringify(diffResult, null, 2));
         }
         return;
       }
 
       if (!url) {
-        controller.handle({ type: 'error', message: 'Error: URL argument is required for crawling' });
-        process.exit(1);
+        if (!url) {
+          controller.handle({ type: 'error', message: 'Error: URL argument is required for crawling' });
+          process.exit(1);
+        }
       }
 
       // Acquire process lock
       await LockManager.acquireLock('sitegraph', url, options, context, options.force);
 
       if (options.format !== 'json') {
-          console.log(chalk.bold.cyan(`\n🚀 Starting Crawlith Site Crawler`));
-          console.log(`${chalk.gray('Target:')} ${chalk.blueBright(url)}`);
-          console.log(`${chalk.gray('Limits:')} Pages: ${options.limit} | Depth: ${options.depth}\n`);
+        console.log(chalk.bold.cyan(`\n🚀 Starting Crawlith Site Crawler`));
+        console.log(`${chalk.gray('Target:')} ${chalk.blueBright(url)}`);
+        console.log(`${chalk.gray('Limits:')} Pages: ${options.limit} | Depth: ${options.depth}\n`);
       }
 
       const limit = parseInt(options.limit, 10);
@@ -194,10 +196,17 @@ export const sitegraph = new Command('sitegraph')
       const graph = loadGraphFromSnapshot(snapshotId);
       const nodes = graph.getNodes();
 
+      if (nodes.length === 0) {
+        console.log(chalk.red('\n❌ No pages were crawled.'));
+        console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
+        console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
+        process.exit(1);
+      }
+
       if (options.format !== 'json') {
-          console.log(chalk.green(`\n✅ Crawl complete. Found ${chalk.bold(nodes.length)} pages.`));
-          console.log(chalk.gray(`   Snapshot ID: ${snapshotId}`));
-          process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
+        console.log(chalk.green(`\n✅ Crawl complete. Found ${chalk.bold(nodes.length)} pages.`));
+        console.log(chalk.gray(`   Snapshot ID: ${snapshotId}`));
+        process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
       }
 
       detectDuplicates(graph, { collapse: !options.noCollapse });
@@ -247,7 +256,7 @@ export const sitegraph = new Command('sitegraph')
       if (options.format === 'json') {
         process.stdout.write(JSON.stringify(insightReport, null, 2));
       } else {
-        process.stdout.write(renderInsightOutput(insightReport));
+        process.stdout.write(renderInsightOutput(insightReport, snapshotId));
       }
 
       if (options.scoreBreakdown && options.format !== 'json') {
@@ -263,16 +272,16 @@ export const sitegraph = new Command('sitegraph')
       }
 
       if (options.format !== 'json') {
-          console.log(`\n💾 Data stored in database (snapshot #${snapshotId})`);
-          if (exportFormats.length > 0) {
-            const urlObj = new URL(url);
-            const domainFolder = urlObj.hostname.replace('www.', '');
-            const outputDir = path.join(path.resolve(options.output), domainFolder);
-            console.log(`📂 Exports saved to: ${chalk.blueBright(outputDir)}`);
-          }
-          console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
+        console.log(`\n💾 Data stored in database (snapshot #${snapshotId})`);
+        console.log("   run `crawlith ui` to view the full report");
+        if (exportFormats.length > 0) {
+          const urlObj = new URL(url);
+          const domainFolder = urlObj.hostname.replace('www.', '');
+          const outputDir = path.join(path.resolve(options.output), domainFolder);
+          console.log(`📂 Exports saved to: ${chalk.blueBright(outputDir)}`);
+        }
+        console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
       }
-
       if (options.failOnCritical && hasCriticalIssues(insightReport)) {
         process.exit(1);
       }

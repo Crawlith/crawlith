@@ -114,55 +114,102 @@ export function buildAnalyzeInsightReport(result: AnalyzeInsightResult): Analyze
 export function hasAnalyzeCriticalIssues(report: AnalyzeInsightReport): boolean {
   return Object.values(report.critical).some((count) => count > 0);
 }
-
 export function renderAnalyzeInsightOutput(report: AnalyzeInsightReport): string {
   const lines: string[] = [];
 
-  lines.push(`Pages: ${report.pages} Health Score: ${report.score}/100 Status: ${report.status}`);
+  // Header
+  lines.push(`CRAWLITH — Analyze`);
+  lines.push('');
+  lines.push(`${report.pages} pages scanned`);
+  lines.push('');
+  lines.push(
+    `Health      ${report.score}/100   ${report.status}`
+  );
   lines.push('');
 
-  const criticalLines: string[] = [];
-  if (report.critical.missingTitles > 0) criticalLines.push(`${report.critical.missingTitles} pages missing title`);
-  if (report.critical.missingMetaDescriptions > 0) criticalLines.push(`${report.critical.missingMetaDescriptions} pages missing meta description`);
-  if (report.critical.accidentalNoindex > 0) criticalLines.push(`${report.critical.accidentalNoindex} pages accidentally noindexed`);
-  if (report.critical.severeThinContent > 0) criticalLines.push(`${report.critical.severeThinContent} pages with severe thin content`);
+  // ===== Critical =====
+  const critical: string[] = [];
 
-  if (criticalLines.length > 0) {
-    lines.push('CRITICAL (Fix Now)');
-    lines.push(...criticalLines);
-  } else {
-    lines.push('No critical issues found.');
-  }
+  if (report.critical.missingTitles > 0)
+    critical.push(`${report.critical.missingTitles} pages missing title`);
 
-  lines.push('');
-  lines.push('WARNINGS');
-  lines.push(`${report.warnings.missingH1} pages missing H1`);
-  lines.push(`${report.warnings.lowWordCount} pages under ${WORD_COUNT_WARNING} words`);
-  lines.push(`${report.warnings.thinContent} pages with thin content`);
-  lines.push(`${report.warnings.lowInternalLinks} pages with low internal link count`);
-  lines.push(`${report.warnings.highExternalLinkRatio} pages with high external link ratio`);
-  lines.push(`${report.warnings.missingImageAlt} pages with missing image alt text`);
+  if (report.critical.missingMetaDescriptions > 0)
+    critical.push(`${report.critical.missingMetaDescriptions} pages missing meta description`);
 
-  const opportunityLines: string[] = [];
-  if (report.opportunities.strongPagesUnderlinked > 0) {
-    opportunityLines.push(`${report.opportunities.strongPagesUnderlinked} strong pages could pass more link equity`);
-  }
-  if (report.opportunities.pagesNearGoodThreshold > 0) {
-    opportunityLines.push(`${report.opportunities.pagesNearGoodThreshold} pages close to Good status threshold`);
-  }
+  if (report.critical.accidentalNoindex > 0)
+    critical.push(`${report.critical.accidentalNoindex} pages accidentally noindexed`);
 
-  if (opportunityLines.length > 0) {
+  if (report.critical.severeThinContent > 0)
+    critical.push(`${report.critical.severeThinContent} pages with severe thin content`);
+
+  if (critical.length > 0) {
+    lines.push(`Critical`);
+    for (const c of critical) lines.push(`  • ${c}`);
     lines.push('');
-    lines.push('OPPORTUNITIES');
-    lines.push(...opportunityLines);
   }
 
+  // ===== Warnings (only show non-zero) =====
+  const warnings: string[] = [];
+
+  if (report.warnings.missingH1 > 0)
+    warnings.push(`${report.warnings.missingH1} pages missing H1`);
+
+  if (report.warnings.lowWordCount > 0)
+    warnings.push(`${report.warnings.lowWordCount} pages under ${WORD_COUNT_WARNING} words`);
+
+  if (report.warnings.thinContent > 0)
+    warnings.push(`${report.warnings.thinContent} pages with thin content`);
+
+  if (report.warnings.lowInternalLinks > 0)
+    warnings.push(`${report.warnings.lowInternalLinks} pages with low internal links`);
+
+  if (report.warnings.highExternalLinkRatio > 0)
+    warnings.push(`${report.warnings.highExternalLinkRatio} pages with high external ratio`);
+
+  if (report.warnings.missingImageAlt > 0)
+    warnings.push(`${report.warnings.missingImageAlt} pages missing image alt`);
+
+  if (warnings.length > 0) {
+    lines.push(`Warnings`);
+    for (const w of warnings) lines.push(`  • ${w}`);
+    lines.push('');
+  }
+
+  // ===== Opportunities =====
+  const opportunities: string[] = [];
+
+  if (report.opportunities.strongPagesUnderlinked > 0)
+    opportunities.push(
+      `${report.opportunities.strongPagesUnderlinked} strong pages could pass more authority`
+    );
+
+  if (report.opportunities.pagesNearGoodThreshold > 0)
+    opportunities.push(
+      `${report.opportunities.pagesNearGoodThreshold} pages close to Good threshold`
+    );
+
+  if (opportunities.length > 0) {
+    lines.push(`Opportunities`);
+    for (const o of opportunities) lines.push(`  • ${o}`);
+    lines.push('');
+  }
+
+  // ===== Summary =====
+  lines.push(`Overview`);
+  lines.push(`  Avg SEO Score     ${report.summary.avgSeoScore}`);
+  lines.push(`  Thin Pages        ${report.summary.thinPages}`);
+  lines.push(`  Duplicate Titles  ${report.summary.duplicateTitles}`);
   lines.push('');
-  lines.push(`Avg SEO Score: ${report.summary.avgSeoScore} Thin Pages: ${report.summary.thinPages} Duplicate Titles: ${report.summary.duplicateTitles}`);
-  lines.push('');
-  lines.push('Top 10 Pages by SEO Score');
-  for (const page of report.topPages) {
-    lines.push(`${page.url} (Score: ${page.score.toFixed(3)})`);
+
+  // ===== Top Pages =====
+  if (report.topPages.length > 0) {
+    lines.push(`Top Pages`);
+    for (const page of report.topPages.slice(0, 10)) {
+      lines.push(
+        `  ${page.url}   ${page.score.toFixed(1)}`
+      );
+    }
+    lines.push('');
   }
 
   return `${lines.join('\n')}\n`;

@@ -1,16 +1,23 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { auditUrl } from '@crawlith/core';
 import { renderAuditOutput } from './auditFormatter.js';
 
 export const audit = new Command('audit')
-  .description('Perform infrastructure, transport, TLS, DNS, and security-header diagnostics')
-  .argument('<url>', 'URL to audit')
+  .description('Infrastructure, TLS, DNS & security diagnostics')
+  .argument('[url]', 'URL to audit')
   .option('--verbose', 'prints structured expanded human-readable output')
   .option('--debug', 'prints low-level timing, negotiation, and raw protocol details')
   .option('--json', 'outputs structured JSON only')
   .option('--timeout <ms>', 'request timeout', '10000')
   .action(async (url, options) => {
     try {
+      if (!url) {
+        console.error(chalk.red('\n❌ Error: URL argument is required for audit\n'));
+        audit.outputHelp();
+        process.exit(0);
+      }
+
       const result = await auditUrl(url, {
         timeout: parseInt(options.timeout, 10),
         verbose: options.verbose,

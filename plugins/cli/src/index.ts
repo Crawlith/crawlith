@@ -12,7 +12,7 @@ const program = new Command();
 
 program
   .name('crawlith')
-  .description('A Node.js + TypeScript CLI tool for crawling websites and generating internal link graphs.')
+  .description('Modular crawl intelligence engine for serious SEO analysis.')
   .version(version)
   .addCommand(sitegraph)
   .addCommand(analyze)
@@ -20,10 +20,29 @@ program
   .addCommand(audit)
   .addCommand(exportCmd);
 
+program.configureHelp({
+  padWidth(cmd, helper) {
+    return 28;
+  },
+});
+
+
+const banner = `
+  ██████╗██████╗  █████╗ ██╗    ██╗██╗     ██╗████████╗██╗  ██╗ ${version}
+ ██╔════╝██╔══██╗██╔══██╗██║    ██║██║     ██║╚══██╔══╝██║  ██║
+ ██║     ██████╔╝███████║██║ █╗ ██║██║     ██║   ██║   ███████║
+ ██║     ██╔══██╗██╔══██║██║███╗██║██║     ██║   ██║   ██╔══██║
+ ╚██████╗██║  ██║██║  ██║╚███╔███╔╝███████╗██║   ██║   ██║  ██║
+  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝╚═╝   ╚═╝   ╚═╝  ╚═╝
+`;
 // show a nice title on help or when no arguments
-if (process.argv.length <= 2 || process.argv.includes('--help') || process.argv.includes('-h')) {
-  console.log(chalk.bold.blue('\n◢  CRAWLITH  ◣'));
-  console.log(chalk.gray('The lightweight SEO Link Graph & Analysis Tool\n'));
+if (process.argv.length <= 2) {
+  console.log(chalk.cyanBright('\n' + banner));
+  console.log(chalk.gray('Crawlith — Deterministic crawl intelligence.\n'));
+  program.help();
+} else if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(chalk.cyanBright('\n' + banner));
+  console.log(chalk.gray('Crawlith — Deterministic crawl intelligence.\n'));
 }
 
 program.parse(process.argv);

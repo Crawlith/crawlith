@@ -1,4 +1,5 @@
 import { request } from 'undici';
+import chalk from 'chalk';
 import pLimit from 'p-limit';
 import robotsParser from 'robots-parser';
 import { Graph, GraphNode } from '../graph/graph.js';
@@ -163,17 +164,9 @@ export class Crawler {
     if (!this.options.ignoreRobots) {
       try {
         const robotsUrl = new URL('/robots.txt', this.rootOrigin).toString();
-        const res = await request(robotsUrl, {
-          maxRedirections: 3,
-          headers: { 'User-Agent': 'crawlith/1.0' },
-          headersTimeout: 5000,
-          bodyTimeout: 5000
-        });
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          const txt = await res.body.text();
-          this.robots = (robotsParser as any)(robotsUrl, txt);
-        } else {
-          await res.body.dump();
+        const res = await this.fetcher!.fetch(robotsUrl, { maxBytes: 500000 });
+        if (res && typeof res.status === 'number' && res.status >= 200 && res.status < 300) {
+          this.robots = (robotsParser as any)(robotsUrl, res.body);
         }
       } catch {
         this.context.emit({ type: 'warn', message: 'Failed to fetch robots.txt, proceeding...' });
@@ -561,7 +554,27 @@ export class Crawler {
         while (this.queue.length > 0 && this.active < this.concurrency && this.pagesCrawled < this.options.limit) {
           const item = this.queue.shift()!;
           if (this.visited.has(item.url)) continue;
-          if (this.robots && !this.robots.isAllowed(item.url, 'crawlith')) continue;
+
+          // Robust robots check: if path doesn't end in /, check both /path and /path/
+          // to handle cases where normalization stripped a slash that robots.txt relies on.
+          const isBlocked = this.robots && (
+            !this.robots.isAllowed(item.url, 'crawlith') ||
+            (!item.url.endsWith('/') && !this.robots.isAllowed(item.url + '/', 'crawlith'))
+          );
+
+          if (isBlocked) {
+            if (this.options.debug) {
+              console.log(`${chalk.yellow('⊘ Robots')} ${chalk.gray(item.url)}`);
+            }
+
+            // Persist the blocked state so it shows up in reports
+            this.visited.add(item.url);
+            this.pagesCrawled++;
+            this.bufferPage(item.url, item.depth, 0, {
+              security_error: 'Blocked by robots.txt'
+            });
+            continue;
+          }
 
           this.active++;
           this.pagesCrawled++;
@@ -572,6 +585,8 @@ export class Crawler {
             next();
           });
         }
+
+        await checkDone();
       };
       next();
     });
