@@ -25,6 +25,7 @@ export interface CrawlPage {
   canonical?: string;
   noindex?: boolean;
   nofollow?: boolean;
+  crawlStatus?: string;
 }
 
 export interface AnalyzeOptions {
@@ -57,6 +58,7 @@ export interface PageAnalysis {
     canonical?: string;
     noindex?: boolean;
     nofollow?: boolean;
+    crawlStatus?: string;
   }
 }
 
@@ -76,12 +78,16 @@ export interface AnalysisResult {
     accessibility: boolean;
   };
   clusters?: ClusterInfo[];
+  snapshotId?: number;
+  crawledAt?: string;
 }
 
 interface CrawlData {
   pages: Iterable<CrawlPage> | CrawlPage[];
   metrics: Metrics;
   graph: Graph;
+  snapshotId: number;
+  crawledAt?: string;
 }
 
 /**
@@ -100,22 +106,50 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   }
 
   let crawlData: CrawlData;
+  let robots: any = null;
 
+  // Always try to fetch robots.txt for the analysis session
+  // to ensure we have the latest rules for visibility reporting.
+  try {
+    const robotsUrl = new URL('/robots.txt', normalizedRoot).toString();
+    const robotsRes = await (new (await import('../crawler/fetcher.js')).Fetcher()).fetch(robotsUrl, { maxBytes: 500000 });
+    const status = robotsRes.status;
+    if (typeof status === 'number' && status >= 200 && status < 300) {
+      const robotsParserModule = await import('robots-parser');
+      const robotsParser = (robotsParserModule as any).default || robotsParserModule;
+      robots = (robotsParser as any)(robotsUrl, robotsRes.body);
+    }
+  } catch (e) {
+    // Silence robots fetch errors, fallback to existing or none
+  }
   if (options.live) {
     crawlData = await runLiveCrawl(normalizedRoot, options, context);
   } else {
     try {
       crawlData = await loadCrawlData(normalizedRoot);
+
+      // Convert generator to array so it can be reused multiple times
+      const allPages = Array.from(crawlData.pages);
+      crawlData.pages = allPages;
+
+      // Check if the requested URL actually exists in this snapshot
+      const exists = allPages.some(p => p.url === normalizedRoot);
+      if (!exists) {
+        options.live = true; // Mark as live so the analysis knows to pick the first page if exact match fails
+        if (context) {
+          context.emit({ type: 'info', message: `URL ${normalizedRoot} not found in latest snapshot. Fetching live...` });
+        }
+        crawlData = await runLiveCrawl(normalizedRoot, options, context);
+      }
     } catch (error: any) {
       const isNotFound = error.code === 'ENOENT' ||
         error.message.includes('Crawl data not found') ||
         error.message.includes('No completed snapshot found') ||
         error.message.includes('not found in database');
       if (isNotFound) {
+        options.live = true; // Force live mode
         if (context) {
           context.emit({ type: 'info', message: 'No local crawl data found. Switching to live analysis mode...' });
-        } else {
-          console.log('No local crawl data found. Switching to live analysis mode...');
         }
         crawlData = await runLiveCrawl(normalizedRoot, options, context);
       } else {
@@ -124,10 +158,13 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     }
   }
 
+  const snapshotId = crawlData.snapshotId;
+  const crawledAt = crawlData.crawledAt;
+
   // Run clustering if requested or as default
   detectContentClusters(crawlData.graph, options.clusterThreshold, options.minClusterSize);
 
-  const pages = analyzePages(normalizedRoot, crawlData.pages);
+  const pages = analyzePages(normalizedRoot, crawlData.pages, robots);
 
   const activeModules = {
     seo: !!options.seo,
@@ -143,15 +180,15 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
   // Filter to only the requested URL
   const targetPage = filteredPages.find(p => p.url === normalizedRoot);
-  const resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : filteredPages);
+  const resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : []);
 
   const duplicateTitles = pages.filter((page) => page.title.status === 'duplicate').length;
   const thinPages = pages.filter((page) => page.thinScore >= 70).length;
-  const siteScores = aggregateSiteScore(crawlData.metrics, pages);
+  const siteScores = aggregateSiteScore(crawlData.metrics, resultPages.length === 1 ? resultPages : pages);
 
   return {
     site_summary: {
-      pages_analyzed: pages.length,
+      pages_analyzed: resultPages.length,
       avg_seo_score: siteScores.seoHealthScore,
       thin_pages: thinPages,
       duplicate_titles: duplicateTitles,
@@ -160,7 +197,9 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     site_scores: siteScores,
     pages: resultPages,
     active_modules: activeModules,
-    clusters: crawlData.graph.contentClusters
+    clusters: crawlData.graph.contentClusters,
+    snapshotId,
+    crawledAt
   };
 }
 
@@ -180,8 +219,8 @@ export function renderAnalysisHtml(result: AnalysisResult): string {
 
 function renderSinglePageHtml(page: PageAnalysis): string {
   const structuredDataStatus = page.structuredData.present
-      ? (page.structuredData.valid ? '<span class="status-ok">Valid</span>' : '<span class="status-critical">Invalid JSON</span>')
-      : 'Not detected';
+    ? (page.structuredData.valid ? '<span class="status-ok">Valid</span>' : '<span class="status-critical">Invalid JSON</span>')
+    : 'Not detected';
 
   const structuredDataTypesRow = page.structuredData.present ? `
       <tr>
@@ -269,7 +308,7 @@ function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | CrawlPage[]): PageAnalysis[] {
+export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | CrawlPage[], robots?: any): PageAnalysis[] {
   const titleCounts = new Map<string, number>();
   const metaCounts = new Map<string, number>();
   const sentenceCountFrequency = new Map<number, number>();
@@ -278,6 +317,16 @@ export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | Crawl
 
   for (const page of pages) {
     const html = page.html || '';
+
+    // 0. Update crawl status based on current robots rules
+    let crawlStatus = page.crawlStatus;
+    if (robots) {
+      const isBlocked = !robots.isAllowed(page.url, 'crawlith') ||
+        (!page.url.endsWith('/') && !robots.isAllowed(page.url + '/', 'crawlith'));
+      if (isBlocked) {
+        crawlStatus = 'blocked_by_robots';
+      }
+    }
 
     // 1. Analyze Individual Components
     const title = analyzeTitle(html);
@@ -315,7 +364,8 @@ export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | Crawl
       meta: {
         canonical: page.canonical,
         noindex: page.noindex,
-        nofollow: page.nofollow
+        nofollow: page.nofollow,
+        crawlStatus
       }
     });
   }
@@ -380,9 +430,18 @@ async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
   const domain = urlObj.hostname.replace('www.', '');
   const site = siteRepo.firstOrCreateSite(domain);
 
-  const snapshot = snapshotRepo.getLatestSnapshot(site.id, 'completed');
+  let snapshot;
+  const page = pageRepo.getPage(site.id, rootUrl);
+  if (page && page.last_seen_snapshot_id) {
+    snapshot = snapshotRepo.getSnapshot(page.last_seen_snapshot_id);
+  }
+
   if (!snapshot) {
-    throw new Error(`No completed snapshot found for ${rootUrl} in database.`);
+    snapshot = snapshotRepo.getLatestSnapshot(site.id);
+  }
+
+  if (!snapshot) {
+    throw new Error(`No crawl data found for ${rootUrl} in database.`);
   }
 
   const graph = loadGraphFromSnapshot(snapshot.id);
@@ -401,35 +460,39 @@ async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
         depth: p.depth || 0,
         canonical: p.canonical_url || undefined,
         noindex: !!p.noindex,
-        nofollow: !!p.nofollow
+        nofollow: !!p.nofollow,
+        crawlStatus: graph.nodes.get(p.normalized_url)?.crawlStatus
       } as CrawlPage;
     }
   };
 
-  return { pages: pagesGenerator(), metrics, graph };
+  return { pages: pagesGenerator(), metrics, graph, snapshotId: snapshot.id, crawledAt: snapshot.created_at };
 }
 
 
 async function runLiveCrawl(url: string, options: AnalyzeOptions, context?: EngineContext): Promise<CrawlData> {
   const snapshotId = await crawl(url, {
-    limit: 1,
+    limit: 1, // Always limit to 1 for single page live analysis
     depth: 0,
     rate: options.rate,
     proxyUrl: options.proxyUrl,
     userAgent: options.userAgent,
     maxRedirects: options.maxRedirects,
-    debug: options.debug
+    debug: options.debug,
+    snapshotType: 'partial'
   }, context) as number;
   const graph = loadGraphFromSnapshot(snapshotId);
   const pages = graph.getNodes().map((node) => ({
     url: node.url,
     status: node.status,
     html: node.html || '', // Include HTML
-    depth: node.depth
+    depth: node.depth,
+    crawlStatus: node.crawlStatus
   }));
   return {
     pages,
     metrics: calculateMetrics(graph, 1),
-    graph
+    graph,
+    snapshotId
   };
 }

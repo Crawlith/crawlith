@@ -21,6 +21,10 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
     }
 
     const graph = new Graph();
+    let pagesFetched = 0;
+    let pagesCached = 0;
+    let pagesSkipped = 0;
+
     if (snapshot) {
         graph.limitReached = !!snapshot.limit_reached;
     }
@@ -31,6 +35,13 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
         graph.addNode(p.normalized_url, p.depth, p.http_status || 0);
 
         const m = metricsMap.get(p.id);
+        if (m) {
+            if (m.crawl_status === 'fetched') pagesFetched++;
+            else if (m.crawl_status === 'cached') pagesCached++;
+            else if (m.crawl_status === 'skipped') pagesSkipped++;
+            else if (m.crawl_status === 'blocked_by_robots') pagesFetched++; // Count as fetched/processed for the limit verbiage
+        }
+
         let incrementalStatus: 'new' | 'changed' | 'unchanged' | undefined;
         if (p.first_seen_snapshot_id === snapshotId) {
             incrementalStatus = 'new';
@@ -69,7 +80,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             duplicateType: m?.duplicate_type ?? undefined,
             isClusterPrimary: m?.is_cluster_primary ? true : undefined,
             // Additional metrics
-            crawlStatus: m?.crawl_status || (p.security_error?.includes('robots.txt') ? 'blocked' : undefined),
+            crawlStatus: m?.crawl_status || undefined,
             wordCount: m?.word_count != null ? m.word_count : undefined,
             thinContentScore: m?.thin_content_score != null ? m.thin_content_score : undefined,
             externalLinkRatio: m?.external_link_ratio != null ? m.external_link_ratio : undefined,
@@ -106,6 +117,14 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
         risk: c.risk,
         sharedPathPrefix: c.shared_path_prefix || undefined
     }));
+
+    // Set session stats
+    graph.sessionStats = {
+        pagesFetched,
+        pagesCached,
+        pagesSkipped,
+        totalFound: idMap.size
+    };
 
     return graph;
 }

@@ -1,13 +1,12 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
-import chalk from 'chalk';
+
 import { analyzeSite, EngineContext } from '@crawlith/core';
 import { OutputController } from '../output/controller.js';
 import { exportAnalysisResult } from '../output/export.js';
 import {
   buildAnalyzeInsightReport,
-  hasAnalyzeCriticalIssues,
   renderAnalyzeInsightOutput
 } from './analyzeFormatter.js';
 
@@ -21,8 +20,6 @@ export const analyze = new Command('page')
   .option('--seo', 'Show only SEO module output')
   .option('--content', 'Show only content module output')
   .option('--accessibility', 'Show only accessibility module output')
-  .option('--fail-on-critical', 'exit code 1 if critical issues exist')
-  .option('--rate <number>', 'requests per second (for live crawl)', '2')
   .option('--proxy <url>', 'proxy URL (for live crawl)')
   .option('--ua <string>', 'custom User-Agent (for live crawl)')
   .option('--max-redirects <number>', 'max redirect hops (for live crawl)', '2')
@@ -73,17 +70,50 @@ export const analyze = new Command('page')
       }, context);
 
       // 5. Render Output
-      controller.renderResult(result, (res) => {
-        const report = buildAnalyzeInsightReport(res);
-        return renderAnalyzeInsightOutput(report);
-      });
+      if (options.format === 'json') {
+        const pages = result.pages.map(p => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { seoScore, thinScore, ...rest } = p as any;
+          const active = result.active_modules;
+          const hasFilters = active.seo || active.content || active.accessibility;
 
-      // 6. Check Critical Issues
-      if (options.failOnCritical) {
-        const report = buildAnalyzeInsightReport(result);
-        if (hasAnalyzeCriticalIssues(report)) {
-          process.exit(1);
-        }
+          if (hasFilters) {
+            if (!active.seo) {
+              delete rest.title;
+              delete rest.metaDescription;
+              delete rest.links;
+              delete rest.structuredData;
+            }
+            if (!active.content) {
+              delete rest.content;
+            }
+            if (!active.accessibility) {
+              delete rest.images;
+            }
+            if (!active.seo && !active.content) {
+              delete rest.h1;
+            }
+          }
+
+          // Round ratios to 3 decimal places
+          if (rest.content) {
+            rest.content.textHtmlRatio = Number(rest.content.textHtmlRatio.toFixed(3));
+          }
+          if (rest.links) {
+            rest.links.externalRatio = Number(rest.links.externalRatio.toFixed(3));
+          }
+
+          return {
+            ...rest,
+            health_score: Number(result.site_summary.site_score.toFixed(3))
+          };
+        });
+        controller.renderResult(pages.length === 1 ? pages[0] : pages);
+      } else {
+        controller.renderResult(result, (res) => {
+          const report = buildAnalyzeInsightReport(res);
+          return renderAnalyzeInsightOutput(report, res);
+        });
       }
 
       // 7. Handle Exports

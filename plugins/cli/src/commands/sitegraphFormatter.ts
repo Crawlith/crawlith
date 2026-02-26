@@ -39,7 +39,7 @@ export const DEFAULT_HEALTH_WEIGHTS: HealthScoreWeights = {
   canonicalConflicts: 5,
   lowInternalLinks: 10,
   excessiveLinks: 5,
-  blockedByRobots: 25
+  blockedByRobots: 100
 };
 
 export interface SitegraphIssueCounts {
@@ -72,6 +72,7 @@ export interface HealthScoreBreakdown {
 
 export interface SitegraphInsightReport {
   pages: number;
+  fetchedPages?: number;
   health: HealthScoreBreakdown;
   issues: SitegraphIssueCounts;
   summary: {
@@ -165,7 +166,7 @@ export function collectSitegraphIssues(graph: Graph, metrics: Metrics): Sitegrap
 
 
   for (const node of nodes) {
-    if (node.crawlStatus === 'blocked') {
+    if (node.crawlStatus === 'blocked' || node.crawlStatus === 'blocked_by_robots') {
       blockedByRobots += 1;
     }
     brokenInternalLinks += node.brokenLinks?.length || 0;
@@ -260,6 +261,7 @@ export function buildSitegraphInsightReport(
 
   return {
     pages: metrics.totalPages,
+    fetchedPages: metrics.sessionStats?.pagesFetched,
     health,
     issues,
     summary: {
@@ -310,7 +312,15 @@ export function renderInsightOutput(report: SitegraphInsightReport, snapshotId: 
   lines.push('');
   lines.push(`# ${snapshotId}`);
   lines.push('');
-  lines.push(`${report.pages} pages crawled`);
+  if (report.fetchedPages !== undefined) {
+    if (report.fetchedPages === report.pages) {
+      lines.push(`${report.pages} pages crawled`);
+    } else {
+      lines.push(`${report.fetchedPages} pages fetched / ${report.pages} discovered`);
+    }
+  } else {
+    lines.push(`${report.pages} pages crawled`);
+  }
   lines.push('');
   lines.push(
     `Health      ${report.health.score}/100   ${report.health.status}`

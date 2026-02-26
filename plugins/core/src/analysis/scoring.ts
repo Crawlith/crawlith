@@ -8,6 +8,9 @@ export interface SiteScore {
 }
 
 export function scorePageSeo(page: PageAnalysis): number {
+  if (page.meta.crawlStatus === 'blocked_by_robots') {
+    return 0;
+  }
   const titleMeta = (scoreTextStatus(page.title.status) + scoreTextStatus(page.metaDescription.status)) / 2;
   const h1 = page.h1.status === 'ok' ? 100 : page.h1.status === 'warning' ? 60 : 10;
   const wordQuality = Math.min(100, (page.content.wordCount / 600) * 100) * 0.7 + Math.min(100, page.content.textHtmlRatio * 500) * 0.3;
@@ -49,7 +52,11 @@ export function aggregateSiteScore(metrics: Metrics, pages: PageAnalysis[]): Sit
   const orphanPenalty = metrics.totalPages === 0 ? 0 : (metrics.orphanPages.length / metrics.totalPages) * 100;
   const authorityEntropyOrphanScore = Math.max(0, Math.min(100, (avgAuthority * 100 * 0.4) + (entropyScore * 0.35) + ((100 - orphanPenalty) * 0.25)));
 
-  const overallScore = Number((seoHealthScore * 0.7 + authorityEntropyOrphanScore * 0.3).toFixed(2));
+  let overallScore = Number((seoHealthScore * 0.7 + authorityEntropyOrphanScore * 0.3).toFixed(2));
+
+  if (pages.some(p => p.meta.crawlStatus === 'blocked_by_robots')) {
+    overallScore = 0;
+  }
 
   return {
     seoHealthScore: Number(seoHealthScore.toFixed(2)),

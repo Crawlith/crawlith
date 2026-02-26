@@ -210,15 +210,15 @@ export class PageRepository {
   }
 
   getPagesBySnapshot(snapshotId: number): Page[] {
-    return this.db.prepare('SELECT * FROM pages WHERE last_seen_snapshot_id = ?').all(snapshotId) as Page[];
+    return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as Page[];
   }
 
   getPagesIdentityBySnapshot(snapshotId: number): { id: number; normalized_url: string }[] {
-    return this.db.prepare('SELECT id, normalized_url FROM pages WHERE last_seen_snapshot_id = ?').all(snapshotId) as { id: number; normalized_url: string }[];
+    return this.db.prepare('SELECT p.id, p.normalized_url FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as { id: number; normalized_url: string }[];
   }
 
   getPagesIteratorBySnapshot(snapshotId: number): IterableIterator<Page> {
-    return this.db.prepare('SELECT * FROM pages WHERE last_seen_snapshot_id = ?').iterate(snapshotId) as IterableIterator<Page>;
+    return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').iterate(snapshotId, snapshotId) as IterableIterator<Page>;
   }
 
   getIdByUrl(siteId: number, url: string): number | undefined {

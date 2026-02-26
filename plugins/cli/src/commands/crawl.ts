@@ -191,24 +191,24 @@ export const sitegraph = new Command('crawl')
       // Load graph from DB (single source of truth)
       const graph = loadGraphFromSnapshot(snapshotId);
       const nodes = graph.getNodes();
-      if (nodes.length === 0) {
-        console.log(chalk.red('\n❌ No pages were crawled.'));
-        console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
-        console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
-        process.exit(1);
-      }
+      // if (nodes.length === 0) {
+      //   console.log(chalk.red('\n❌ No pages were crawled.'));
+      //   console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
+      //   console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
+      //   process.exit(1);
+      // }
 
       if (options.format !== 'json') process.stdout.write(chalk.gray('📊 Calculating metrics and saving to database... '));
       runPostCrawlMetrics(snapshotId, depth, context);
       if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
 
-      if (nodes.length === 0) {
-        console.log(chalk.red('\n❌ No pages were crawled.'));
-        console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
-        console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
-        process.exit(1);
-      }
+      // if (nodes.length === 0) {
+      //   console.log(chalk.red('\n❌ No pages were crawled.'));
+      //   console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
+      //   console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
+      //   process.exit(1);
+      // }
 
       if (options.format !== 'json') {
         console.log(chalk.green(`\n✅ Crawl complete.`));

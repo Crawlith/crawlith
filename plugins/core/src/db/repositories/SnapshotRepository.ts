@@ -15,7 +15,7 @@ export interface Snapshot {
 }
 
 export class SnapshotRepository {
-  constructor(private db: Database) {}
+  constructor(private db: Database) { }
 
   createSnapshot(siteId: number, type: 'full' | 'partial' | 'incremental', status: 'running' | 'completed' | 'failed' = 'running'): number {
     const stmt = this.db.prepare('INSERT INTO snapshots (site_id, type, status) VALUES (?, ?, ?)');
@@ -24,7 +24,7 @@ export class SnapshotRepository {
   }
 
   getLatestSnapshot(siteId: number, status?: 'completed' | 'running' | 'failed'): Snapshot | undefined {
-    let sql = 'SELECT * FROM snapshots WHERE site_id = ?';
+    let sql = 'SELECT * FROM snapshots WHERE site_id = ? AND type != \'partial\'';
     const params: any[] = [siteId];
     if (status) {
       sql += ' AND status = ?';

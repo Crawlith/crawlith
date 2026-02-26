@@ -37,6 +37,7 @@ export interface CrawlOptions {
   proxyUrl?: string;
   maxRedirects?: number;
   userAgent?: string;
+  snapshotType?: 'full' | 'partial' | 'incremental';
 }
 
 interface QueueItem {
@@ -129,8 +130,8 @@ export class Crawler {
     const domain = urlObj.hostname.replace('www.', '');
     const site = this.siteRepo.firstOrCreateSite(domain);
     this.siteId = site.id;
-
-    this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, this.options.previousGraph ? 'incremental' : 'full');
+    const type = this.options.snapshotType || (this.options.previousGraph ? 'incremental' : 'full');
+    this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, type);
     this.rootOrigin = urlObj.origin;
     this.startUrl = rootUrl;
 
@@ -160,17 +161,15 @@ export class Crawler {
   }
 
   async fetchRobots(): Promise<void> {
-    if (!this.options.ignoreRobots) {
-      try {
-        const robotsUrl = new URL('/robots.txt', this.rootOrigin).toString();
-        const res = await this.fetcher!.fetch(robotsUrl, { maxBytes: 500000 });
-        if (res && typeof res.status === 'number' && res.status >= 200 && res.status < 300) {
-          this.robots = (robotsParser as any)(robotsUrl, res.body);
-        }
-      } catch {
-        // Suppressed expected network warnings when robots block
-        console.warn('Failed to fetch robots.txt, proceeding...');
+    try {
+      const robotsUrl = new URL('/robots.txt', this.rootOrigin).toString();
+      const res = await this.fetcher!.fetch(robotsUrl, { maxBytes: 500000 });
+      if (res && typeof res.status === 'number' && res.status >= 200 && res.status < 300) {
+        this.robots = (robotsParser as any)(robotsUrl, res.body);
       }
+    } catch {
+      // Suppressed expected network warnings when robots block
+      console.warn('Failed to fetch robots.txt, proceeding...');
     }
   }
 
@@ -426,7 +425,7 @@ export class Crawler {
     }
   }
 
-  private handleSuccessResponse(res: FetchResult, finalUrl: string, depth: number): void {
+  private handleSuccessResponse(res: FetchResult, finalUrl: string, depth: number, isBlocked: boolean = false): void {
     const contentTypeHeader = res.headers['content-type'];
     const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : (contentTypeHeader || '');
     if (!contentType || !contentType.toLowerCase().includes('text/html')) {
@@ -455,7 +454,7 @@ export class Crawler {
       const thinScore = calculateThinContentScore(contentAnalysis, 0);
 
       this.bufferMetrics(finalUrl, {
-        crawl_status: 'fetched',
+        crawl_status: isBlocked ? 'blocked_by_robots' : 'fetched',
         word_count: contentAnalysis.wordCount,
         thin_content_score: thinScore,
         external_link_ratio: linkAnalysis.externalRatio
@@ -476,7 +475,7 @@ export class Crawler {
     }
   }
 
-  private async processPage(item: QueueItem): Promise<void> {
+  private async processPage(item: QueueItem, isBlocked: boolean = false): Promise<void> {
     const { url, depth } = item;
     if (this.scopeManager!.isUrlEligible(url) !== 'allowed') {
       this.bufferPage(url, depth, 0, { securityError: 'blocked_by_domain_filter' });
@@ -509,7 +508,7 @@ export class Crawler {
       }
 
       if (res.status === 200) {
-        this.handleSuccessResponse(res, finalUrl, depth);
+        this.handleSuccessResponse(res, finalUrl, depth, isBlocked);
       }
     } catch (e) {
       this.context.emit({ type: 'crawl:error', url, error: String(e), depth });
@@ -567,20 +566,24 @@ export class Crawler {
               console.log(`${chalk.yellow('⊘ Robots')} ${chalk.gray(item.url)}`);
             }
 
-            // Persist the blocked state so it shows up in reports
-            this.visited.add(item.url);
-            this.pagesCrawled++;
-            this.bufferPage(item.url, item.depth, 0, {
-              security_error: 'Blocked by robots.txt'
+            // Tag as blocked for reporting
+            this.bufferMetrics(item.url, {
+              crawl_status: 'blocked_by_robots'
             });
-            continue;
+            this.bufferPage(item.url, item.depth, 0);
+
+            if (!this.options.ignoreRobots) {
+              this.visited.add(item.url);
+              this.pagesCrawled++;
+              continue;
+            }
           }
 
           this.active++;
           this.pagesCrawled++;
           this.visited.add(item.url);
 
-          this.limitConcurrency(() => this.processPage(item)).finally(() => {
+          this.limitConcurrency(() => this.processPage(item, isBlocked)).finally(() => {
             this.active--;
             next();
           });
