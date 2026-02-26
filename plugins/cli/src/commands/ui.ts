@@ -34,7 +34,7 @@ export const ui = new Command('ui')
       try {
         const url = new URL(siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`);
         domain = url.hostname;
-      } catch (e) {
+      } catch (_e) {
         // use raw string if URL parsing fails
       }
 

@@ -13,7 +13,7 @@ export const LinkDistributionChart = () => {
     ];
 
     // Simple bar for total links (always 100% relative to itself in this simplified view)
-    const maxCount = overview?.totals.internalLinks || 1;
+    // const maxCount = overview?.totals.internalLinks || 1; // Unused
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm h-full flex flex-col">
@@ -22,7 +22,7 @@ export const LinkDistributionChart = () => {
       <div className="flex-1 flex flex-col justify-center gap-4">
         {internalLinkDistribution.map((item) => {
           // Just visualize as full width for now as these are summary stats not distribution buckets
-          const val = Number(item.count);
+          // const val = Number(item.count); // Unused
           const widthPercent = 100;
 
           return (

@@ -8,7 +8,7 @@ interface HeaderProps {
   setShowCompare: (show: boolean) => void;
 }
 
-export const Header = ({ toggleSidebar, showCompare, setShowCompare }: HeaderProps) => {
+export const Header = ({ toggleSidebar, showCompare: _showCompare, setShowCompare: _setShowCompare }: HeaderProps) => {
   const { overview, currentSnapshot, snapshots, setSnapshot, domain } = useContext(DashboardContext);
 
   const [theme, setTheme] = useState(() => {

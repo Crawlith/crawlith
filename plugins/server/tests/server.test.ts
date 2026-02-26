@@ -21,6 +21,10 @@ vi.mock('express', () => {
   };
   const expressMock: any = vi.fn(() => mockApp);
   expressMock.static = vi.fn();
+  expressMock.Router = vi.fn(() => ({
+    get: vi.fn(),
+    use: vi.fn()
+  }));
   return {
     default: expressMock
   };
@@ -33,6 +37,33 @@ vi.mock('node:path', () => ({
   }
 }));
 
+// Mock @crawlith/core to prevent actual DB access and process.exit
+vi.mock('@crawlith/core', () => {
+  return {
+    getDb: vi.fn(() => ({
+      prepare: vi.fn(() => ({
+        get: vi.fn(() => ({ domain: 'test.com', created_at: '2024-01-01' })),
+        all: vi.fn(() => [])
+      }))
+    })),
+    closeDb: vi.fn(),
+    // Important: Use function expression to support 'new' keyword
+    SiteRepository: vi.fn(function() { return {}; }),
+    SnapshotRepository: vi.fn(function() {
+      return {
+        getSnapshot: vi.fn(() => ({ id: 1, site_id: 1, health_score: 90, node_count: 10 }))
+      };
+    }),
+    PageRepository: vi.fn(function() { return {}; }),
+    MetricsRepository: vi.fn(function() { return {}; })
+  };
+});
+
+// Mock process.exit to avoid killing the test runner if something slips through
+const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+  throw new Error(`process.exit called with ${code}`);
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -41,7 +72,9 @@ test('startServer uses default host 127.0.0.1', async () => {
   const mockApp = express();
   await startServer({
     port: 3000,
-    staticPath: './static'
+    staticPath: './static',
+    siteId: 1,
+    snapshotId: 1
   });
 
   expect(mockApp.listen).toHaveBeenCalledWith(3000, '127.0.0.1', expect.any(Function));
@@ -52,7 +85,9 @@ test('startServer uses provided host', async () => {
   await startServer({
     port: 3000,
     host: '0.0.0.0',
-    staticPath: './static'
+    staticPath: './static',
+    siteId: 1,
+    snapshotId: 1
   });
 
   expect(mockApp.listen).toHaveBeenCalledWith(3000, '0.0.0.0', expect.any(Function));

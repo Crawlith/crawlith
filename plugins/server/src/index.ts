@@ -26,10 +26,11 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // Initialize DB and Repositories
     const db = getDb();
-    const siteRepo = new SiteRepository(db);
-    const snapshotRepo = new SnapshotRepository(db);
-    const pageRepo = new PageRepository(db);
-    const metricsRepo = new MetricsRepository(db);
+    // Repositories instantiated for potential future use or consistency, but currently unused variables prefixed with _
+    const _siteRepo = new SiteRepository(db);
+    const _snapshotRepo = new SnapshotRepository(db);
+    const _pageRepo = new PageRepository(db);
+    const _metricsRepo = new MetricsRepository(db);
 
     const app = express();
     const API_PREFIX = '/api';
@@ -42,7 +43,8 @@ export function startServer(options: ServerOptions): Promise<void> {
     }
 
     // Check if snapshot exists
-    const initialSnapshot = snapshotRepo.getSnapshot(snapshotId);
+    // Use direct DB query or the repo instance if we were using it, but for now strict consistency with existing logic
+    const initialSnapshot = db.prepare('SELECT * FROM snapshots WHERE id = ?').get(snapshotId);
     if (!initialSnapshot) {
        console.error(chalk.red(`❌ Snapshot ID ${snapshotId} not found.`));
        process.exit(1);
@@ -59,7 +61,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       const snapId = req.query.snapshot ? parseInt(req.query.snapshot as string, 10) : snapshotId;
 
       // Basic validation: ensure snapshot belongs to site
-      const snap = snapshotRepo.getSnapshot(snapId);
+      const snap = db.prepare('SELECT * FROM snapshots WHERE id = ?').get(snapId) as Snapshot | undefined;
       if (!snap || snap.site_id !== siteId) {
         return res.status(404).json({ error: 'Snapshot not found or does not belong to this site' });
       }
@@ -138,7 +140,7 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 4.3 GET /api/issues
     api.get('/issues', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const severity = req.query.severity as string;
+      const _severity = req.query.severity as string; // Unused for now
       const search = req.query.search as string;
       const page = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
