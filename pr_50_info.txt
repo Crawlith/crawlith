@@ -1,0 +1,28 @@
+title:	fix(core): update HITS classification to use 75th percentile
+state:	DRAFT
+author:	saurabhsharma2u
+labels:	
+assignees:	
+reviewers:	
+projects:	
+milestone:	
+number:	50
+url:	https://github.com/Crawlith/crawlith/pull/50
+additions:	156
+deletions:	34
+auto-merge:	disabled
+--
+This PR updates the HITS algorithm in `@crawlith/core` to use the 75th percentile (instead of the median) when classifying nodes as "High" Authority or Hub. This aligns the implementation with the intended logic described in code comments.
+
+Changes:
+- Modified `plugins/core/src/scoring/hits.ts` to calculate `highAuth` and `highHub` using the 75th percentile.
+- Exported `classifyLinkRoles` for easier testing.
+- Updated `plugins/core/tests/hits.test.ts` to use a robust Reciprocal Star Topology for verifying "Power" node classification, which is more stable than ad-hoc graphs.
+- Added `plugins/core/tests/hits_classification.test.ts` to unit test the classification logic specifically.
+
+Tests:
+- Verified with `pnpm --filter @crawlith/core test tests/hits.test.ts` and `tests/hits_classification.test.ts`.
+- Verified no regressions in `tests/metrics.test.ts` and `tests/pagerank.test.ts`.
+
+---
+*PR created automatically by Jules for task [9057382431427311962](https://jules.google.com/task/9057382431427311962) started by @saurabhsharma2u*
