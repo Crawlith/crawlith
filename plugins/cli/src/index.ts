@@ -4,10 +4,9 @@ import chalk from 'chalk';
 import { sitegraph } from './commands/crawl.js';
 import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
-import { audit as probeCmd } from './commands/probe.js';
-import { auditCmd } from './commands/audit.js';
-import { exportCmd } from './commands/export.js';
-import { version } from '@crawlith/core';
+import { probe } from './commands/probe.js';
+
+import { version } from './utils/version.js';
 
 const program = new Command();
 
@@ -18,12 +17,10 @@ program
   .addCommand(sitegraph)
   .addCommand(analyze)
   .addCommand(ui)
-  .addCommand(probeCmd)
-  .addCommand(auditCmd)
-  .addCommand(exportCmd);
+  .addCommand(probe);
 
 program.configureHelp({
-  padWidth(cmd, helper) {
+  padWidth() {
     return 28;
   },
 });

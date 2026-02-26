@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
+import chalk from 'chalk';
 import { analyzeSite, EngineContext } from '@crawlith/core';
 import { OutputController } from '../output/controller.js';
 import { exportAnalysisResult } from '../output/export.js';
@@ -12,7 +13,7 @@ import {
 
 export const analyze = new Command('page')
   .description('Analyze a single URL for on-page SEO signals and content structure.')
-  .argument('<url>', 'URL to analyze')
+  .argument('[url]', 'URL to analyze')
   .option('--live', 'Perform a live crawl before analysis')
   .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html)', false)
   .option('--format <type>', 'Output format (pretty, json)', 'pretty')
@@ -27,21 +28,24 @@ export const analyze = new Command('page')
   .option('--max-redirects <number>', 'max redirect hops (for live crawl)', '2')
   .option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10')
   .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
-  .option('-o, --output <path>', 'Output directory for reports', './crawlith-reports')
-  .action(async (url: string | undefined, options: any) => {
-    // 1. Normalize Options
+
+  .action(async (url: string, options: any) => {
+    if (!url) {
+      console.error(chalk.red('\n❌ Error: URL argument is required for analysis\n'));
+      analyze.outputHelp();
+      process.exit(0);
+    }
+
     if (options.json) options.format = 'json';
     if (options.debug) options.logLevel = 'debug';
     if (options.verbose) options.logLevel = 'verbose';
-    if (options.format === 'text') options.format = 'pretty'; // Compat
+    if (options.format === 'text') options.format = 'pretty';
 
-    // 2. Initialize Output Controller
     const controller = new OutputController({
       format: options.format as any,
       logLevel: options.logLevel as any
     });
 
-    // 3. Create Engine Context
     const context: EngineContext = {
       emit: (event) => controller.handle(event)
     };

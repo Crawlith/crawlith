@@ -1,4 +1,3 @@
-import { request } from 'undici';
 import chalk from 'chalk';
 import pLimit from 'p-limit';
 import robotsParser from 'robots-parser';
@@ -169,7 +168,8 @@ export class Crawler {
           this.robots = (robotsParser as any)(robotsUrl, res.body);
         }
       } catch {
-        this.context.emit({ type: 'warn', message: 'Failed to fetch robots.txt, proceeding...' });
+        // Suppressed expected network warnings when robots block
+        console.warn('Failed to fetch robots.txt, proceeding...');
       }
     }
   }

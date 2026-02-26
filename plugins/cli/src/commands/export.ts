@@ -16,6 +16,11 @@ export const exportCmd = new Command('export')
     .option('-o, --output <path>', 'Output directory (e.g. ./crawlith-reports)', './crawlith-reports')
     .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html,visualize)', 'json')
     .action(async (url, options) => {
+        if (!url) {
+            console.error(chalk.red('\n❌ Error: URL argument is required for export\n'));
+            exportCmd.outputHelp();
+            process.exit(0);
+        }
         try {
             if (!url) {
                 console.error(chalk.red('\n❌ Error: URL argument is required for export\n'));

@@ -4,7 +4,8 @@ import {
   analyzeImageAlts,
   analyzeLinks,
   Graph,
-  Metrics
+  Metrics,
+
 } from '@crawlith/core';
 
 const THIN_CONTENT_THRESHOLD = 300;
@@ -100,6 +101,7 @@ export function healthStatusLabel(score: number, hasCritical: boolean = false): 
   return 'Critical';
 }
 
+
 export function calculateHealthScore(
   totalPages: number,
   issues: Pick<SitegraphIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots'>,
@@ -123,7 +125,6 @@ export function calculateHealthScore(
 
   const totalPenalty = Object.values(weightedPenalties).reduce((sum, value) => sum + value, 0);
   const score = Number(clamp(100 - totalPenalty, 0, 100).toFixed(1));
-
   // Determine if there are critical issues for the label
   const hasCritical = (
     issues.orphanPages > 0 ||
@@ -134,7 +135,6 @@ export function calculateHealthScore(
     issues.accidentalNoindex > 0 ||
     issues.blockedByRobots > 0
   );
-
   return {
     score,
     status: healthStatusLabel(score, hasCritical),
@@ -160,14 +160,14 @@ export function collectSitegraphIssues(graph: Graph, metrics: Metrics): Sitegrap
   let nearAuthorityThreshold = 0;
   let underlinkedHighAuthorityPages = 0;
   let externalLinks = 0;
-
   let blockedByRobots = 0;
+
+
 
   for (const node of nodes) {
     if (node.crawlStatus === 'blocked') {
       blockedByRobots += 1;
     }
-
     brokenInternalLinks += node.brokenLinks?.length || 0;
     if ((node.redirectChain?.length || 0) > 1) {
       redirectChains += 1;

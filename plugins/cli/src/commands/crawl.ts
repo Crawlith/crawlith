@@ -40,11 +40,6 @@ export const sitegraph = new Command('crawl')
   .option('--format <type>', 'Output format (pretty, json)', 'pretty')
   .option('--log-level <level>', 'Log level (normal, verbose, debug)', 'normal')
 
-  // Legacy Flags (Backward Compatibility)
-  .option('--json', 'Use JSON output (deprecated, use --format=json)')
-  .option('--debug', 'Use debug logging (deprecated, use --log-level=debug)')
-  .option('--verbose', 'Use verbose logging (deprecated, use --log-level=verbose)')
-
   .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html,visualize)', false)
 
   .option('--detect-soft404', 'Detect soft 404 pages')
@@ -64,8 +59,14 @@ export const sitegraph = new Command('crawl')
   .option('--compute-hits', 'compute Hub and Authority scores (HITS)')
   .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
   .option('--force', 'force run (override existing lock)')
-  .action(async (url: string | undefined, options: any) => {
-    // 1. Normalize Options & Backward Compatibility
+  .action(async (url: string, options: any) => {
+
+    if (!url) {
+      console.error(chalk.red('\n❌ Error: URL argument is required for crawling\n'));
+      sitegraph.outputHelp();
+      process.exit(0);
+    }
+
     if (options.json) options.format = 'json';
     if (options.debug) options.logLevel = 'debug';
     if (options.verbose) options.logLevel = 'verbose';
@@ -187,14 +188,20 @@ export const sitegraph = new Command('crawl')
         userAgent: options.ua,
         concurrency: options.concurrency ? parseInt(options.concurrency, 10) : 2
       }, context);
+      // Load graph from DB (single source of truth)
+      const graph = loadGraphFromSnapshot(snapshotId);
+      const nodes = graph.getNodes();
+      if (nodes.length === 0) {
+        console.log(chalk.red('\n❌ No pages were crawled.'));
+        console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
+        console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
+        process.exit(1);
+      }
 
       if (options.format !== 'json') process.stdout.write(chalk.gray('📊 Calculating metrics and saving to database... '));
       runPostCrawlMetrics(snapshotId, depth, context);
       if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
-      // Load graph from DB (single source of truth)
-      const graph = loadGraphFromSnapshot(snapshotId);
-      const nodes = graph.getNodes();
 
       if (nodes.length === 0) {
         console.log(chalk.red('\n❌ No pages were crawled.'));
@@ -204,8 +211,7 @@ export const sitegraph = new Command('crawl')
       }
 
       if (options.format !== 'json') {
-        console.log(chalk.green(`\n✅ Crawl complete. Found ${chalk.bold(nodes.length)} pages.`));
-        console.log(chalk.gray(`   Snapshot ID: ${snapshotId}`));
+        console.log(chalk.green(`\n✅ Crawl complete.`));
         process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
       }
 
@@ -272,8 +278,7 @@ export const sitegraph = new Command('crawl')
       }
 
       if (options.format !== 'json') {
-
-        console.log("   run `crawlith ui` to view the full report");
+        console.log("\n💾 run `crawlith ui` to view the full report");
         if (exportFormats.length > 0) {
           const urlObj = new URL(url);
           const domainFolder = urlObj.hostname.replace('www.', '');
