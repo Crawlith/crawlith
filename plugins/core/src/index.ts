@@ -1,4 +1,5 @@
 export * from './crawler/crawl.js';
+export * from './crawler/normalize.js';
 export * from './crawler/metricsRunner.js';
 export * from './graph/metrics.js';
 export * from './report/html.js';

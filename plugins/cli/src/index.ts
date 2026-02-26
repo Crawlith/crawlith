@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { sitegraph } from './commands/sitegraph.js';
-import { analyze } from './commands/analyze.js';
+import { sitegraph } from './commands/crawl.js';
+import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
-import { audit } from './commands/audit.js';
+import { audit as probeCmd } from './commands/probe.js';
+import { auditCmd } from './commands/audit.js';
 import { exportCmd } from './commands/export.js';
 import { version } from '@crawlith/core';
 
@@ -17,7 +18,8 @@ program
   .addCommand(sitegraph)
   .addCommand(analyze)
   .addCommand(ui)
-  .addCommand(audit)
+  .addCommand(probeCmd)
+  .addCommand(auditCmd)
   .addCommand(exportCmd);
 
 program.configureHelp({

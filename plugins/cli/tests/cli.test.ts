@@ -1,6 +1,6 @@
 import { test, expect, vi, beforeEach } from 'vitest';
-import { sitegraph } from '../src/commands/sitegraph.js';
-import { analyze } from '../src/commands/analyze.js';
+import { sitegraph } from '../src/commands/crawl.js';
+import { analyze } from '../src/commands/page.js';
 import * as core from '@crawlith/core';
 import fs from 'node:fs/promises';
 

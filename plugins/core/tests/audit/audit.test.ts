@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { auditUrl } from '../../src/audit/index.js';
 import { resolveDns } from '../../src/audit/dns.js';
 import { analyzeTransport } from '../../src/audit/transport.js';

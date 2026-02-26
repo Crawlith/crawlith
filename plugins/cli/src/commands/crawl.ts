@@ -19,8 +19,8 @@ import { buildSitegraphInsightReport, hasCriticalIssues, renderInsightOutput, re
 import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.js';
 import { OutputController } from '../output/controller.js';
 
-export const sitegraph = new Command('sitegraph')
-  .description('Crawl site and build internal link graph')
+export const sitegraph = new Command('crawl')
+  .description('Crawl an entire website and build its internal link graph, metrics, and SEO structure.')
   .argument('[url]', 'URL to crawl')
   .option('-l, --limit <number>', 'max pages', '500')
   .option('-d, --depth <number>', 'max click depth', '5')
@@ -64,7 +64,7 @@ export const sitegraph = new Command('sitegraph')
   .option('--compute-hits', 'compute Hub and Authority scores (HITS)')
   .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
   .option('--force', 'force run (override existing lock)')
-  .action(async (url, options) => {
+  .action(async (url: string | undefined, options: any) => {
     // 1. Normalize Options & Backward Compatibility
     if (options.json) options.format = 'json';
     if (options.debug) options.logLevel = 'debug';
@@ -237,7 +237,7 @@ export const sitegraph = new Command('sitegraph')
       const exportFormats = parseExportFormats(options.export);
 
       if (exportFormats.length > 0) {
-        const urlObj = new URL(url);
+        const urlObj = new URL(url as string);
         const domainFolder = urlObj.hostname.replace('www.', '');
         const outputDir = path.join(path.resolve(options.output), domainFolder);
 
@@ -272,7 +272,7 @@ export const sitegraph = new Command('sitegraph')
       }
 
       if (options.format !== 'json') {
-        console.log(`\n💾 Data stored in database (snapshot #${snapshotId})`);
+
         console.log("   run `crawlith ui` to view the full report");
         if (exportFormats.length > 0) {
           const urlObj = new URL(url);

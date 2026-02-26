@@ -10,18 +10,13 @@ import {
   renderAnalyzeInsightOutput
 } from './analyzeFormatter.js';
 
-export const analyze = new Command('analyze')
-  .description('Analyze SEO and content quality from crawl data')
-  .argument('[url]', 'URL to analyze')
+export const analyze = new Command('page')
+  .description('Analyze a single URL for on-page SEO signals and content structure.')
+  .argument('<url>', 'URL to analyze')
   .option('--live', 'Perform a live crawl before analysis')
   .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html)', false)
   .option('--format <type>', 'Output format (pretty, json)', 'pretty')
   .option('--log-level <level>', 'Log level (normal, verbose, debug)', 'normal')
-  // Backward compatibility flags
-  .option('--json', 'Use JSON output (deprecated, use --format=json)')
-  .option('--debug', 'Use debug logging (deprecated, use --log-level=debug)')
-  .option('--verbose', 'Use verbose logging (deprecated, use --log-level=verbose)')
-
   .option('--seo', 'Show only SEO module output')
   .option('--content', 'Show only content module output')
   .option('--accessibility', 'Show only accessibility module output')
@@ -33,7 +28,7 @@ export const analyze = new Command('analyze')
   .option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10')
   .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
   .option('-o, --output <path>', 'Output directory for reports', './crawlith-reports')
-  .action(async (url, options) => {
+  .action(async (url: string | undefined, options: any) => {
     // 1. Normalize Options
     if (options.json) options.format = 'json';
     if (options.debug) options.logLevel = 'debug';
@@ -59,7 +54,7 @@ export const analyze = new Command('analyze')
       }
 
       // 4. Run Analysis
-      const result = await analyzeSite(url, {
+      const result = await analyzeSite(url as string, {
         live: options.live,
         seo: options.seo,
         content: options.content,
@@ -92,10 +87,10 @@ export const analyze = new Command('analyze')
         const formats = (typeof options.export === 'string'
           ? options.export.split(',')
           : (options.export === true ? ['json'] : [])
-        ).map(s => s.trim().toLowerCase()).filter(Boolean);
+        ).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
 
         if (formats.length > 0) {
-          const urlObj = new URL(url);
+          const urlObj = new URL(url as string);
           const domainFolder = urlObj.hostname.replace('www.', '');
           const outputDir = path.join(path.resolve(options.output), domainFolder);
 
