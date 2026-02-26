@@ -81,4 +81,15 @@ export class SnapshotRepository {
   getSnapshot(id: number): Snapshot | undefined {
     return this.db.prepare('SELECT * FROM snapshots WHERE id = ?').get(id) as Snapshot | undefined;
   }
+
+  deleteSnapshot(id: number): void {
+    const tx = this.db.transaction(() => {
+      // Unlink pages from this snapshot to prevent FK constraint violations or data inconsistencies
+      this.db.prepare('UPDATE pages SET first_seen_snapshot_id = NULL WHERE first_seen_snapshot_id = ?').run(id);
+      this.db.prepare('UPDATE pages SET last_seen_snapshot_id = NULL WHERE last_seen_snapshot_id = ?').run(id);
+      // Delete the snapshot
+      this.db.prepare('DELETE FROM snapshots WHERE id = ?').run(id);
+    });
+    tx();
+  }
 }

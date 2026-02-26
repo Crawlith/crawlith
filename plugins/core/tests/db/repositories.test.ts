@@ -28,15 +28,15 @@ describe('PageRepository', () => {
 
     // Create 1000 pages (chunk size is 900)
     const insertStmt = db.prepare(`
-      INSERT INTO pages (site_id, normalized_url, last_seen_snapshot_id)
-      VALUES (?, ?, ?)
+      INSERT INTO pages (site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id)
+      VALUES (?, ?, ?, ?)
     `);
 
     const tx = db.transaction(() => {
       for (let i = 0; i < 1000; i++) {
         const url = `http://example.com/page${i}`;
         urls.push(url);
-        insertStmt.run(siteId, url, snapshotId);
+        insertStmt.run(siteId, url, snapshotId, snapshotId);
       }
     });
     tx();
@@ -58,14 +58,14 @@ describe('PageRepository', () => {
     const siteId = 1;
     const snapshotId = 1;
     const insertStmt = db.prepare(`
-      INSERT INTO pages (site_id, normalized_url, last_seen_snapshot_id)
-      VALUES (?, ?, ?)
+      INSERT INTO pages (site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id)
+      VALUES (?, ?, ?, ?)
     `);
 
     db.transaction(() => {
-      insertStmt.run(siteId, 'http://example.com/1', snapshotId);
-      insertStmt.run(siteId, 'http://example.com/2', snapshotId);
-      insertStmt.run(siteId, 'http://example.com/3', snapshotId);
+      insertStmt.run(siteId, 'http://example.com/1', snapshotId, snapshotId);
+      insertStmt.run(siteId, 'http://example.com/2', snapshotId, snapshotId);
+      insertStmt.run(siteId, 'http://example.com/3', snapshotId, snapshotId);
     })();
 
     const iterator = repo.getPagesIteratorBySnapshot(snapshotId);
@@ -99,9 +99,9 @@ describe('PageRepository', () => {
 
   it('should get ID by URL', () => {
     const pageData = {
-        site_id: 1,
-        normalized_url: 'http://example.com/id-test',
-        last_seen_snapshot_id: 1,
+      site_id: 1,
+      normalized_url: 'http://example.com/id-test',
+      last_seen_snapshot_id: 1,
     };
     repo.upsertPage(pageData);
 

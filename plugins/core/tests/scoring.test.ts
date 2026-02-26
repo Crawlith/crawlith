@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { scorePageSeo, aggregateSiteScore } from '../src/analysis/scoring.js';
+import { scorePageSeo } from '../src/analysis/scoring.js';
 import { PageAnalysis } from '../src/analysis/analyze.js';
 
 const basePage: PageAnalysis = {
@@ -14,9 +14,7 @@ const basePage: PageAnalysis = {
   links: { internalLinks: 5, externalLinks: 2, nofollowCount: 1, externalRatio: 2 / 7 },
   structuredData: { present: true, valid: true, types: ['Article'] },
   seoScore: 0,
-  meta: {
-    crawlStatus: 'ok'
-  }
+  meta: { noindex: false, nofollow: false }
 };
 
 test('page score stays in 0-100', () => {

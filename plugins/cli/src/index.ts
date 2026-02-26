@@ -7,7 +7,7 @@ import { analyze } from './commands/page.js';
 import { ui } from './commands/ui.js';
 import { probe } from './commands/probe.js';
 import { sites } from './commands/sites.js';
-
+import { clean } from './commands/clean.js';
 import { version, pkg } from './utils/version.js';
 
 const program = new Command();
@@ -36,7 +36,8 @@ program
   .addCommand(analyze)
   .addCommand(ui)
   .addCommand(probe)
-  .addCommand(sites);
+  .addCommand(sites)
+  .addCommand(clean);
 
 program.configureHelp({
   padWidth() {
