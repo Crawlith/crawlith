@@ -13,8 +13,8 @@ export async function exportAnalysisResult(
   outputDir: string
 ): Promise<string> {
   await fs.mkdir(outputDir, { recursive: true });
-  let filename = '';
-  let content = '';
+  let filename: string;
+  let content: string;
 
   switch (format) {
     case 'json':

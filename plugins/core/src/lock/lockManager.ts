@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { existsSync, unlinkSync, readFileSync, writeFile } from 'node:fs';
+import { existsSync, unlinkSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { generateLockKey } from './hashKey.js';
@@ -72,8 +72,6 @@ export class LockManager {
       };
 
       // 'wx' flag ensures atomic creation, failing if file exists
-      // Using writeFileSync or fs.writeFile (callback) wrapped in promise?
-      // Using fs.writeFile from 'node:fs/promises' which I imported as fs.
       await fs.writeFile(lockPath, JSON.stringify(data, null, 2), { flag: 'wx', encoding: 'utf-8' });
 
       this.lockFilePath = lockPath;

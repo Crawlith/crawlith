@@ -27,7 +27,7 @@ export function extractLinks(html: string, baseUrl: string): string[] {
     });
 
     return Array.from(links);
-  } catch (e) {
+  } catch (_e) {
     // Silently fail on extraction errors
     return [];
   }
