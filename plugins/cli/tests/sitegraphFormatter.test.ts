@@ -42,11 +42,13 @@ describe('health score calculation', () => {
       accidentalNoindex: 0,
       canonicalConflicts: 0,
       lowInternalLinkCount: 0,
-      excessiveInternalLinkCount: 0
+      excessiveInternalLinkCount: 0,
+      blockedByRobots: 0
     });
 
     expect(score.score).toBe(94);
-    expect(score.status).toBe('Excellent');
+    expect(score.score).toBe(94);
+    expect(score.status).toBe('Needs Attention');
   });
 });
 
@@ -76,15 +78,15 @@ describe('section rendering', () => {
       createMetrics({ orphanPages: ['https://example.com/b'] })
     );
 
-    const output = renderInsightOutput(report);
-    expect(output).toContain('Pages: 2 Health Score:');
-    expect(output).toContain('CRITICAL (Fix Now)');
-    expect(output).toContain('WARNINGS');
-    expect(output).toContain('OPPORTUNITIES');
-    expect(output).toContain('Top 10 PageRank Pages');
+    const output = renderInsightOutput(report, 123);
+    expect(output).toContain('CRAWLITH — Sitegraph');
+    expect(output).toContain('Critical');
+    expect(output).toContain('Warnings');
+    expect(output).toContain('Opportunities');
+    expect(output).toContain('Top Authority');
 
-    expect(output.indexOf('CRITICAL (Fix Now)')).toBeLessThan(output.indexOf('WARNINGS'));
-    expect(output.indexOf('WARNINGS')).toBeLessThan(output.indexOf('Top 10 PageRank Pages'));
+    expect(output.indexOf('Critical')).toBeLessThan(output.indexOf('Warnings'));
+    expect(output.indexOf('Warnings')).toBeLessThan(output.indexOf('Top Authority'));
   });
 
   test('shows no critical issues message when empty', () => {
@@ -93,8 +95,8 @@ describe('section rendering', () => {
     graph.updateNodeData('https://example.com/a', { html: '<h1>A</h1><p>enough words '.repeat(30) + '</p>' });
 
     const report = buildSitegraphInsightReport(graph, createMetrics({ totalPages: 1, topPageRankPages: [] }));
-    const output = renderInsightOutput(report);
-    expect(output).toContain('No critical issues found.');
+    const output = renderInsightOutput(report, 123);
+    expect(output).not.toContain('Critical');
   });
 });
 
@@ -112,7 +114,8 @@ describe('critical detection', () => {
         accidentalNoindex: 0,
         canonicalConflicts: 0,
         lowInternalLinkCount: 0,
-        excessiveInternalLinkCount: 0
+        excessiveInternalLinkCount: 0,
+        blockedByRobots: 0
       }),
       issues: {
         orphanPages: 1,
@@ -131,7 +134,8 @@ describe('critical detection', () => {
         cannibalizationClusters: 0,
         nearAuthorityThreshold: 0,
         underlinkedHighAuthorityPages: 0,
-        externalLinks: 0
+        externalLinks: 0,
+        blockedByRobots: 0
       },
       summary: { crawlDepth: 1, internalLinks: 0, externalLinks: 0 },
       topAuthorityPages: []

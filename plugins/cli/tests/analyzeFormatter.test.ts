@@ -73,11 +73,11 @@ describe('analyze formatter report', () => {
     const report = buildAnalyzeInsightReport(base);
     const output = renderAnalyzeInsightOutput(report);
 
-    expect(output).toContain('Pages: 2 Health Score: 68/100 Status: Needs Attention');
-    expect(output).toContain('CRITICAL (Fix Now)');
-    expect(output).toContain('WARNINGS');
-    expect(output).toContain('Top 10 Pages by SEO Score');
-    expect(output.indexOf('CRITICAL (Fix Now)')).toBeLessThan(output.indexOf('WARNINGS'));
+    expect(output).toContain('CRAWLITH — Analyze');
+    expect(output).toContain('Critical');
+    expect(output).toContain('Warnings');
+    expect(output).toContain('Top Pages');
+    expect(output.indexOf('Critical')).toBeLessThan(output.indexOf('Warnings'));
   });
 
   test('critical detector is true when critical issues exist', () => {

@@ -96,7 +96,7 @@ export const analyze = new Command('page')
         if (formats.length > 0) {
           const urlObj = new URL(url as string);
           const domainFolder = urlObj.hostname.replace('www.', '');
-          const outputDir = path.join(path.resolve(options.output), domainFolder);
+          const outputDir = path.join(path.resolve(options.output || './crawlith-reports'), domainFolder);
 
           for (const fmt of formats) {
             if (['json', 'csv', 'markdown', 'html'].includes(fmt)) {

@@ -68,7 +68,10 @@ test('sitegraph command execution (DB-only, no file writes)', async () => {
   expect(fs.mkdir).not.toHaveBeenCalled();
   expect(core.generateHtml).not.toHaveBeenCalled();
 
-  expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Snapshot ID: 123'));
+  const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  await sitegraph.parseAsync(['https://example.com', '--limit', '10'], { from: 'user' });
+  expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('# 123'));
+  stdoutSpy.mockRestore();
 
   consoleSpy.mockRestore();
 });
@@ -235,7 +238,7 @@ test('sitegraph diff execution via --compare', async () => {
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
   const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
-  await sitegraph.parseAsync(['node', 'sitegraph', '--compare', 'old.json', 'new.json']);
+  await sitegraph.parseAsync(['node', 'sitegraph', 'https://example.com', '--compare', 'old.json', 'new.json']);
 
   expect(fs.readFile).toHaveBeenCalledTimes(2);
   expect(core.compareGraphs).toHaveBeenCalled();
