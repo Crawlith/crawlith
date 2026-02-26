@@ -1,7 +1,6 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { runSitegraphExports } from '../src/utils/exportRunner.js';
 import fs from 'node:fs/promises';
-import path from 'node:path';
 
 vi.mock('node:fs/promises', () => ({
   default: {

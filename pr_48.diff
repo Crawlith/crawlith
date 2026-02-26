@@ -1,0 +1,611 @@
+diff --git a/plugins/core/tests/analysis.unit.test.ts b/plugins/core/tests/analysis.unit.test.ts
+index 46ff0c3..0d7841f 100644
+--- a/plugins/core/tests/analysis.unit.test.ts
++++ b/plugins/core/tests/analysis.unit.test.ts
+@@ -76,6 +76,33 @@ describe('structured data', () => {
+     const missing = analyzeStructuredData('<p>none</p>');
+     expect(missing.present).toBe(false);
+   });
++
++  test('handles array of types', () => {
++    const html = '<script type="application/ld+json">{"@type": ["Article", "NewsArticle"]}</script>';
++    const result = analyzeStructuredData(html);
++    expect(result.types).toContain('Article');
++    expect(result.types).toContain('NewsArticle');
++  });
++
++  test('handles @graph structure', () => {
++    const html = '<script type="application/ld+json">{"@graph": [{"@type": "Person"}, {"@type": "Organization"}]}</script>';
++    const result = analyzeStructuredData(html);
++    expect(result.types).toContain('Person');
++    expect(result.types).toContain('Organization');
++  });
++
++  test('handles top-level array', () => {
++    const html = '<script type="application/ld+json">[{"@type": "A"}, {"@type": "B"}]</script>';
++    const result = analyzeStructuredData(html);
++    expect(result.types).toContain('A');
++    expect(result.types).toContain('B');
++  });
++
++  test('handles empty script content', () => {
++     const html = '<script type="application/ld+json">   </script>';
++     const result = analyzeStructuredData(html);
++     expect(result.valid).toBe(false);
++  });
+ });
+ 
+ describe('links and images', () => {
+diff --git a/plugins/core/tests/audit/audit.test.ts b/plugins/core/tests/audit/audit.test.ts
+new file mode 100644
+index 0000000..4cb6d27
+--- /dev/null
++++ b/plugins/core/tests/audit/audit.test.ts
+@@ -0,0 +1,101 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
++import { auditUrl } from '../../src/audit/index.js';
++import { resolveDns } from '../../src/audit/dns.js';
++import { analyzeTransport } from '../../src/audit/transport.js';
++import { analyzeHeaders } from '../../src/audit/headers.js';
++import { calculateScore } from '../../src/audit/scoring.js';
++import { IPGuard } from '../../src/core/security/ipGuard.js';
++
++// Mock dependencies
++vi.mock('../../src/audit/dns.js', () => ({
++  resolveDns: vi.fn(),
++}));
++vi.mock('../../src/audit/transport.js', () => ({
++  analyzeTransport: vi.fn(),
++}));
++vi.mock('../../src/audit/headers.js', () => ({
++  analyzeHeaders: vi.fn(),
++}));
++vi.mock('../../src/audit/scoring.js', () => ({
++  calculateScore: vi.fn(),
++}));
++vi.mock('../../src/core/security/ipGuard.js', () => ({
++  IPGuard: {
++    validateHost: vi.fn(),
++  },
++}));
++
++describe('auditUrl', () => {
++  const mockUrl = 'https://example.com';
++
++  beforeEach(() => {
++    vi.resetAllMocks();
++  });
++
++  it('should successfully audit a valid URL', async () => {
++    // Setup mocks
++    vi.mocked(IPGuard.validateHost).mockResolvedValue(true);
++
++    const mockDnsResult = { ip: '1.2.3.4' };
++    vi.mocked(resolveDns).mockResolvedValue(mockDnsResult as any);
++
++    const mockTransportResult = {
++      transport: { headers: {} },
++      performance: { loadTime: 100 },
++      issues: [],
++    };
++    vi.mocked(analyzeTransport).mockResolvedValue(mockTransportResult as any);
++
++    const mockHeadersResult = { grade: 'A' };
++    vi.mocked(analyzeHeaders).mockReturnValue(mockHeadersResult as any);
++
++    const mockScoringResult = {
++      score: 95,
++      grade: 'A',
++      issues: [],
++    };
++    vi.mocked(calculateScore).mockReturnValue(mockScoringResult as any);
++
++    // Execute
++    const result = await auditUrl(mockUrl);
++
++    // Verify
++    expect(IPGuard.validateHost).toHaveBeenCalledWith('example.com');
++    expect(resolveDns).toHaveBeenCalledWith('example.com');
++    expect(analyzeTransport).toHaveBeenCalledWith(mockUrl, 10000); // default timeout
++    expect(analyzeHeaders).toHaveBeenCalledWith(mockTransportResult.transport.headers);
++    expect(calculateScore).toHaveBeenCalled();
++
++    expect(result).toEqual({
++      url: mockUrl,
++      transport: mockTransportResult.transport,
++      securityHeaders: mockHeadersResult,
++      dns: mockDnsResult,
++      performance: mockTransportResult.performance,
++      score: mockScoringResult.score,
++      grade: mockScoringResult.grade,
++      issues: mockScoringResult.issues,
++    });
++  });
++
++  it('should throw error for invalid URL protocol', async () => {
++    await expect(auditUrl('ftp://example.com')).rejects.toThrow('Only HTTP and HTTPS protocols are supported');
++  });
++
++  it('should throw error for malformed URL', async () => {
++    await expect(auditUrl('not-a-url')).rejects.toThrow('Invalid URL');
++  });
++
++  it('should throw error if SSRF check fails', async () => {
++    vi.mocked(IPGuard.validateHost).mockResolvedValue(false);
++    await expect(auditUrl(mockUrl)).rejects.toThrow('Access to internal or private infrastructure is prohibited');
++  });
++
++  it('should propagate errors from dependencies', async () => {
++    vi.mocked(IPGuard.validateHost).mockResolvedValue(true);
++    vi.mocked(resolveDns).mockRejectedValue(new Error('DNS Error'));
++    vi.mocked(analyzeTransport).mockResolvedValue({} as any); // Should resolve if DNS fails? Wait, Promise.all fails if any fails.
++
++    await expect(auditUrl(mockUrl)).rejects.toThrow('DNS Error');
++  });
++});
+diff --git a/plugins/core/tests/db/index.test.ts b/plugins/core/tests/db/index.test.ts
+new file mode 100644
+index 0000000..94a535f
+--- /dev/null
++++ b/plugins/core/tests/db/index.test.ts
+@@ -0,0 +1,134 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
++import { getDbPath, getDb, closeDb } from '../../src/db/index.js';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++
++vi.mock('node:fs');
++vi.mock('node:os');
++vi.mock('better-sqlite3', () => {
++  return {
++    default: vi.fn(function () {
++      return {
++        pragma: vi.fn().mockReturnValue('ok'),
++        prepare: vi.fn().mockReturnValue({
++          run: vi.fn(),
++          get: vi.fn(),
++          iterate: vi.fn(),
++          all: vi.fn()
++        }),
++        exec: vi.fn(),
++        close: vi.fn(),
++        transaction: vi.fn((fn) => fn),
++      };
++    }),
++  };
++});
++vi.mock('../../src/db/schema.js', () => ({
++  initSchema: vi.fn(),
++}));
++
++describe('DB Index', () => {
++  const originalEnv = process.env;
++
++  beforeEach(() => {
++    vi.resetAllMocks();
++    closeDb();
++    process.env = { ...originalEnv };
++    // Default mock behaviors
++    vi.mocked(os.homedir).mockReturnValue('/home/user');
++    vi.mocked(fs.existsSync).mockReturnValue(false);
++    vi.mocked(fs.mkdirSync).mockImplementation(() => undefined as any);
++    vi.mocked(fs.chmodSync).mockImplementation(() => undefined);
++  });
++
++  afterEach(() => {
++    process.env = originalEnv;
++    closeDb();
++  });
++
++  describe('getDbPath', () => {
++    it('should return :memory: in test environment', () => {
++      process.env.NODE_ENV = 'test';
++      expect(getDbPath()).toBe(':memory:');
++    });
++
++    it('should return custom path if CRAWLITH_DB_PATH is set', () => {
++      process.env.NODE_ENV = 'production';
++      process.env.CRAWLITH_DB_PATH = '/custom/path/db.sqlite';
++      expect(getDbPath()).toBe('/custom/path/db.sqlite');
++    });
++
++    it('should return default path in home dir if no env var', () => {
++      process.env.NODE_ENV = 'production';
++      delete process.env.CRAWLITH_DB_PATH;
++
++      const expectedPath = path.join('/home/user', '.crawlith', 'crawlith.db');
++      expect(getDbPath()).toBe(expectedPath);
++
++      expect(fs.mkdirSync).toHaveBeenCalledWith(path.join('/home/user', '.crawlith'), { recursive: true });
++      expect(fs.chmodSync).toHaveBeenCalledWith(path.join('/home/user', '.crawlith'), 0o700);
++    });
++
++    it('should not create dir if it exists', () => {
++      process.env.NODE_ENV = 'production';
++      vi.mocked(fs.existsSync).mockReturnValue(true);
++
++      getDbPath();
++
++      expect(fs.mkdirSync).not.toHaveBeenCalled();
++    });
++  });
++
++  describe('getDb', () => {
++     it('should create a new database instance', () => {
++       process.env.NODE_ENV = 'production';
++       const db = getDb();
++       expect(db).toBeDefined();
++       // Check if pragma was called
++       expect(db.pragma).toHaveBeenCalledWith('journal_mode = WAL');
++     });
++
++     it('should return existing instance if called twice', () => {
++        process.env.NODE_ENV = 'production';
++        const db1 = getDb();
++        const db2 = getDb();
++        expect(db1).toBe(db2);
++     });
++
++     it('should handle permission errors gracefully', () => {
++        process.env.NODE_ENV = 'production';
++        // Avoid getDbPath throwing
++        vi.mocked(fs.existsSync).mockReturnValue(true);
++
++        vi.mocked(fs.chmodSync).mockImplementation((path) => {
++           if (path.toString().endsWith('crawlith.db')) {
++             throw new Error('EPERM');
++           }
++        });
++
++        expect(() => getDb()).not.toThrow();
++     });
++
++     it('should warn if integrity check fails', async () => {
++         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
++         process.env.NODE_ENV = 'production';
++         vi.mocked(fs.existsSync).mockReturnValue(true);
++
++         const MockDatabase = (await import('better-sqlite3')).default;
++         vi.mocked(MockDatabase).mockImplementationOnce(function() {
++            return {
++               pragma: vi.fn().mockReturnValue('corrupt'),
++               prepare: vi.fn(),
++               exec: vi.fn(),
++               close: vi.fn(),
++               transaction: vi.fn(),
++            } as any;
++         });
++
++         getDb();
++
++         expect(warnSpy).toHaveBeenCalledWith('Database integrity check failed:', 'corrupt');
++     });
++  });
++});
+diff --git a/plugins/core/tests/db/repositories.test.ts b/plugins/core/tests/db/repositories.test.ts
+new file mode 100644
+index 0000000..2cc582b
+--- /dev/null
++++ b/plugins/core/tests/db/repositories.test.ts
+@@ -0,0 +1,115 @@
++import { describe, it, expect, beforeEach, afterEach } from 'vitest';
++import Database from 'better-sqlite3';
++import { PageRepository } from '../../src/db/repositories/PageRepository.js';
++import { initSchema } from '../../src/db/schema.js';
++
++describe('PageRepository', () => {
++  let db: Database.Database;
++  let repo: PageRepository;
++
++  beforeEach(() => {
++    db = new Database(':memory:');
++    initSchema(db);
++    repo = new PageRepository(db);
++
++    // Seed required tables (sites, snapshots)
++    db.prepare("INSERT INTO sites (domain) VALUES ('example.com')").run();
++    db.prepare("INSERT INTO snapshots (site_id, type) VALUES (1, 'full')").run();
++  });
++
++  afterEach(() => {
++    db.close();
++  });
++
++  it('should get pages by URLs in chunks', () => {
++    const urls: string[] = [];
++    const siteId = 1;
++    const snapshotId = 1;
++
++    // Create 1000 pages (chunk size is 900)
++    const insertStmt = db.prepare(`
++      INSERT INTO pages (site_id, normalized_url, last_seen_snapshot_id)
++      VALUES (?, ?, ?)
++    `);
++
++    const tx = db.transaction(() => {
++      for (let i = 0; i < 1000; i++) {
++        const url = `http://example.com/page${i}`;
++        urls.push(url);
++        insertStmt.run(siteId, url, snapshotId);
++      }
++    });
++    tx();
++
++    // Fetch pages
++    const pages = repo.getPagesByUrls(siteId, urls);
++
++    expect(pages).toHaveLength(1000);
++    expect(pages[0].normalized_url).toBe('http://example.com/page0');
++    expect(pages[999].normalized_url).toBe('http://example.com/page999');
++  });
++
++  it('should return empty array for empty URL list', () => {
++    const pages = repo.getPagesByUrls(1, []);
++    expect(pages).toEqual([]);
++  });
++
++  it('should iterate over pages by snapshot', () => {
++    const siteId = 1;
++    const snapshotId = 1;
++    const insertStmt = db.prepare(`
++      INSERT INTO pages (site_id, normalized_url, last_seen_snapshot_id)
++      VALUES (?, ?, ?)
++    `);
++
++    db.transaction(() => {
++      insertStmt.run(siteId, 'http://example.com/1', snapshotId);
++      insertStmt.run(siteId, 'http://example.com/2', snapshotId);
++      insertStmt.run(siteId, 'http://example.com/3', snapshotId);
++    })();
++
++    const iterator = repo.getPagesIteratorBySnapshot(snapshotId);
++    const pages = Array.from(iterator);
++
++    expect(pages).toHaveLength(3);
++    expect(pages.map(p => p.normalized_url).sort()).toEqual([
++      'http://example.com/1',
++      'http://example.com/2',
++      'http://example.com/3'
++    ]);
++  });
++
++  it('should upsert and get ID', () => {
++    const pageData = {
++      site_id: 1,
++      normalized_url: 'http://example.com/new',
++      last_seen_snapshot_id: 1,
++      http_status: 200,
++    };
++
++    const id = repo.upsertAndGetId(pageData);
++    expect(id).toBeGreaterThan(0);
++
++    const sameId = repo.upsertAndGetId({ ...pageData, http_status: 404 });
++    expect(sameId).toBe(id);
++
++    const page = repo.getPage(1, 'http://example.com/new');
++    expect(page?.http_status).toBe(404);
++  });
++
++  it('should get ID by URL', () => {
++    const pageData = {
++        site_id: 1,
++        normalized_url: 'http://example.com/id-test',
++        last_seen_snapshot_id: 1,
++    };
++    repo.upsertPage(pageData);
++
++    const id = repo.getIdByUrl(1, 'http://example.com/id-test');
++    expect(id).toBeDefined();
++    expect(id).toBeGreaterThan(0);
++
++    const missingId = repo.getIdByUrl(1, 'http://example.com/missing');
++    expect(missingId).toBeUndefined();
++  });
++});
+diff --git a/plugins/core/tests/graph/graph.test.ts b/plugins/core/tests/graph/graph.test.ts
+new file mode 100644
+index 0000000..cededcd
+--- /dev/null
++++ b/plugins/core/tests/graph/graph.test.ts
+@@ -0,0 +1,100 @@
++import { describe, it, expect, beforeEach } from 'vitest';
++import { Graph } from '../../src/graph/graph.js';
++
++describe('Graph', () => {
++  let graph: Graph;
++
++  beforeEach(() => {
++    graph = new Graph();
++  });
++
++  it('should add a new node', () => {
++    graph.addNode('http://example.com', 0, 200);
++    const node = graph.nodes.get('http://example.com');
++    expect(node).toBeDefined();
++    expect(node?.depth).toBe(0);
++    expect(node?.status).toBe(200);
++  });
++
++  it('should update existing node status if non-zero', () => {
++    graph.addNode('http://example.com', 0, 0);
++    graph.addNode('http://example.com', 1, 200); // Should update status, but not depth?
++    // Wait, addNode implementation:
++    // if (!existing) { ... } else { if (status !== 0) existing.status = status; }
++
++    const node = graph.nodes.get('http://example.com');
++    expect(node?.status).toBe(200);
++    expect(node?.depth).toBe(0); // Depth should not change
++  });
++
++  it('should add an edge', () => {
++    graph.addNode('http://a.com', 0);
++    graph.addNode('http://b.com', 1);
++    graph.addEdge('http://a.com', 'http://b.com', 0.5);
++
++    const edgeKey = Graph.getEdgeKey('http://a.com', 'http://b.com');
++    expect(graph.edges.has(edgeKey)).toBe(true);
++    expect(graph.edges.get(edgeKey)).toBe(0.5);
++
++    const source = graph.nodes.get('http://a.com');
++    const target = graph.nodes.get('http://b.com');
++    expect(source?.outLinks).toBe(1);
++    expect(target?.inLinks).toBe(1);
++  });
++
++  it('should update edge weight if new weight is higher', () => {
++    graph.addNode('http://a.com', 0);
++    graph.addNode('http://b.com', 1);
++    graph.addEdge('http://a.com', 'http://b.com', 0.5);
++    graph.addEdge('http://a.com', 'http://b.com', 0.8);
++
++    const edgeKey = Graph.getEdgeKey('http://a.com', 'http://b.com');
++    expect(graph.edges.get(edgeKey)).toBe(0.8);
++
++    // Should not increment link counts again
++    const source = graph.nodes.get('http://a.com');
++    expect(source?.outLinks).toBe(1);
++  });
++
++  it('should not update edge weight if new weight is lower', () => {
++    graph.addNode('http://a.com', 0);
++    graph.addNode('http://b.com', 1);
++    graph.addEdge('http://a.com', 'http://b.com', 0.8);
++    graph.addEdge('http://a.com', 'http://b.com', 0.5);
++
++    const edgeKey = Graph.getEdgeKey('http://a.com', 'http://b.com');
++    expect(graph.edges.get(edgeKey)).toBe(0.8);
++  });
++
++  it('should serialize to JSON and deserialize from JSON', () => {
++    graph.addNode('http://a.com', 0, 200);
++    graph.addNode('http://b.com', 1, 200);
++    graph.addEdge('http://a.com', 'http://b.com', 1.0);
++    graph.duplicateClusters = [{ id: '1', type: 'exact', size: 2, representative: 'http://a.com', severity: 'high' }];
++    graph.contentClusters = [{ id: 1, count: 2, primaryUrl: 'http://a.com', risk: 'high' }];
++
++    const json = graph.toJSON();
++    const newGraph = Graph.fromJSON(json);
++
++    expect(newGraph.nodes.size).toBe(2);
++    expect(newGraph.edges.size).toBe(1);
++    expect(newGraph.duplicateClusters).toHaveLength(1);
++    expect(newGraph.contentClusters).toHaveLength(1);
++
++    const nodeA = newGraph.nodes.get('http://a.com');
++    expect(nodeA?.status).toBe(200);
++
++    const edgeKey = Graph.getEdgeKey('http://a.com', 'http://b.com');
++    expect(newGraph.edges.get(edgeKey)).toBe(1.0);
++  });
++
++  it('should handle partial JSON in fromJSON', () => {
++    const json = {
++      nodes: [{ url: 'http://a.com', depth: 0, status: 200, inLinks: 0, outLinks: 0 }],
++      // missing edges, clusters
++    };
++    const newGraph = Graph.fromJSON(json);
++    expect(newGraph.nodes.size).toBe(1);
++    expect(newGraph.edges.size).toBe(0);
++  });
++});
+diff --git a/plugins/core/tests/lock/lockManager.test.ts b/plugins/core/tests/lock/lockManager.test.ts
+index f94d34f..0ea82c8 100644
+--- a/plugins/core/tests/lock/lockManager.test.ts
++++ b/plugins/core/tests/lock/lockManager.test.ts
+@@ -47,7 +47,6 @@ describe('LockManager', () => {
+     vi.spyOn(console, 'error').mockImplementation(() => {});
+ 
+     // Reset static state if any (LockManager stores lockFilePath)
+-    // We can't easily reset private static via TS, but we can call releaseLock which clears it if set
+     LockManager.releaseLock();
+   });
+ 
+@@ -135,4 +134,66 @@ describe('LockManager', () => {
+ 
+     expect(unlinkSync).toHaveBeenCalledWith(lockPath);
+   });
++
++  it('should register signal handlers and cleanup on SIGINT', async () => {
++    const processOnSpy = vi.spyOn(process, 'on');
++    await LockManager.acquireLock(command, target, options);
++
++    // Find the handler
++    const sigintCall = processOnSpy.mock.calls.find(call => call[0] === 'SIGINT');
++    expect(sigintCall).toBeDefined();
++    const handler = sigintCall![1] as () => void;
++
++    // Trigger handler
++    vi.mocked(existsSync).mockReturnValue(true); // Simulate file still exists
++    try {
++      handler();
++    } catch (e: any) {
++       // Expect process.exit(130) which throws error in our mock
++       expect(e.message).toBe('Process exit 130');
++    }
++
++    expect(unlinkSync).toHaveBeenCalledWith(lockPath);
++  });
++
++  it('should register signal handlers and cleanup on SIGTERM', async () => {
++    const processOnSpy = vi.spyOn(process, 'on');
++    await LockManager.acquireLock(command, target, options);
++
++    // Find the handler
++    const sigtermCall = processOnSpy.mock.calls.find(call => call[0] === 'SIGTERM');
++    expect(sigtermCall).toBeDefined();
++    const handler = sigtermCall![1] as () => void;
++
++    // Trigger handler
++    vi.mocked(existsSync).mockReturnValue(true);
++    try {
++      handler();
++    } catch (e: any) {
++       expect(e.message).toBe('Process exit 143');
++    }
++
++    expect(unlinkSync).toHaveBeenCalledWith(lockPath);
++  });
++
++  it('should register signal handlers and cleanup on uncaughtException', async () => {
++      const processOnSpy = vi.spyOn(process, 'on');
++      await LockManager.acquireLock(command, target, options);
++
++      // Find the handler
++      const uncaughtExceptionCall = processOnSpy.mock.calls.find(call => call[0] === 'uncaughtException');
++      expect(uncaughtExceptionCall).toBeDefined();
++      const handler = uncaughtExceptionCall![1] as (err: Error) => void;
++
++      // Trigger handler
++      vi.mocked(existsSync).mockReturnValue(true);
++      try {
++        handler(new Error('Test error'));
++      } catch (e: any) {
++         expect(e.message).toBe('Process exit 1');
++      }
++
++      expect(unlinkSync).toHaveBeenCalledWith(lockPath);
++      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Uncaught Exception'), expect.any(Error));
++    });
+ });
+diff --git a/plugins/core/tests/scope.test.ts b/plugins/core/tests/scope.test.ts
+index fac7e67..a3ec820 100644
+--- a/plugins/core/tests/scope.test.ts
++++ b/plugins/core/tests/scope.test.ts
+@@ -70,4 +70,15 @@ describe('ScopeManager', () => {
+         expect(manager.isUrlEligible('https://other.com/')).toBe('allowed');
+         expect(manager.isUrlEligible('https://google.com/')).toBe('blocked_by_domain_filter');
+     });
++
++    it('should handle trailing dots in hostnames', () => {
++        const manager = new ScopeManager({
++            rootUrl: 'https://example.com',
++            allowedDomains: ['example.com.'],
++            includeSubdomains: false
++        });
++
++        expect(manager.isUrlEligible('https://example.com./')).toBe('allowed');
++        expect(manager.isUrlEligible('https://example.com/')).toBe('allowed');
++    });
+ });

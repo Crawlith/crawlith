@@ -12,10 +12,12 @@ import {
   detectContentClusters,
   runPostCrawlMetrics,
   loadGraphFromSnapshot,
-  LockManager
+  LockManager,
+  EngineContext
 } from '@crawlith/core';
 import { buildSitegraphInsightReport, hasCriticalIssues, renderInsightOutput, renderScoreBreakdown } from './sitegraphFormatter.js';
 import { parseExportFormats, runSitegraphExports } from '../utils/exportRunner.js';
+import { OutputController } from '../output/controller.js';
 
 export const sitegraph = new Command('sitegraph')
   .description('Crawl site and build internal link graph')
@@ -33,13 +35,21 @@ export const sitegraph = new Command('sitegraph')
   .option('--orphan-severity', 'enable orphan severity scoring')
   .option('--include-soft-orphans', 'include soft orphan detection')
   .option('--min-inbound <number>', 'near-orphan threshold override', '2')
-  .option('--debug', 'output each crawl url details')
+
+  // Unified Output Flags
+  .option('--format <type>', 'Output format (pretty, json)', 'pretty')
+  .option('--log-level <level>', 'Log level (normal, verbose, debug)', 'normal')
+
+  // Legacy Flags (Backward Compatibility)
+  .option('--json', 'Use JSON output (deprecated, use --format=json)')
+  .option('--debug', 'Use debug logging (deprecated, use --log-level=debug)')
+  .option('--verbose', 'Use verbose logging (deprecated, use --log-level=verbose)')
+
   .option('--export [formats]', 'Export formats (comma-separated: json,markdown,csv,html,visualize)', false)
-  .option('--format <type>', 'Output format to terminal (text, json)', 'text')
+
   .option('--detect-soft404', 'Detect soft 404 pages')
   .option('--detect-traps', 'Detect and cluster crawl traps')
   .option('--no-collapse', 'Do not collapse duplicate clusters before PageRank')
-  .option('--verbose', 'detailed crawl stats')
   .option('--fail-on-critical', 'exit code 1 if critical issues exist')
   .option('--score-breakdown', 'print health score component weights')
   .option('--rate <number>', 'requests per second per host', '2')
@@ -55,18 +65,35 @@ export const sitegraph = new Command('sitegraph')
   .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
   .option('--force', 'force run (override existing lock)')
   .action(async (url, options) => {
+    // 1. Normalize Options & Backward Compatibility
+    if (options.json) options.format = 'json';
+    if (options.debug) options.logLevel = 'debug';
+    if (options.verbose) options.logLevel = 'verbose';
+    if (options.format === 'text') options.format = 'pretty';
+
+    // 2. Initialize Controller
+    const controller = new OutputController({
+      format: options.format,
+      logLevel: options.logLevel
+    });
+    const context: EngineContext = {
+      emit: (e) => controller.handle(e)
+    };
+
     try {
       // Handle compare mode first
       if (options.compare) {
         if (options.compare.length !== 2) {
-          console.error(chalk.red('❌ Error: --compare requires exactly two file paths (old.json new.json)'));
+          controller.handle({ type: 'error', message: 'Error: --compare requires exactly two file paths (old.json new.json)' });
           process.exit(1);
         }
 
         const [oldFile, newFile] = options.compare;
-        console.log(chalk.cyan(`\n🔍 Comparing Graphs`));
-        console.log(`${chalk.gray('Old:')} ${oldFile}`);
-        console.log(`${chalk.gray('New:')} ${newFile}\n`);
+        if (options.format !== 'json') {
+          console.log(chalk.cyan(`\n🔍 Comparing Graphs`));
+          console.log(`${chalk.gray('Old:')} ${oldFile}`);
+          console.log(`${chalk.gray('New:')} ${newFile}\n`);
+        }
 
         const oldJson = JSON.parse(await fs.readFile(oldFile, 'utf-8'));
         const newJson = JSON.parse(await fs.readFile(newFile, 'utf-8'));
@@ -76,33 +103,40 @@ export const sitegraph = new Command('sitegraph')
 
         const diffResult = compareGraphs(oldGraph, newGraph);
 
-        console.log(chalk.bold('📈 Comparison Results:'));
-        console.log(`- Added URLs:   ${chalk.green(diffResult.addedUrls.length)}`);
-        console.log(`- Removed URLs: ${chalk.red(diffResult.removedUrls.length)}`);
-        console.log(`- Status Changes: ${chalk.yellow(diffResult.changedStatus.length)}`);
+        if (options.format !== 'json') {
+          console.log(chalk.bold('📈 Comparison Results:'));
+          console.log(`- Added URLs:   ${chalk.green(diffResult.addedUrls.length)}`);
+          console.log(`- Removed URLs: ${chalk.red(diffResult.removedUrls.length)}`);
+          console.log(`- Status Changes: ${chalk.yellow(diffResult.changedStatus.length)}`);
 
-        console.log(chalk.bold('\n📉 Metric Deltas:'));
-        Object.entries(diffResult.metricDeltas).forEach(([metric, delta]) => {
-          const deltaStr = delta > 0 ? chalk.green(`+${delta.toFixed(3)}`) : (delta < 0 ? chalk.red(delta.toFixed(3)) : chalk.gray('0'));
-          console.log(`  ${metric.padEnd(20)}: ${deltaStr}`);
-        });
+          console.log(chalk.bold('\n📉 Metric Deltas:'));
+          Object.entries(diffResult.metricDeltas).forEach(([metric, delta]) => {
+            const deltaStr = delta > 0 ? chalk.green(`+${delta.toFixed(3)}`) : (delta < 0 ? chalk.red(delta.toFixed(3)) : chalk.gray('0'));
+            console.log(`  ${metric.padEnd(20)}: ${deltaStr}`);
+          });
 
-        console.log('\n' + chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━') + '\n');
+          console.log('\n' + chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━') + '\n');
+        } else {
+          console.log(JSON.stringify(diffResult, null, 2));
+        }
         return;
       }
 
       if (!url) {
-        console.error(chalk.red('\n❌ Error: URL argument is required for crawling\n'));
-        sitegraph.outputHelp();
-        process.exit(0);
+        if (!url) {
+          controller.handle({ type: 'error', message: 'Error: URL argument is required for crawling' });
+          process.exit(1);
+        }
       }
 
       // Acquire process lock
-      await LockManager.acquireLock('sitegraph', url, options, options.force);
+      await LockManager.acquireLock('sitegraph', url, options, context, options.force);
 
-      console.log(chalk.bold.cyan(`\n🚀 Starting Crawlith Site Crawler`));
-      console.log(`${chalk.gray('Target:')} ${chalk.blueBright(url)}`);
-      console.log(`${chalk.gray('Limits:')} Pages: ${options.limit} | Depth: ${options.depth}\n`);
+      if (options.format !== 'json') {
+        console.log(chalk.bold.cyan(`\n🚀 Starting Crawlith Site Crawler`));
+        console.log(`${chalk.gray('Target:')} ${chalk.blueBright(url)}`);
+        console.log(`${chalk.gray('Limits:')} Pages: ${options.limit} | Depth: ${options.depth}\n`);
+      }
 
       const limit = parseInt(options.limit, 10);
       const depth = parseInt(options.depth, 10);
@@ -117,7 +151,7 @@ export const sitegraph = new Command('sitegraph')
         try {
           new URL(proxyUrl);
         } catch {
-          console.error(chalk.red(`❌ Error: Invalid proxy URL: ${proxyUrl}`));
+          controller.handle({ type: 'error', message: `Error: Invalid proxy URL: ${proxyUrl}` });
           process.exit(1);
         }
       }
@@ -140,7 +174,7 @@ export const sitegraph = new Command('sitegraph')
         stripQuery,
         ignoreRobots: options.ignoreRobots,
         sitemap: sitemap as string | undefined,
-        debug: options.debug,
+        debug: options.logLevel === 'debug',
         detectSoft404: options.detectSoft404,
         detectTraps: options.detectTraps,
         rate: parseFloat(options.rate),
@@ -152,7 +186,12 @@ export const sitegraph = new Command('sitegraph')
         maxRedirects,
         userAgent: options.ua,
         concurrency: options.concurrency ? parseInt(options.concurrency, 10) : 2
-      });
+      }, context);
+
+      if (options.format !== 'json') process.stdout.write(chalk.gray('📊 Calculating metrics and saving to database... '));
+      runPostCrawlMetrics(snapshotId, depth, context);
+      if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
+
       // Load graph from DB (single source of truth)
       const graph = loadGraphFromSnapshot(snapshotId);
       const nodes = graph.getNodes();
@@ -164,26 +203,25 @@ export const sitegraph = new Command('sitegraph')
         process.exit(1);
       }
 
-      process.stdout.write(chalk.gray('📊 Calculating metrics and saving to database... '));
-      runPostCrawlMetrics(snapshotId, depth);
-      process.stdout.write(chalk.green('Done\n'));
+      if (options.format !== 'json') {
+        console.log(chalk.green(`\n✅ Crawl complete. Found ${chalk.bold(nodes.length)} pages.`));
+        console.log(chalk.gray(`   Snapshot ID: ${snapshotId}`));
+        process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
+      }
 
-      console.log(chalk.green(`\n✅ Crawl complete.`));
-
-      process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
       detectDuplicates(graph, { collapse: !options.noCollapse });
-      process.stdout.write(chalk.green('Done\n'));
+      if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
-      process.stdout.write(chalk.gray('🧩 Clustering content... '));
+      if (options.format !== 'json') process.stdout.write(chalk.gray('🧩 Clustering content... '));
       detectContentClusters(graph,
         options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
         options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3
       );
-      process.stdout.write(chalk.green('Done\n'));
+      if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
-      process.stdout.write(chalk.gray('📊 Calculating final report metrics... '));
+      if (options.format !== 'json') process.stdout.write(chalk.gray('📊 Calculating final report metrics... '));
       const metrics = calculateMetrics(graph, depth);
-      process.stdout.write(chalk.green('Done\n'));
+      if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
       const graphData = graph.toJSON();
       const orphanAnnotatedNodes = annotateOrphans(graphData.nodes, graphData.edges, {
@@ -216,16 +254,16 @@ export const sitegraph = new Command('sitegraph')
       // === Console output (always from DB) ===
       const insightReport = buildSitegraphInsightReport(graph, metrics);
       if (options.format === 'json') {
-        console.log(JSON.stringify(insightReport, null, 2));
+        process.stdout.write(JSON.stringify(insightReport, null, 2));
       } else {
         process.stdout.write(renderInsightOutput(insightReport, snapshotId));
       }
 
-      if (options.scoreBreakdown) {
+      if (options.scoreBreakdown && options.format !== 'json') {
         console.log(renderScoreBreakdown(insightReport.health));
       }
 
-      if (options.verbose) {
+      if (options.verbose && options.format !== 'json') {
         console.log(chalk.bold('\nVerbose Crawl Stats'));
         console.log(`Fetched: ${graph.sessionStats.pagesFetched}`);
         console.log(`Cached: ${graph.sessionStats.pagesCached}`);
@@ -233,21 +271,23 @@ export const sitegraph = new Command('sitegraph')
         console.log(`Total Found: ${graph.sessionStats.totalFound}`);
       }
 
-      console.log("\n💾 run `crawlith ui` to view the full report");
-      if (exportFormats.length > 0) {
-        const urlObj = new URL(url);
-        const domainFolder = urlObj.hostname.replace('www.', '');
-        const outputDir = path.join(path.resolve(options.output), domainFolder);
-        console.log(`📂 Exports saved to: ${chalk.blueBright(outputDir)}`);
+      if (options.format !== 'json') {
+        console.log(`\n💾 Data stored in database (snapshot #${snapshotId})`);
+        console.log("   run `crawlith ui` to view the full report");
+        if (exportFormats.length > 0) {
+          const urlObj = new URL(url);
+          const domainFolder = urlObj.hostname.replace('www.', '');
+          const outputDir = path.join(path.resolve(options.output), domainFolder);
+          console.log(`📂 Exports saved to: ${chalk.blueBright(outputDir)}`);
+        }
+        console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
       }
-      console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
-
       if (options.failOnCritical && hasCriticalIssues(insightReport)) {
         process.exit(1);
       }
 
     } catch (error) {
-      console.error(chalk.red('\n❌ Error:'), error);
+      controller.handle({ type: 'error', message: 'Error', error });
       process.exit(1);
     }
   });

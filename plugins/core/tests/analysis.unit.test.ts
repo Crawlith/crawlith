@@ -76,6 +76,33 @@ describe('structured data', () => {
     const missing = analyzeStructuredData('<p>none</p>');
     expect(missing.present).toBe(false);
   });
+
+  test('handles array of types', () => {
+    const html = '<script type="application/ld+json">{"@type": ["Article", "NewsArticle"]}</script>';
+    const result = analyzeStructuredData(html);
+    expect(result.types).toContain('Article');
+    expect(result.types).toContain('NewsArticle');
+  });
+
+  test('handles @graph structure', () => {
+    const html = '<script type="application/ld+json">{"@graph": [{"@type": "Person"}, {"@type": "Organization"}]}</script>';
+    const result = analyzeStructuredData(html);
+    expect(result.types).toContain('Person');
+    expect(result.types).toContain('Organization');
+  });
+
+  test('handles top-level array', () => {
+    const html = '<script type="application/ld+json">[{"@type": "A"}, {"@type": "B"}]</script>';
+    const result = analyzeStructuredData(html);
+    expect(result.types).toContain('A');
+    expect(result.types).toContain('B');
+  });
+
+  test('handles empty script content', () => {
+     const html = '<script type="application/ld+json">   </script>';
+     const result = analyzeStructuredData(html);
+     expect(result.valid).toBe(false);
+  });
 });
 
 describe('links and images', () => {
