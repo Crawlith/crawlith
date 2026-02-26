@@ -57,16 +57,11 @@ describe('PageRepository', () => {
   it('should iterate over pages by snapshot', () => {
     const siteId = 1;
     const snapshotId = 1;
-    const insertStmt = db.prepare(`
-      INSERT INTO pages (site_id, normalized_url, last_seen_snapshot_id)
-      VALUES (?, ?, ?)
-    `);
 
-    db.transaction(() => {
-      insertStmt.run(siteId, 'http://example.com/1', snapshotId);
-      insertStmt.run(siteId, 'http://example.com/2', snapshotId);
-      insertStmt.run(siteId, 'http://example.com/3', snapshotId);
-    })();
+    // Use upsertPage to ensure consistency with repo logic
+    repo.upsertPage({ site_id: siteId, normalized_url: 'http://example.com/1', last_seen_snapshot_id: snapshotId });
+    repo.upsertPage({ site_id: siteId, normalized_url: 'http://example.com/2', last_seen_snapshot_id: snapshotId });
+    repo.upsertPage({ site_id: siteId, normalized_url: 'http://example.com/3', last_seen_snapshot_id: snapshotId });
 
     const iterator = repo.getPagesIteratorBySnapshot(snapshotId);
     const pages = Array.from(iterator);

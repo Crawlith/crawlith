@@ -106,7 +106,8 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   } else {
     try {
       crawlData = await loadCrawlData(normalizedRoot);
-    } catch (error: any) {
+    } catch (_error: any) {
+      const error = _error;
       const isNotFound = error.code === 'ENOENT' ||
         error.message.includes('Crawl data not found') ||
         error.message.includes('No completed snapshot found') ||

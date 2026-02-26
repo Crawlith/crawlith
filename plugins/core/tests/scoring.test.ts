@@ -13,7 +13,8 @@ const basePage: PageAnalysis = {
   images: { totalImages: 2, missingAlt: 0, emptyAlt: 0 },
   links: { internalLinks: 5, externalLinks: 2, nofollowCount: 1, externalRatio: 2 / 7 },
   structuredData: { present: true, valid: true, types: ['Article'] },
-  seoScore: 0
+  seoScore: 0,
+  meta: { noindex: false, nofollow: false }
 };
 
 test('page score stays in 0-100', () => {
