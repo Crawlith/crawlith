@@ -1,0 +1,77 @@
+---
+title: "ui"
+description: "Start the Crawlith UI Dashboard"
+---
+
+# ui
+
+The `ui` command launches the interactive web dashboard. It starts a local server to visualize crawl data, explore site graphs, and interact with the analysis results in a browser-based interface. This provides a powerful, visual way to understand complex site structures and metrics.
+
+---
+
+## Usage
+
+```bash
+crawlith ui [options]
+```
+
+---
+
+## Options
+
+### `--site`
+
+**Type:** string (url)
+**Default:** `https://example.com`
+**Required:** No
+
+Sets the default site to display when the dashboard opens.
+
+**Why It Matters for SEO**
+Allows you to quickly jump directly to the project you want to review without navigating through the dashboard menus.
+
+### `--port`
+
+**Type:** number
+**Default:** `23484`
+**Required:** No
+
+Sets the port number for the dashboard server.
+
+**Why It Matters for SEO**
+Useful for avoiding port conflicts if you are running multiple instances of Crawlith or other local web services.
+
+### `--host`
+
+**Type:** string (ip address)
+**Default:** `127.0.0.1`
+**Required:** No
+
+Sets the host address to bind the server to. Use `0.0.0.0` to make the dashboard accessible from other machines on the local network.
+
+**Why It Matters for SEO**
+Enables team collaboration by allowing you to host the dashboard on a shared server or accessible network interface for colleagues to view.
+
+---
+
+## Example
+
+```bash
+crawlith ui --port 3000 --site https://mysite.com
+```
+
+This starts the dashboard on port 3000 and immediately loads the data for `https://mysite.com`.
+
+---
+
+## When To Adjust This
+
+- **Team Collaboration:** Set `--host 0.0.0.0` to allow colleagues to access the dashboard running on your machine.
+- **Port Conflict:** Change `--port` if the default `23484` is already in use by another application.
+
+---
+
+## Related Options
+
+- `--port`
+- `--host`

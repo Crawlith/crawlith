@@ -1,0 +1,228 @@
+---
+title: "crawl"
+description: "Crawl an entire website and build its internal link graph, metrics, and SEO structure."
+---
+
+# crawl
+
+The `crawl` command is the core of Crawlith. It executes a high-performance, breadth-first traversal of a target website to map its internal link structure, analyze content relationships, and evaluate technical SEO health. It builds a complete directed graph of the site, calculating advanced metrics like PageRank and identifying critical issues such as duplicate content, orphans, and redirect chains.
+
+---
+
+## Usage
+
+```bash
+crawlith crawl <url> [options]
+```
+
+---
+
+## Options
+
+### `--limit`
+
+**Type:** number
+**Default:** `500`
+**Required:** No
+
+Sets the maximum number of pages to fetch and process. The crawl will stop gracefully once this limit is reached, regardless of pending links in the queue.
+
+**Why It Matters for SEO**
+This control is essential for managing crawl budget during audits. Use a lower limit (e.g., 100) for rapid sanity checks or debugging, and increase it for comprehensive site-wide audits. It prevents the crawler from running indefinitely on unexpectedly large sites.
+
+### `--depth`
+
+**Type:** number
+**Default:** `5`
+**Required:** No
+
+Defines the maximum click depth from the starting URL (seed). Pages located more than this number of clicks away from the start page will not be crawled.
+
+**Why It Matters for SEO**
+Search engines and users rarely navigate deep into a site structure. Content buried beyond 3-5 clicks often suffers from poor indexation and low link equity. Limiting depth focuses the audit on the most critical, accessible layers of your site architecture.
+
+### `--output`
+
+**Type:** string
+**Default:** `./crawlith-reports`
+**Required:** No
+
+Specifies the directory where crawl data, logs, and generated reports will be saved.
+
+**Why It Matters for SEO**
+Organizing output by date or project (e.g., `--output ./reports/2023-10-site-audit`) allows you to maintain a historical record of site health and track improvements or regressions over time.
+
+### `--concurrency`
+
+**Type:** number
+**Default:** `2`
+**Required:** No
+
+Sets the maximum number of simultaneous HTTP requests allowed to the target server.
+
+**Why It Matters for SEO**
+High concurrency speeds up the crawl but increases load on the target server, which might trigger firewalls or rate limits. Adjust this value to balance audit speed with server stability and "politeness."
+
+### `--no-query`
+
+**Type:** boolean
+**Default:** `false` (query parameters are preserved)
+**Required:** No
+
+Strips all query parameters (e.g., `?sort=asc`, `?session_id=123`) from URLs before adding them to the crawl queue.
+
+**Why It Matters for SEO**
+Many sites generate infinite URL variations via query parameters, leading to duplicate content and wasted crawl budget. Enabling this flag forces the crawler to focus on canonical-like paths, providing a cleaner view of the site's core structure.
+
+### `--ignore-robots`
+
+**Type:** boolean
+**Default:** `false`
+**Required:** No
+
+Instructs the crawler to ignore `robots.txt` directives (Allow/Disallow).
+
+**Why It Matters for SEO**
+Useful for auditing pages that are intentionally blocked from search engines. It allows you to verify that blocked sections (like staging areas or admin panels) do not contain broken links or critical content that *should* be indexed.
+
+### `--sitemap`
+
+**Type:** string (url) | boolean
+**Default:** `false`
+**Required:** No
+
+Uses a provided sitemap URL to seed the crawl queue. If set to `true` without a URL, it attempts to auto-discover the sitemap at `/sitemap.xml`.
+
+**Why It Matters for SEO**
+Ensures discovery of orphan pages (pages not linked internally) that are listed in the sitemap. This helps compare the "theoretical" site structure (sitemap) against the "actual" crawlable structure.
+
+### `--orphans`
+
+**Type:** boolean
+**Default:** `false`
+**Required:** No
+
+Enables the detection and reporting of orphan pages.
+
+**Why It Matters for SEO**
+Orphan pages are unreachable by users navigating the site and are often de-prioritized by search engines. Identifying and fixing orphans is crucial for ensuring all valuable content receives link equity and user traffic.
+
+### `--format`
+
+**Type:** string (`pretty` | `json`)
+**Default:** `pretty`
+**Required:** No
+
+Controls the format of the CLI output.
+
+**Why It Matters for SEO**
+Use `json` for integrating crawl data into automated pipelines, dashboards, or custom analysis tools. Use `pretty` for human-readable, color-coded terminal output during manual audits.
+
+### `--export`
+
+**Type:** string
+**Default:** `false`
+**Required:** No
+
+Automatically exports crawl results in the specified formats (comma-separated: `json`, `markdown`, `csv`, `html`, `visualize`).
+
+**Why It Matters for SEO**
+Streamlines the reporting workflow. You can immediately generate a visual HTML site graph (`visualize`) or a CSV of broken links (`csv`) for your engineering team without running separate commands.
+
+### `--detect-soft404`
+
+**Type:** boolean
+**Default:** `false`
+**Required:** No
+
+Enables analysis to detect "Soft 404" pages—URLs that return a `200 OK` status code but display error content or "not found" messages.
+
+**How It Works**
+The crawler analyzes the page content for common error patterns and low content quality signals that typically indicate a missing page disguised as a success.
+
+**Why It Matters for SEO**
+Soft 404s confuse search engines and waste crawl budget on non-existent content. Detecting them ensures that your server accurately communicates page status.
+
+### `--detect-traps`
+
+**Type:** boolean
+**Default:** `false`
+**Required:** No
+
+Enables the detection of "spider traps"—infinite crawl paths or repetitive URL patterns.
+
+**How It Works**
+The system monitors URL patterns and path depth to identify cycles or infinite generation (e.g., calendars generating infinite future links).
+
+**Why It Matters for SEO**
+Spider traps can trap search engine bots, causing them to waste their entire crawl budget on useless pages while missing your actual content.
+
+### `--cluster-threshold`
+
+**Type:** number
+**Default:** `10`
+**Required:** No
+
+Sets the sensitivity for grouping similar content into clusters.
+
+**How It Works**
+This value represents a similarity distance.
+- **Lower value:** Stricter matching. Only pages that are nearly identical will be grouped.
+- **Higher value:** Broader grouping. Pages with moderate differences will still be considered part of the same cluster.
+
+**Why It Matters for SEO**
+Adjusting this helps distinguish between "true duplicates" (technical errors) and "thematic duplicates" (boilerplate content). A tuned threshold allows you to accurately identify template issues or thin content across the site.
+
+### `--compute-hits`
+
+**Type:** boolean
+**Default:** `false`
+**Required:** No
+
+Enables the calculation of HITS (Hyperlink-Induced Topic Search) scores, specifically Authority and Hub values.
+
+**How It Works**
+The algorithm assigns two scores to every page:
+- **Authority:** How valuable the information on the page is.
+- **Hub:** How well the page links to other authorities.
+
+**Why It Matters for SEO**
+Goes beyond simple popularity (PageRank) to identify the functional role of pages. It helps identify key navigation pages (Hubs) that should drive traffic to your money pages (Authorities).
+
+### `--force`
+
+**Type:** boolean
+**Default:** `false`
+**Required:** No
+
+Bypasses the lock file check, forcing the crawl to start even if a previous process appears to be running.
+
+**Why It Matters for SEO**
+Useful for recovering from a crashed session or manual interruption where the lock file was not cleaned up, ensuring you can restart your audit immediately.
+
+---
+
+## Example
+
+```bash
+crawlith crawl https://example.com --limit 1000 --detect-soft404 --export html,csv
+```
+
+This command crawls `https://example.com` up to 1000 pages, checks for Soft 404 errors, and automatically saves an HTML report and CSV data exports upon completion.
+
+---
+
+## When To Adjust This
+
+- **CI/CD Pipelines:** Use `--fail-on-critical` and `--format json` to automatically fail builds if severe SEO regressions (like broken links) are introduced.
+- **Large E-commerce Sites:** Use `--no-query` if facets generate millions of URLs, or specific `--allow`/`--deny` patterns to focus on product categories.
+- **Deep Architecture Audits:** Increase `--depth` to 10+ and `--limit` to 10,000+ to fully map complex, nested site structures.
+- **Duplicate Content Investigations:** Lower the `--cluster-threshold` to find only exact duplicates, or raise it to find pages with shared templates but different localized text.
+
+---
+
+## Related Options
+
+- `--detect-traps`
+- `--score-breakdown`
+- `--include-subdomains`
