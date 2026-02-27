@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { AlertTriangle, TrendingDown } from 'lucide-react';
 import { DashboardContext } from '../../App';
+import { Tooltip } from '../Tooltip';
 
 interface CriticalIssuesCardProps {
   showCompare: boolean;
@@ -17,13 +18,16 @@ export const CriticalIssuesCard = ({ showCompare }: CriticalIssuesCardProps) => 
   const delta = 0; // TODO: Calculate delta
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-red-500/30 transition-all duration-300 relative overflow-hidden">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-red-500/30 transition-all duration-300 relative">
       <div className="flex justify-between items-start z-10">
         <div>
-          <h3 className="text-slate-500 dark:text-slate-400 font-medium text-sm mb-1 uppercase tracking-wider flex items-center gap-2">
-            <AlertTriangle size={14} className="text-red-500" />
-            Critical Issues
-          </h3>
+          <div className="flex items-center">
+            <h3 className="text-slate-500 dark:text-slate-400 font-medium text-sm mb-1 uppercase tracking-wider flex items-center gap-2">
+              <AlertTriangle size={14} className="text-red-500" />
+              Critical Issues
+            </h3>
+            <Tooltip content="Total sum of broken links, server errors, infinite redirect chains, and recursive crawl traps that block bots." />
+          </div>
           <div className="flex items-baseline gap-3">
             <span className="text-4xl font-bold text-slate-900 dark:text-white">{total}</span>
             {showCompare && (
@@ -36,7 +40,7 @@ export const CriticalIssuesCard = ({ showCompare }: CriticalIssuesCardProps) => 
         </div>
 
         <div className="text-right">
-          <div className="text-xs text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded border border-red-100 dark:border-red-900/30">
+          <div className="text-xs text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded border border-red-100 dark:border-red-900/30 z-10 relative">
             Fix Failures
           </div>
         </div>
@@ -49,8 +53,10 @@ export const CriticalIssuesCard = ({ showCompare }: CriticalIssuesCardProps) => 
         <MetricItem label="Crawl Traps" value={crawlTraps} />
       </div>
 
-      {/* Decorative background */}
-      <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-red-500/5 rounded-full blur-xl"></div>
+      {/* Decorative background container */}
+      <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+        <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-red-500/5 rounded-full blur-xl"></div>
+      </div>
     </div>
   );
 };

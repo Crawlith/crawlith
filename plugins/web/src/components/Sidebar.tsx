@@ -53,18 +53,6 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           </SidebarGroup>
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-800">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg bg-slate-800/50">
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold border border-blue-500/30">
-              JD
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-200 truncate">John Doe</p>
-              <p className="text-xs text-slate-500 truncate">Dev Team</p>
-            </div>
-          </div>
-        </div>
       </aside>
     </>
   );
@@ -82,11 +70,10 @@ const SidebarGroup = ({ title, children }: { title: string, children: React.Reac
 );
 
 const SidebarItem = ({ icon: Icon, label, active }: any) => (
-  <button className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all group ${
-    active
+  <button className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all group ${active
       ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
       : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
-  }`}>
+    }`}>
     <div className="flex items-center gap-3">
       <Icon size={18} className={active ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
       {label}

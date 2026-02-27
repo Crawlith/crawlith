@@ -96,12 +96,12 @@ function App() {
   }
 
   const secondaryMetrics = overview ? [
-    { label: 'Pages Discovered', value: overview.totals.discovered, delta: 0 },
-    { label: 'Successfully Crawled', value: overview.totals.crawled, delta: 0 },
-    { label: 'Duplicate Clusters', value: overview.totals.duplicateClusters, delta: 0 },
-    { label: 'Thin Content', value: overview.totals.thinContent, delta: 0 },
-    { label: 'Crawl Efficiency', value: overview.crawl.efficiency, unit: '%', delta: 0 },
-    { label: 'Internal Links', value: overview.totals.internalLinks, delta: 0 },
+    { label: 'Pages Discovered', value: overview.totals.discovered, delta: 0, tooltip: 'Total raw URLs found during the crawl (includes blocked or broken links).' },
+    { label: 'Successfully Crawled', value: overview.totals.crawled, delta: 0, tooltip: 'Pages that returned a successful 200 OK status.' },
+    { label: 'Duplicate Clusters', value: overview.totals.duplicateClusters, delta: 0, tooltip: 'Groups of pages with highly identical content.' },
+    { label: 'Thin Content', value: overview.totals.thinContent, delta: 0, tooltip: 'Pages with very little text (often under 300 words).' },
+    { label: 'Crawl Efficiency', value: overview.crawl.efficiency, unit: '%', delta: 0, tooltip: 'Percentage of discovered URLs that were successfully fetched.' },
+    { label: 'Internal Links', value: overview.totals.internalLinks, delta: 0, tooltip: 'Total number of valid internal hyperlinks found.' },
   ] : [];
 
   return (
@@ -138,6 +138,7 @@ function App() {
                   key={index}
                   label={metric.label}
                   value={metric.value}
+                  tooltip={metric.tooltip}
                   unit={metric.unit}
                   delta={metric.delta}
                   showCompare={showCompare}

@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { Globe } from 'lucide-react';
 import { DashboardContext } from '../../App';
+import { Tooltip } from '../Tooltip';
 
 interface IndexabilityRiskCardProps {
   showCompare: boolean;
@@ -21,12 +22,15 @@ export const IndexabilityRiskCard = ({ showCompare: _showCompare }: Indexability
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-blue-500/30 transition-all duration-300 relative overflow-hidden group">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-blue-500/30 transition-all duration-300 relative group">
       <div className="z-10 relative">
-        <h3 className="text-slate-500 dark:text-slate-400 font-medium text-sm mb-1 uppercase tracking-wider flex items-center gap-2">
-          <Globe size={14} className="text-blue-500" />
-          Indexability Risk
-        </h3>
+        <div className="flex items-center">
+          <h3 className="text-slate-500 dark:text-slate-400 font-medium text-sm mb-1 uppercase tracking-wider flex items-center gap-2">
+            <Globe size={14} className="text-blue-500" />
+            Indexability Risk
+          </h3>
+          <Tooltip content="Total sum of pages with indexing directives or discovery issues like orphans that prevent search engines from ranking them." />
+        </div>
         <div className="flex items-baseline gap-3 mb-4">
           <span className="text-4xl font-bold text-slate-900 dark:text-white">{total}</span>
           <span className="text-xs text-slate-400 font-medium">Indexing directives</span>
@@ -48,8 +52,10 @@ export const IndexabilityRiskCard = ({ showCompare: _showCompare }: Indexability
         </div>
       </div>
 
-      {/* Decorative background */}
-      <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl"></div>
+      {/* Decorative background container */}
+      <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+        <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl"></div>
+      </div>
     </div>
   );
 };

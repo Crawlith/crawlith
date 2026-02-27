@@ -1,5 +1,6 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { DashboardContext } from '../../App';
+import { Tooltip } from '../Tooltip';
 
 export const LinkDistributionChart = () => {
   // This data is not yet exposed by the API in this iteration (requires histogram computation on edge weights)
@@ -17,7 +18,10 @@ export const LinkDistributionChart = () => {
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm h-full flex flex-col">
-      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-4">Internal Links Overview</h3>
+      <div className="flex items-center mb-4">
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Internal Links Overview</h3>
+        <Tooltip content="Average number of internal links per page. A healthy site architecture relies on strong internal linking to distribute PageRank." />
+      </div>
 
       <div className="flex-1 flex flex-col justify-center gap-4">
         {internalLinkDistribution.map((item) => {
