@@ -342,13 +342,26 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.1 GET /api/page
     api.get('/page', (req, res) => {
       const url = req.query.url as string;
-      let targetSnapshotId = parseInt(req.query.snapshot as string, 10);
 
       if (!url) {
         return res.status(400).json({ error: 'URL parameter is required' });
       }
 
-      // Check if page exists
+      // ALWAYS select the latest snapshot where this URL was analyzed, regardless of dashboard snapshot
+      const latestSnapshotForUrl = db.prepare(`
+        SELECT m.snapshot_id 
+        FROM metrics m
+        JOIN pages p ON m.page_id = p.id
+        WHERE p.site_id = ? AND p.normalized_url = ? AND (m.pagerank_score IS NOT NULL OR (p.html IS NOT NULL AND p.html != ''))
+        ORDER BY m.snapshot_id DESC LIMIT 1
+      `).get(siteId, url) as { snapshot_id: number } | undefined;
+
+      if (!latestSnapshotForUrl) {
+        return res.status(404).json({ error: 'Page not found' });
+      }
+
+      const targetSnapshotId = latestSnapshotForUrl.snapshot_id;
+
       let page = db.prepare(`
         SELECT 
           p.*,
@@ -360,32 +373,6 @@ export function startServer(options: ServerOptions): Promise<void> {
         LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
         WHERE p.site_id = ? AND p.normalized_url = ?
       `).get(targetSnapshotId, siteId, url) as any;
-
-      // URL-Centric Fallback: If metrics or HTML are missing for this snapshot, find the latest snapshot where this URL was analyzed
-      if (!page || (page.pagerank_score === null && (page.html === null || page.html === ''))) {
-        const fallback = db.prepare(`
-          SELECT m.snapshot_id 
-          FROM metrics m
-          JOIN pages p ON m.page_id = p.id
-          WHERE p.site_id = ? AND p.normalized_url = ? AND (m.pagerank_score IS NOT NULL OR (p.html IS NOT NULL AND p.html != ''))
-          ORDER BY m.snapshot_id DESC LIMIT 1
-        `).get(siteId, url) as { snapshot_id: number } | undefined;
-
-        if (fallback) {
-          targetSnapshotId = fallback.snapshot_id;
-          page = db.prepare(`
-            SELECT 
-              p.*,
-              m.authority_score, m.hub_score, m.pagerank, m.pagerank_score,
-              m.link_role, m.word_count, m.thin_content_score,
-              m.external_link_ratio, m.orphan_score,
-              m.duplicate_cluster_id, m.duplicate_type, m.is_cluster_primary
-            FROM pages p
-            LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
-            WHERE p.site_id = ? AND p.normalized_url = ?
-          `).get(targetSnapshotId, siteId, url) as any;
-        }
-      }
 
       if (!page) {
         return res.status(404).json({ error: 'Page not found' });

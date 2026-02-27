@@ -12,7 +12,7 @@ import { GraphTab } from '../components/Tabs/GraphTab';
 export const SinglePage = () => {
     const [searchParams] = useSearchParams();
     const url = searchParams.get('url');
-    const { currentSnapshot, snapshots, setSnapshot } = useContext(DashboardContext);
+    const { currentSnapshot, setSnapshot } = useContext(DashboardContext);
 
     const [details, setDetails] = useState<API.PageDetails | null>(null);
     const [loading, setLoading] = useState(true);
@@ -20,10 +20,8 @@ export const SinglePage = () => {
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('content');
 
-    const targetSnap = snapshots?.[0]?.id || currentSnapshot;
-
     useEffect(() => {
-        if (!url || !targetSnap) {
+        if (!url || !currentSnapshot) {
             setLoading(false);
             return;
         }
@@ -31,7 +29,7 @@ export const SinglePage = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const data = await API.fetchPageDetails(url, targetSnap);
+                const data = await API.fetchPageDetails(url, currentSnapshot);
                 setDetails(data);
                 setError(null);
             } catch (e: any) {
@@ -43,7 +41,7 @@ export const SinglePage = () => {
 
         fetchData();
         setActiveTab('content');
-    }, [url, targetSnap]);
+    }, [url, currentSnapshot]);
 
     const handleLiveCrawl = async () => {
         if (!url) return;
