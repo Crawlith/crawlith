@@ -33,6 +33,7 @@ vi.mock('express', () => {
   expressMock.static = vi.fn();
   expressMock.Router = vi.fn(() => ({
     get: vi.fn(),
+    delete: vi.fn(),
     use: vi.fn()
   }));
   return {

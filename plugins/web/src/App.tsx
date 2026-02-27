@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import * as API from './api';
 import { Dashboard } from './pages/Dashboard';
 import { SinglePage } from './pages/SinglePage';
+import { HistoryView } from './components/History/HistoryView';
 
 export const DashboardContext = React.createContext<{
   overview: API.OverviewData | null;
@@ -99,9 +100,19 @@ function App() {
     }}>
       <div className="min-h-screen bg-gray-50 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900/30">
         <BrowserRouter>
-          <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+          <Sidebar
+            isOpen={sidebarOpen}
+            setIsOpen={setSidebarOpen}
+          />
           <Routes>
             <Route path="/" element={<Dashboard sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />} />
+            <Route path="/history" element={
+              <main className="md:pl-64 pt-20 transition-all duration-300">
+                <div className="max-w-[1920px] mx-auto p-4 md:p-8 space-y-8 pb-20">
+                  <HistoryView />
+                </div>
+              </main>
+            } />
             <Route path="/page" element={
               <main className="md:pl-64 pt-20 transition-all duration-300">
                 <SinglePage />

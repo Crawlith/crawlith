@@ -62,6 +62,36 @@ export interface TopPage {
 export interface Snapshot {
   id: number;
   createdAt: string;
+  pages?: number;
+  health?: number;
+  orphanPages?: number;
+  thinContent?: number;
+}
+
+export interface HistoryTrend {
+  id: number;
+  date: string;
+  pages: number;
+  health: number;
+  orphans: number;
+  brokenLinks: number;
+  duplicateClusters: number;
+}
+
+export interface SnapshotComparison {
+  snapshotA: { id: number, date: string, health: number, pages: number };
+  snapshotB: { id: number, date: string, health: number, pages: number };
+  diff: {
+    pagesAdded: number;
+    pagesRemoved: number;
+    healthDelta: number;
+    newIssues: {
+      brokenLinks: { normalized_url: string }[];
+    };
+    resolvedIssues: {
+      brokenLinks: { normalized_url: string }[];
+    };
+  };
 }
 
 // --- New Interfaces for Single Page View ---
@@ -206,6 +236,7 @@ export async function fetchContext(): Promise<{ siteId: number, snapshotId: numb
   return res.json();
 }
 
+
 // --- New Functions for Single Page View ---
 
 export async function fetchPageDetails(url: string, snapshotId?: number): Promise<PageDetails> {
@@ -271,4 +302,30 @@ export async function fetchPageGraphContext(url: string, snapshotId?: number): P
   const res = await fetch(`${API_PREFIX}/page/graph-context?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch graph context');
   return res.json();
+}
+
+export async function fetchHistory(): Promise<{ results: Snapshot[] }> {
+  const res = await fetch(`${API_PREFIX}/history`);
+  if (!res.ok) throw new Error('Failed to fetch history');
+  return res.json();
+}
+
+export async function fetchHistoryTrends(): Promise<{ results: HistoryTrend[] }> {
+  const res = await fetch(`${API_PREFIX}/history/trends`);
+  if (!res.ok) throw new Error('Failed to fetch history trends');
+  return res.json();
+}
+
+export async function fetchSnapshotComparison(snapshotA: number, snapshotB: number): Promise<SnapshotComparison> {
+  const res = await fetch(`${API_PREFIX}/history/compare?snapshotA=${snapshotA}&snapshotB=${snapshotB}`);
+  if (!res.ok) throw new Error('Failed to fetch snapshot comparison');
+  return res.json();
+}
+
+export async function deleteSnapshot(id: number): Promise<void> {
+  const res = await fetch(`${API_PREFIX}/history/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to delete snapshot');
+  }
 }

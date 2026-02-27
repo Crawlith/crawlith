@@ -8,6 +8,7 @@ let dbInstance: Database.Database | null = null;
 
 export * from './repositories/SiteRepository.js';
 export * from './repositories/SnapshotRepository.js';
+export { initSchema } from './schema.js';
 
 export function getDbPath(): string {
   if (process.env.NODE_ENV === 'test') {
