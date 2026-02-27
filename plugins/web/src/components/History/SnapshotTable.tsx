@@ -1,6 +1,6 @@
 import React from 'react';
 import { Snapshot } from '../../api';
-import { Trash2, GitCompare, ChevronRight } from 'lucide-react';
+import { Trash2, GitCompare } from 'lucide-react';
 
 interface SnapshotTableProps {
   snapshots: Snapshot[];

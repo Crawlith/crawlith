@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import * as API from '../../api';
-import { ArrowLeft, ArrowRight, GitCompare, AlertTriangle, CheckCircle, FilePlus, FileMinus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AlertTriangle, CheckCircle, FilePlus, FileMinus } from 'lucide-react';
 
 interface ComparisonViewProps {
   snapshotA: number;
