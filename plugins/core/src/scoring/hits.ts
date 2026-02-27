@@ -116,16 +116,12 @@ function classifyLinkRoles(nodes: GraphNode[]): void {
     const hubScores = nodes.map(n => n.hubScore || 0).sort((a, b) => a - b);
 
     // Use 75th percentile as "high" threshold
-    // Using median (50th percentile) as per original implementation,
-    // but the comment said "Use 75th percentile" while code used median.
-    // I'll stick to median to avoid breaking existing behavior, but correct the comment or logic?
-    // The original code:
-    // const medianAuth = authScores[Math.floor(authScores.length / 2)];
-    // const isHighAuth = auth > medianAuth && auth > 0.0001;
-    // So it uses median. I'll keep it as median.
+    // Updated to use true 75th percentile for better discrimination
+    // We target the top 25% of nodes.
+    const thresholdIndex = Math.floor(authScores.length * 0.75);
+    const thresholdAuth = authScores[thresholdIndex];
+    const thresholdHub = hubScores[thresholdIndex];
 
-    const medianAuth = authScores[Math.floor(authScores.length / 2)];
-    const medianHub = hubScores[Math.floor(hubScores.length / 2)];
     const maxAuth = authScores[authScores.length - 1];
     const maxHub = hubScores[hubScores.length - 1];
 
@@ -133,10 +129,15 @@ function classifyLinkRoles(nodes: GraphNode[]): void {
         const auth = node.authorityScore || 0;
         const hub = node.hubScore || 0;
 
-        // A node is high if it's above median, OR if it's the max (to handle uniform distributions)
-        // auth > 0 check is essential.
-        const isHighAuth = (auth > medianAuth || (auth === maxAuth && auth > 0)) && auth > 0.00001;
-        const isHighHub = (hub > medianHub || (hub === maxHub && hub > 0)) && hub > 0.00001;
+        // A node is high if it's strictly ABOVE the 75th percentile score
+        // If the distribution is very flat (many nodes have same score), this might exclude too many.
+        // So we also include if it's the max score (e.g. all equal).
+        // But if many nodes share the 75th percentile score, > excludes them, >= includes them.
+        // Standard percentile logic: "top 25%" usually means those above the 75th percentile value.
+        // If 75th percentile value equals 90th percentile value, strict > filters both out? No.
+
+        const isHighAuth = (auth > thresholdAuth || (auth === maxAuth && auth > 0)) && auth > 0.00001;
+        const isHighHub = (hub > thresholdHub || (hub === maxHub && hub > 0)) && hub > 0.00001;
 
         if (isHighAuth && isHighHub) {
             node.linkRole = 'power';
