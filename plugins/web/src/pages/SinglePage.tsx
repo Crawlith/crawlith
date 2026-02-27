@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DashboardContext } from '../App';
 import * as API from '../api';
-import { HelpCircle, ExternalLink, AlertTriangle, CheckCircle, AlertOctagon, Copy, CornerDownRight } from 'lucide-react';
+import { HelpCircle, AlertTriangle, CheckCircle, AlertOctagon, Copy, CornerDownRight, Activity, Layers, Clock } from 'lucide-react';
 import { ContentTab } from '../components/Tabs/ContentTab';
 import { LinkingTab } from '../components/Tabs/LinkingTab';
 import { ClusterTab } from '../components/Tabs/ClusterTab';
@@ -12,20 +12,26 @@ import { GraphTab } from '../components/Tabs/GraphTab';
 export const SinglePage = () => {
     const [searchParams] = useSearchParams();
     const url = searchParams.get('url');
-    const { currentSnapshot } = useContext(DashboardContext);
+    const { currentSnapshot, snapshots, setSnapshot } = useContext(DashboardContext);
 
     const [details, setDetails] = useState<API.PageDetails | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isCrawling, setIsCrawling] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('content');
 
+    const targetSnap = snapshots?.[0]?.id || currentSnapshot;
+
     useEffect(() => {
-        if (!url || !currentSnapshot) return;
+        if (!url || !targetSnap) {
+            setLoading(false);
+            return;
+        }
 
         const fetchData = async () => {
             setLoading(true);
             try {
-                const data = await API.fetchPageDetails(url, currentSnapshot);
+                const data = await API.fetchPageDetails(url, targetSnap);
                 setDetails(data);
                 setError(null);
             } catch (e: any) {
@@ -36,26 +42,69 @@ export const SinglePage = () => {
         };
 
         fetchData();
-    }, [url, currentSnapshot]);
+        setActiveTab('content');
+    }, [url, targetSnap]);
 
-    if (!url) return <div className="p-8 text-slate-500">No URL specified.</div>;
-    if (loading) return <div className="p-8 text-slate-500 animate-pulse">Loading Page Intelligence...</div>;
-    if (error) return (
-        <div className="p-8 flex items-center justify-center h-full">
-            <div className="text-center max-w-md">
-                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-full inline-block mb-4">
-                    <AlertOctagon className="text-red-500" size={32} />
+    const handleLiveCrawl = async () => {
+        if (!url) return;
+        setIsCrawling(true);
+        try {
+            const result = await API.crawlPage(url);
+            if (result.success) {
+                setSnapshot(result.snapshotId);
+            }
+        } catch (e: any) {
+            alert(`Live crawl failed: ${e.message}`);
+        } finally {
+            setIsCrawling(false);
+        }
+    };
+
+    if (!url) {
+        return (
+            <div className="p-8 md:p-12 text-center">
+                <div className="bg-slate-100 dark:bg-slate-800/50 p-6 rounded-2xl inline-block mb-4">
+                    <HelpCircle className="text-slate-400" size={48} />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Page Not Found</h2>
-                <p className="text-slate-600 dark:text-slate-400 mb-6">{error}</p>
-                <div className="text-sm text-slate-500">
-                    Suggestion: Check if the URL exists in this snapshot or try searching for it.
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">No URL Selected</h2>
+                <p className="text-slate-500 max-w-sm mx-auto">Please select a page from the dashboard to view its detailed intelligence reports.</p>
+            </div>
+        );
+    }
+
+    if (loading) {
+        return (
+            <div className="p-8 space-y-8 animate-pulse">
+                <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl w-full"></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="h-24 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+                    <div className="h-24 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+                    <div className="h-24 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    }
 
-    if (!details) return null;
+    if (error || !details) {
+        return (
+            <div className="p-8 flex items-center justify-center h-[60vh]">
+                <div className="text-center max-w-md">
+                    <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-full inline-block mb-4">
+                        <AlertOctagon className="text-red-500" size={32} />
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+                        {error ? 'Data Fetch Error' : 'Page Not Found'}
+                    </h2>
+                    <p className="text-slate-600 dark:text-slate-400 mb-6 font-mono text-sm">
+                        {error || `The URL "${url}" was not found in snapshot #${currentSnapshot}.`}
+                    </p>
+                    <div className="text-sm text-slate-500">
+                        Suggestion: Try selecting a different snapshot or verifying the URL in the discovery list.
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -70,46 +119,80 @@ export const SinglePage = () => {
                                     {details.identity.canonical ? `Canonical: ${details.identity.canonical}` : 'Self-canonical'}
                                 </span>
                             </div>
-                            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 break-all font-mono leading-tight mb-4">
-                                {details.identity.url}
+                            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+                                <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 break-all font-mono leading-tight">
+                                    {details.identity.url}
+                                    <button
+                                        onClick={() => navigator.clipboard.writeText(details.identity.url)}
+                                        className="ml-3 inline-flex items-center p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                        title="Copy URL"
+                                    >
+                                        <Copy size={18} />
+                                    </button>
+                                </h1>
                                 <button
-                                    onClick={() => navigator.clipboard.writeText(details.identity.url)}
-                                    className="ml-3 inline-flex items-center p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                    title="Copy URL"
+                                    onClick={handleLiveCrawl}
+                                    disabled={isCrawling}
+                                    className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isCrawling
+                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-800 cursor-not-allowed'
+                                        : 'text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 dark:bg-blue-900/10 dark:hover:bg-blue-600 border-blue-200 dark:border-blue-900/30'
+                                        }`}
                                 >
-                                    <Copy size={18} />
+                                    <Activity size={14} className={isCrawling ? 'animate-spin' : ''} />
+                                    {isCrawling ? 'Crawling...' : 'Fetch Again'}
                                 </button>
-                            </h1>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-4 mb-6 text-xs font-bold uppercase tracking-wider text-slate-400">
+                                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">
+                                    <Layers size={12} />
+                                    Snapshot #{details.snapshotId || currentSnapshot}
+                                </div>
+                                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">
+                                    <Clock size={12} />
+                                    Crawled: {details.identity.crawlDate ? new Date(details.identity.crawlDate).toLocaleString() : 'N/A'}
+                                </div>
+                            </div>
+
+                            {details.identity.crawlError && (
+                                <div className="mb-6 flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-lg text-red-700 dark:text-red-400">
+                                    <AlertOctagon size={18} />
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold uppercase tracking-wider opacity-70">Crawl Intelligence Error</span>
+                                        <span className="text-sm font-semibold">{details.identity.crawlError}</span>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex flex-wrap gap-4 md:gap-8">
                                 <MetricDisplay
                                     label="PageRank"
-                                    value={details.metrics.pageRank.toFixed(1)}
+                                    value={(details.metrics.pageRank || 0).toFixed(1)}
                                     tooltip="Measures relative internal importance of this page within the site graph. Higher values indicate stronger internal equity flow."
                                 />
                                 <MetricDisplay
                                     label="Authority"
-                                    value={details.metrics.authority.toFixed(1)}
+                                    value={(details.metrics.authority || 0).toFixed(1)}
                                     tooltip="Represents the page's ability to pass value to other pages (Hub score relationship)."
                                 />
                                 <MetricDisplay
                                     label="Hub Score"
-                                    value={details.metrics.hub.toFixed(1)}
+                                    value={(details.metrics.hub || 0).toFixed(1)}
                                     tooltip="Indicates how well this page links to high-authority pages."
                                 />
                                 <MetricDisplay
                                     label="Crawl Depth"
-                                    value={details.metrics.depth}
+                                    value={details.metrics.depth ?? 'N/A'}
                                     tooltip="Distance from the start URL (usually homepage). Lower is better for crawl budget."
                                 />
                                 <MetricDisplay
                                     label="Inlinks"
-                                    value={details.metrics.inlinks}
+                                    value={details.metrics.inlinks ?? 0}
                                     tooltip="Number of unique internal pages linking to this URL."
                                 />
                                 <MetricDisplay
                                     label="Outlinks"
-                                    value={details.metrics.outlinks}
+                                    value={details.metrics.outlinks ?? 0}
                                     tooltip="Number of unique internal pages this URL links to."
                                 />
                             </div>
@@ -143,12 +226,12 @@ export const SinglePage = () => {
             </header>
 
             {/* Tab Content */}
-            <main className="max-w-[1920px] mx-auto p-6 md:p-8 pb-20">
+            <main className="max-w-[1920px] mx-auto px-6 md:px-8 pb-20">
                 {activeTab === 'content' && <ContentTab details={details} />}
-                {activeTab === 'linking' && <LinkingTab url={url} />}
-                {activeTab === 'cluster' && <ClusterTab url={url} />}
-                {activeTab === 'technical' && <TechnicalTab url={url} />}
-                {activeTab === 'graph' && <GraphTab url={url} />}
+                {activeTab === 'linking' && <LinkingTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'cluster' && <ClusterTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'technical' && <TechnicalTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'graph' && <GraphTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
             </main>
         </div>
     );
@@ -158,17 +241,14 @@ const MetricDisplay = ({ label, value, tooltip }: { label: string, value: string
     <div className="group relative">
         <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1 cursor-help">
             {label}
-            <HelpCircle size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+            <HelpCircle size={12} className="opacity-40 group-hover:opacity-100 transition-opacity text-slate-400" />
+            <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-900 text-white text-[10px] rounded shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                {tooltip}
+                <div className="absolute bottom-[-2px] left-4 w-1.5 h-1.5 bg-slate-900 rotate-45"></div>
+            </div>
         </div>
         <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
             {value}
-        </div>
-
-        {/* Tooltip */}
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-900 text-white text-xs rounded-lg shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-            <div className="font-bold mb-1">{label}</div>
-            <div className="opacity-90 leading-relaxed">{tooltip}</div>
-            <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
         </div>
     </div>
 );

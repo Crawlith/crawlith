@@ -1,6 +1,5 @@
-import React from 'react';
 import { HelpCircle } from 'lucide-react';
-import { PageDetails } from '../api';
+import { PageDetails } from '../../api';
 
 export const ContentTab = ({ details }: { details: PageDetails }) => {
     const { content, identity } = details;
@@ -15,19 +14,23 @@ export const ContentTab = ({ details }: { details: PageDetails }) => {
                 <div className="space-y-6">
                     <ContentRow
                         label="Page Title"
-                        value={identity.title || 'Not Extracted'}
-                        meta={identity.title ? `${identity.title.length} chars` : undefined}
+                        value={identity.title?.value || 'Not Extracted'}
+                        meta={identity.title?.value ? `${identity.title.length} chars` : undefined}
+                        status={identity.title?.status === 'ok' ? 'good' : (identity.title?.status === 'missing' ? 'warning' : 'warning')}
                         tooltip="The <title> tag value. Critical for relevance and click-through rates."
                     />
                     <ContentRow
                         label="Meta Description"
-                        value={identity.metaDescription || 'Not Extracted'}
-                        meta={identity.metaDescription ? `${identity.metaDescription.length} chars` : undefined}
+                        value={identity.metaDescription?.value || 'Not Extracted'}
+                        meta={identity.metaDescription?.value ? `${identity.metaDescription.length} chars` : undefined}
+                        status={identity.metaDescription?.status === 'ok' ? 'good' : (identity.metaDescription?.status === 'missing' ? 'warning' : 'warning')}
                         tooltip="The <meta name='description'> tag. influences snippets in search results."
                     />
                     <ContentRow
                         label="H1 Heading"
-                        value={identity.h1 || 'Not Extracted'}
+                        value={identity.h1?.count > 0 ? (identity.h1.status === 'ok' ? 'Correct' : identity.h1.status) : 'Missing'}
+                        meta={identity.h1?.count ? `${identity.h1.count} tag(s)` : undefined}
+                        status={identity.h1?.status === 'ok' ? 'good' : 'warning'}
                         tooltip="The primary heading of the page structure."
                     />
                 </div>
@@ -40,19 +43,19 @@ export const ContentTab = ({ details }: { details: PageDetails }) => {
                     />
                     <ContentRow
                         label="Text-to-HTML Ratio"
-                        value={content.textRatio ? `${(content.textRatio * 100).toFixed(1)}%` : 'N/A'}
+                        value={content.textHtmlRatio ? `${(content.textHtmlRatio * 100).toFixed(1)}%` : 'N/A'}
                         tooltip="Ratio of text content to HTML code size. Higher is generally better for crawl efficiency."
                     />
                     <ContentRow
-                        label="Image Count"
-                        value={content.imageCount ?? 'N/A'}
-                        tooltip="Number of <img> tags found on the page."
+                        label="Unique Sentences"
+                        value={content.uniqueSentenceCount ?? 'N/A'}
+                        tooltip="Number of unique non-templated sentences found."
                     />
                     <ContentRow
-                        label="Missing Alt Text"
-                        value={content.missingAlt ?? 'N/A'}
-                        status={content.missingAlt && content.missingAlt > 0 ? 'warning' : 'good'}
-                        tooltip="Number of images missing the 'alt' attribute, which is important for accessibility and image SEO."
+                        label="Semantic Health"
+                        value={details.health.status}
+                        status={details.health.status === 'Good' ? 'good' : 'warning'}
+                        tooltip="Overall evaluation of content quality and SEO health."
                     />
                 </div>
             </div>

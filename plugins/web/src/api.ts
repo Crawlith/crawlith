@@ -27,6 +27,7 @@ export interface OverviewData {
     avgDepth: number;
     efficiency: number;
   };
+  snapshotId?: number;
 }
 
 export interface Issue {
@@ -61,6 +62,7 @@ export interface TopPage {
 
 export interface Snapshot {
   id: number;
+  type?: 'full' | 'partial' | 'incremental';
   createdAt: string;
   pages?: number;
   health?: number;
@@ -96,14 +98,28 @@ export interface SnapshotComparison {
 
 // --- New Interfaces for Single Page View ---
 
+export interface TextFieldAnalysis {
+  value: string | null;
+  length: number;
+  status: 'ok' | 'too_long' | 'too_short' | 'missing' | 'duplicate';
+}
+
+export interface H1Analysis {
+  count: number;
+  status: 'ok' | 'critical' | 'warning';
+  matchesTitle: boolean;
+}
+
 export interface PageDetails {
   identity: {
     url: string;
     status: number;
     canonical: string | null;
-    title: string | null;
-    metaDescription: string | null;
-    h1: string | null;
+    title: TextFieldAnalysis;
+    metaDescription: TextFieldAnalysis;
+    h1: H1Analysis;
+    crawlError?: string | null;
+    crawlDate?: string;
   };
   metrics: {
     pageRank: number;
@@ -124,10 +140,25 @@ export interface PageDetails {
   };
   content: {
     wordCount: number;
-    textRatio: number | null;
-    imageCount: number | null;
-    missingAlt: number | null;
+    textHtmlRatio: number;
+    uniqueSentenceCount: number;
   };
+  images: {
+    totalImages: number;
+    missingAlt: number;
+    emptyAlt: number;
+  };
+  links: {
+    internalLinks: number;
+    externalLinks: number;
+    externalRatio: number;
+  };
+  structuredData: {
+    present: boolean;
+    valid: boolean;
+    types: string[];
+  };
+  snapshotId: number;
 }
 
 export interface Inlink {
@@ -173,6 +204,7 @@ export interface TechnicalSignals {
   contentType: string;
   contentSize: number;
   serverError: boolean;
+  status: number;
 }
 
 export interface GraphContext {
@@ -230,7 +262,7 @@ export async function fetchSnapshots(): Promise<{ results: Snapshot[] }> {
   return res.json();
 }
 
-export async function fetchContext(): Promise<{ siteId: number, snapshotId: number, domain: string, createdAt: string }> {
+export async function fetchContext(): Promise<{ siteId: number, snapshotId: number, latestSnapshotId: number, domain: string, createdAt: string }> {
   const res = await fetch(`${API_PREFIX}/context`);
   if (!res.ok) throw new Error('Failed to fetch context');
   return res.json();
@@ -328,4 +360,17 @@ export async function deleteSnapshot(id: number): Promise<void> {
     const err = await res.json();
     throw new Error(err.error || 'Failed to delete snapshot');
   }
+}
+
+export async function crawlPage(url: string): Promise<{ success: boolean, snapshotId: number, message: string }> {
+  const res = await fetch(`${API_PREFIX}/page/crawl`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to trigger crawl');
+  }
+  return res.json();
 }

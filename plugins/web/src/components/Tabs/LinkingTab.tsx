@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownLeft, HelpCircle } from 'lucide-react';
-import { DashboardContext } from '../../App';
+import { ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import * as API from '../../api';
 
-export const LinkingTab = ({ url }: { url: string }) => {
+export const LinkingTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [subTab, setSubTab] = useState<'inlinks' | 'outlinks'>('inlinks');
 
     return (
@@ -25,24 +24,23 @@ export const LinkingTab = ({ url }: { url: string }) => {
             </div>
 
             <div className="flex-1 overflow-hidden relative">
-                {subTab === 'inlinks' ? <InlinksTable url={url} /> : <OutlinksTable url={url} />}
+                {subTab === 'inlinks' ? <InlinksTable url={url} snapshotId={snapshotId} /> : <OutlinksTable url={url} snapshotId={snapshotId} />}
             </div>
         </div>
     );
 };
 
-const InlinksTable = ({ url }: { url: string }) => {
-    const { currentSnapshot } = useContext(DashboardContext);
+const InlinksTable = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.InlinksResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
 
     useEffect(() => {
-        if (!currentSnapshot) return;
+        if (!snapshotId) return;
         const fetch = async () => {
             setLoading(true);
             try {
-                const res = await API.fetchPageInlinks(url, page, currentSnapshot);
+                const res = await API.fetchPageInlinks(url, page, snapshotId);
                 setData(res);
             } catch (e) {
                 console.error(e);
@@ -51,7 +49,7 @@ const InlinksTable = ({ url }: { url: string }) => {
             }
         };
         fetch();
-    }, [url, page, currentSnapshot]);
+    }, [url, page, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Inlinks...</div>;
     if (!data) return <div className="p-8 text-center text-slate-400">No data available</div>;
@@ -94,18 +92,17 @@ const InlinksTable = ({ url }: { url: string }) => {
     );
 };
 
-const OutlinksTable = ({ url }: { url: string }) => {
-    const { currentSnapshot } = useContext(DashboardContext);
+const OutlinksTable = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.OutlinksResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
 
     useEffect(() => {
-        if (!currentSnapshot) return;
+        if (!snapshotId) return;
         const fetch = async () => {
             setLoading(true);
             try {
-                const res = await API.fetchPageOutlinks(url, page, currentSnapshot);
+                const res = await API.fetchPageOutlinks(url, page, snapshotId);
                 setData(res);
             } catch (e) {
                 console.error(e);
@@ -114,7 +111,7 @@ const OutlinksTable = ({ url }: { url: string }) => {
             }
         };
         fetch();
-    }, [url, page, currentSnapshot]);
+    }, [url, page, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Outlinks...</div>;
     if (!data) return <div className="p-8 text-center text-slate-400">No data available</div>;
@@ -140,11 +137,10 @@ const OutlinksTable = ({ url }: { url: string }) => {
                                     </Link>
                                 </td>
                                 <td className="px-6 py-3">
-                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                                        row.status >= 200 && row.status < 300 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${row.status >= 200 && row.status < 300 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
                                         row.status >= 300 && row.status < 400 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                    }`}>
+                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                        }`}>
                                         {row.status}
                                     </span>
                                 </td>

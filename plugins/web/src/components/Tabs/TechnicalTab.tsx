@@ -1,19 +1,17 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { DashboardContext } from '../../App';
+import { useState, useEffect } from 'react';
 import * as API from '../../api';
-import { ArrowRight, Server, FileText, Activity } from 'lucide-react';
+import { ArrowRight, Server, Activity } from 'lucide-react';
 
-export const TechnicalTab = ({ url }: { url: string }) => {
-    const { currentSnapshot } = useContext(DashboardContext);
+export const TechnicalTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.TechnicalSignals | null>(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!currentSnapshot) return;
+        if (!snapshotId) return;
         const fetch = async () => {
             setLoading(true);
             try {
-                const res = await API.fetchPageTechnical(url, currentSnapshot);
+                const res = await API.fetchPageTechnical(url, snapshotId);
                 setData(res);
             } catch (e) {
                 console.error(e);
@@ -22,7 +20,7 @@ export const TechnicalTab = ({ url }: { url: string }) => {
             }
         };
         fetch();
-    }, [url, currentSnapshot]);
+    }, [url, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Technical Signals...</div>;
     if (!data) return null;
@@ -80,8 +78,8 @@ export const TechnicalTab = ({ url }: { url: string }) => {
                     </div>
                     <div className="flex justify-between items-center pb-3">
                         <span className="text-sm text-slate-500">Server Status</span>
-                        <span className={`font-mono text-sm font-bold px-2 py-0.5 rounded ${data.serverError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                            {data.serverError ? 'Error (5xx)' : 'Healthy'}
+                        <span className={`font-mono text-sm font-bold px-2 py-0.5 rounded ${data.status >= 400 || data.status === 0 ? 'bg-red-100 text-red-700' : data.status >= 300 ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                            {data.status === 0 ? 'Network Error' : `${data.status} ${data.status < 300 ? 'OK' : data.status < 400 ? 'Redirect' : 'Error'}`}
                         </span>
                     </div>
                 </div>

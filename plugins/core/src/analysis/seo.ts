@@ -1,4 +1,4 @@
-import { load } from 'cheerio';
+import { CheerioAPI, load } from 'cheerio';
 
 export type SeoStatus = 'ok' | 'missing' | 'too_short' | 'too_long' | 'duplicate';
 
@@ -18,9 +18,11 @@ function normalizedText(value: string | null): string {
   return (value ?? '').trim().toLowerCase();
 }
 
-export function analyzeTitle(html: string): TextFieldAnalysis {
-  const $ = load(html);
-  const title = $('title').first().text().trim();
+export function analyzeTitle($: CheerioAPI | string): TextFieldAnalysis {
+  const isString = typeof $ === 'string';
+  const cheerioObj = isString ? load($ || '<html></html>') : $;
+
+  const title = cheerioObj('title').first().text().trim();
   if (!title) {
     return { value: null, length: 0, status: 'missing' };
   }
@@ -30,9 +32,11 @@ export function analyzeTitle(html: string): TextFieldAnalysis {
   return { value: title, length: title.length, status: 'ok' };
 }
 
-export function analyzeMetaDescription(html: string): TextFieldAnalysis {
-  const $ = load(html);
-  const raw = $('meta[name="description"]').attr('content');
+export function analyzeMetaDescription($: CheerioAPI | string): TextFieldAnalysis {
+  const isString = typeof $ === 'string';
+  const cheerioObj = isString ? load($ || '<html></html>') : $;
+
+  const raw = cheerioObj('meta[name="description"]').attr('content');
   if (raw === undefined) {
     return { value: null, length: 0, status: 'missing' };
   }
@@ -47,27 +51,11 @@ export function analyzeMetaDescription(html: string): TextFieldAnalysis {
   return { value: description, length: description.length, status: 'ok' };
 }
 
-export function applyDuplicateStatuses<T extends TextFieldAnalysis>(fields: T[]): T[] {
-  const counts = new Map<string, number>();
-  for (const field of fields) {
-    const key = normalizedText(field.value);
-    if (!key) continue;
-    counts.set(key, (counts.get(key) || 0) + 1);
-  }
+export function analyzeH1($: CheerioAPI | string, titleValue: string | null): H1Analysis {
+  const isString = typeof $ === 'string';
+  const cheerioObj = isString ? load($ || '<html></html>') : $;
 
-  return fields.map((field) => {
-    const key = normalizedText(field.value);
-    if (!key) return field;
-    if ((counts.get(key) || 0) > 1) {
-      return { ...field, status: 'duplicate' };
-    }
-    return field;
-  });
-}
-
-export function analyzeH1(html: string, titleValue: string | null): H1Analysis {
-  const $ = load(html);
-  const h1Values = $('h1').toArray().map((el) => $(el).text().trim()).filter(Boolean);
+  const h1Values = cheerioObj('h1').toArray().map((el) => cheerioObj(el).text().trim()).filter(Boolean);
   const count = h1Values.length;
   const first = h1Values[0] || null;
   const matchesTitle = Boolean(first && titleValue && normalizedText(first) === normalizedText(titleValue));

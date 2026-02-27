@@ -57,7 +57,7 @@ export const ui = new Command('ui')
         process.exit(1);
       }
 
-      const snapshot = snapshotRepo.getLatestSnapshot(site.id);
+      const snapshot = snapshotRepo.getLatestSnapshot(site.id, 'completed');
       if (!snapshot) {
         console.error(chalk.red(`❌ No snapshots found for site: ${domain}`));
         process.exit(1);

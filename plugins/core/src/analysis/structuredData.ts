@@ -1,4 +1,4 @@
-import { load } from 'cheerio';
+import { CheerioAPI, load } from 'cheerio';
 
 export interface StructuredDataResult {
   present: boolean;
@@ -6,9 +6,11 @@ export interface StructuredDataResult {
   valid: boolean;
 }
 
-export function analyzeStructuredData(html: string): StructuredDataResult {
-  const $ = load(html);
-  const scripts = $('script[type="application/ld+json"]').toArray();
+export function analyzeStructuredData($: CheerioAPI | string): StructuredDataResult {
+  const isString = typeof $ === 'string';
+  const cheerioObj = isString ? load($ || '<html></html>') : $;
+
+  const scripts = cheerioObj('script[type="application/ld+json"]').toArray();
   if (scripts.length === 0) {
     return { present: false, types: [], valid: false };
   }
@@ -17,7 +19,7 @@ export function analyzeStructuredData(html: string): StructuredDataResult {
   let valid = true;
 
   for (const script of scripts) {
-    const raw = $(script).text().trim();
+    const raw = cheerioObj(script).text().trim();
     if (!raw) {
       valid = false;
       continue;

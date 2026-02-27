@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
 import * as API from './api';
 import { Dashboard } from './pages/Dashboard';
 import { SinglePage } from './pages/SinglePage';
@@ -11,20 +12,25 @@ export const DashboardContext = React.createContext<{
   currentSnapshot: number | null;
   snapshots: API.Snapshot[];
   setSnapshot: (id: number) => void;
+  setSnapshots: (snaps: API.Snapshot[]) => void;
+  setOverview: (ov: API.OverviewData | null) => void;
   domain: string;
 }>({
   overview: null,
   currentSnapshot: null,
   snapshots: [],
   setSnapshot: () => { },
+  setSnapshots: () => { },
+  setOverview: () => { },
   domain: ''
 });
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
 
   // Data State
-  const [loading, setLoading] = useState(true);
+  const [isBooting, setIsBooting] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [context, setContext] = useState<{ siteId: number, snapshotId: number, domain: string } | null>(null);
@@ -32,44 +38,24 @@ function App() {
   const [currentSnapshotId, setCurrentSnapshotId] = useState<number | null>(null);
   const [overview, setOverview] = useState<API.OverviewData | null>(null);
 
-  // Initial Boot
+  // Initial Boot: Only get domain and site ID
   useEffect(() => {
     const init = async () => {
       try {
         const ctx = await API.fetchContext();
         setContext(ctx);
-        setCurrentSnapshotId(ctx.snapshotId);
 
-        const snaps = await API.fetchSnapshots();
-        setSnapshots(snaps.results);
+        // Default Boot
+        setCurrentSnapshotId(ctx.snapshotId);
       } catch (e) {
         setError('Failed to initialize dashboard. Is the server running?');
         console.error(e);
+      } finally {
+        setIsBooting(false);
       }
     };
     init();
   }, []);
-
-  // Fetch Data on Snapshot Change
-  useEffect(() => {
-    if (!currentSnapshotId) return;
-
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const ov = await API.fetchOverview(currentSnapshotId);
-        setOverview(ov);
-        setError(null);
-      } catch (e) {
-        setError('Failed to load snapshot data.');
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, [currentSnapshotId]);
 
   if (error) {
     return (
@@ -82,7 +68,7 @@ function App() {
     );
   }
 
-  if (loading && !overview) {
+  if (isBooting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0b1120] text-slate-500">
         <div className="animate-pulse">Loading Crawlith Context...</div>
@@ -96,6 +82,8 @@ function App() {
       currentSnapshot: currentSnapshotId,
       snapshots,
       setSnapshot: setCurrentSnapshotId,
+      setSnapshots: setSnapshots,
+      setOverview: setOverview,
       domain: context?.domain || 'Loading...'
     }}>
       <div className="min-h-screen bg-gray-50 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900/30">
@@ -104,21 +92,22 @@ function App() {
             isOpen={sidebarOpen}
             setIsOpen={setSidebarOpen}
           />
-          <Routes>
-            <Route path="/" element={<Dashboard sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />} />
-            <Route path="/history" element={
-              <main className="md:pl-64 pt-20 transition-all duration-300">
+          <Header
+            toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            showCompare={showCompare}
+            setShowCompare={setShowCompare}
+          />
+          <main className="md:pl-64 pt-20 transition-all duration-300">
+            <Routes>
+              <Route path="/" element={<Dashboard showCompare={showCompare} />} />
+              <Route path="/history" element={
                 <div className="max-w-[1920px] mx-auto p-4 md:p-8 space-y-8 pb-20">
                   <HistoryView />
                 </div>
-              </main>
-            } />
-            <Route path="/page" element={
-              <main className="md:pl-64 pt-20 transition-all duration-300">
-                <SinglePage />
-              </main>
-            } />
-          </Routes>
+              } />
+              <Route path="/page" element={<SinglePage />} />
+            </Routes>
+          </main>
         </BrowserRouter>
       </div>
     </DashboardContext.Provider>

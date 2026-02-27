@@ -38,6 +38,7 @@ export interface CrawlOptions {
   maxRedirects?: number;
   userAgent?: string;
   snapshotType?: 'full' | 'partial' | 'incremental';
+  robots?: any;
 }
 
 interface QueueItem {
@@ -522,7 +523,11 @@ export class Crawler {
   async run(): Promise<number> {
     await this.initialize();
     this.setupModules();
-    await this.fetchRobots();
+    if (this.options.robots) {
+      this.robots = this.options.robots;
+    } else {
+      await this.fetchRobots();
+    }
     await this.seedQueue();
 
     return new Promise((resolve) => {

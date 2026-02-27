@@ -7,7 +7,10 @@ import {
   SiteRepository,
   SnapshotRepository,
 
-  Snapshot
+  Snapshot,
+  crawl,
+  analyzeSite,
+  analyzePages
 } from '@crawlith/core';
 
 export interface ServerOptions {
@@ -70,9 +73,13 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.1 GET /api/context
     api.get('/context', (req, res) => {
+      const latestSnapshot = snapshotRepo.getLatestSnapshot(siteId as number, 'completed', true);
+      const latestFullSnapshot = snapshotRepo.getLatestSnapshot(siteId as number, 'completed', false);
+
       res.json({
         siteId,
-        snapshotId, // Default boot snapshot
+        snapshotId: latestFullSnapshot?.id || snapshotId,
+        latestSnapshotId: latestSnapshot?.id || snapshotId,
         domain: site.domain,
         createdAt: site.created_at
       });
@@ -150,11 +157,11 @@ export function startServer(options: ServerOptions): Promise<void> {
           durationMs: 0, // Not stored currently
           avgDepth: 0, // Need to compute
           efficiency: 100
-        }
+        },
+        snapshotId: currentSnapshotId
       });
     });
 
-    // 4.3 GET /api/issues
     api.get('/issues', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
       const severity = req.query.severity as string;
@@ -328,21 +335,22 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.7 GET /api/snapshots
     api.get('/snapshots', (req, res) => {
-      const rows = db.prepare('SELECT id, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
+      const rows = db.prepare('SELECT id, type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
       res.json({ results: rows });
     });
 
     // 5.1 GET /api/page
-    api.get('/page', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
+    api.get('/page', (req, res) => {
       const url = req.query.url as string;
+      let targetSnapshotId = parseInt(req.query.snapshot as string, 10);
 
       if (!url) {
-        return res.status(400).json({ error: 'URL is required' });
+        return res.status(400).json({ error: 'URL parameter is required' });
       }
 
-      const page = db.prepare(`
-        SELECT
+      // Check if page exists
+      let page = db.prepare(`
+        SELECT 
           p.*,
           m.authority_score, m.hub_score, m.pagerank, m.pagerank_score,
           m.link_role, m.word_count, m.thin_content_score,
@@ -351,81 +359,98 @@ export function startServer(options: ServerOptions): Promise<void> {
         FROM pages p
         LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
         WHERE p.site_id = ? AND p.normalized_url = ?
-      `).get(currentSnapshotId, siteId, url) as any;
+      `).get(targetSnapshotId, siteId, url) as any;
+
+      // URL-Centric Fallback: If metrics or HTML are missing for this snapshot, find the latest snapshot where this URL was analyzed
+      if (!page || (page.pagerank_score === null && (page.html === null || page.html === ''))) {
+        const fallback = db.prepare(`
+          SELECT m.snapshot_id 
+          FROM metrics m
+          JOIN pages p ON m.page_id = p.id
+          WHERE p.site_id = ? AND p.normalized_url = ? AND (m.pagerank_score IS NOT NULL OR (p.html IS NOT NULL AND p.html != ''))
+          ORDER BY m.snapshot_id DESC LIMIT 1
+        `).get(siteId, url) as { snapshot_id: number } | undefined;
+
+        if (fallback) {
+          targetSnapshotId = fallback.snapshot_id;
+          page = db.prepare(`
+            SELECT 
+              p.*,
+              m.authority_score, m.hub_score, m.pagerank, m.pagerank_score,
+              m.link_role, m.word_count, m.thin_content_score,
+              m.external_link_ratio, m.orphan_score,
+              m.duplicate_cluster_id, m.duplicate_type, m.is_cluster_primary
+            FROM pages p
+            LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+            WHERE p.site_id = ? AND p.normalized_url = ?
+          `).get(targetSnapshotId, siteId, url) as any;
+        }
+      }
 
       if (!page) {
-        return res.status(404).json({ error: 'Page not found in this crawl snapshot.' });
+        return res.status(404).json({ error: 'Page not found' });
       }
 
-      // Calculate health status
-      let healthStatus = 'Healthy';
-      let criticalIssues = 0;
-      let warningIssues = 0;
+      // Perform full semantic analysis from stored HTML
+      const analysis = analyzePages(url, [{
+        url: page.normalized_url,
+        status: page.http_status,
+        html: page.html || '',
+        canonical: page.canonical_url,
+        noindex: !!page.noindex,
+        nofollow: !!page.nofollow,
+        crawlStatus: page.security_error ? 'failed' : (page.http_status ? 'fetched' : 'discovered')
+      }])[0];
 
-      if (page.http_status >= 400 || page.http_status === 0) {
-        healthStatus = 'Critical';
-        criticalIssues++;
-      }
-      if (page.redirect_chain && JSON.parse(page.redirect_chain).length > 1) {
-        if (healthStatus !== 'Critical') healthStatus = 'At Risk';
-        warningIssues++;
-      }
-      if (page.thin_content_score > 70) {
-        if (healthStatus !== 'Critical') healthStatus = 'At Risk';
-        warningIssues++;
-      }
-      if (page.duplicate_type && page.duplicate_type !== 'none') {
-        if (healthStatus !== 'Critical') healthStatus = 'At Risk';
-        warningIssues++;
-      }
-      if (page.noindex) {
-        warningIssues++; // Information/Warning depending on context
-      }
+      // Calculate health issues
+      const criticalCount = (page.http_status >= 400 || page.http_status === 0 || page.security_error || analysis.title.status === 'missing' || analysis.h1.status === 'critical') ? 1 : 0;
+      const warningCount = (analysis.title.status === 'too_long' || analysis.title.status === 'too_short' || analysis.content.wordCount < 300 || analysis.h1.status === 'warning') ? 1 : 0;
 
       // Inlinks count
       const inlinksCount = db.prepare(`
         SELECT COUNT(*) as count FROM edges
         WHERE snapshot_id = ? AND target_page_id = ? AND rel = 'internal'
-      `).get(currentSnapshotId, page.id) as { count: number };
+      `).get(targetSnapshotId, page.id) as { count: number };
 
       // Outlinks count
       const outlinksCount = db.prepare(`
         SELECT COUNT(*) as count FROM edges
         WHERE snapshot_id = ? AND source_page_id = ? AND rel = 'internal'
-      `).get(currentSnapshotId, page.id) as { count: number };
+      `).get(targetSnapshotId, page.id) as { count: number };
 
       res.json({
         identity: {
           url: page.normalized_url,
           status: page.http_status,
           canonical: page.canonical_url,
-          title: null, // Need to parse HTML or store title separately if available
-          metaDescription: null,
-          h1: null
+          title: analysis.title,
+          metaDescription: analysis.metaDescription,
+          h1: analysis.h1,
+          crawlError: page.security_error,
+          crawlDate: page.updated_at
         },
         metrics: {
-          pageRank: page.pagerank_score, // Scaled score
-          rawPageRank: page.pagerank,
-          authority: page.authority_score,
-          hub: page.hub_score,
-          depth: page.depth,
+          pageRank: page.pagerank_score || 0,
+          rawPageRank: page.pagerank || 0,
+          authority: page.authority_score || 0,
+          hub: page.hub_score || 0,
+          depth: page.depth || 0,
           inlinks: inlinksCount.count,
           outlinks: outlinksCount.count
         },
         health: {
-          status: healthStatus,
-          criticalCount: criticalIssues,
-          warningCount: warningIssues,
-          isThinContent: page.thin_content_score > 70,
-          isDuplicate: page.duplicate_type && page.duplicate_type !== 'none',
-          indexabilityRisk: page.noindex || page.canonical_url !== page.normalized_url
+          status: analysis.seoScore > 80 ? 'Good' : analysis.seoScore > 50 ? 'Warning' : 'Critical',
+          criticalCount,
+          warningCount,
+          isThinContent: analysis.thinScore > 70,
+          isDuplicate: analysis.title.status === 'duplicate',
+          indexabilityRisk: page.noindex === 1
         },
-        content: {
-          wordCount: page.word_count,
-          textRatio: null, // Not currently stored
-          imageCount: null,
-          missingAlt: null
-        }
+        content: analysis.content,
+        images: analysis.images,
+        links: analysis.links,
+        structuredData: analysis.structuredData,
+        snapshotId: targetSnapshotId
       });
     });
 
@@ -551,7 +576,6 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.5 GET /api/page/technical
     api.get('/page/technical', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
       const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -568,7 +592,8 @@ export function startServer(options: ServerOptions): Promise<void> {
         responseTime: null, // Not stored
         contentType: 'text/html',
         contentSize: page.bytes_received,
-        serverError: page.http_status >= 500
+        serverError: page.http_status >= 500,
+        status: page.http_status
       });
     });
 
@@ -616,6 +641,45 @@ export function startServer(options: ServerOptions): Promise<void> {
       });
     });
 
+    // 5.7 POST /api/page/crawl (Live crawl of single page)
+    api.post('/page/crawl', express.json(), async (req, res) => {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      try {
+        console.log(chalk.cyan(`   Live crawl requested: ${url}`));
+        const start = Date.now();
+
+        // Context to pipe events to terminal
+        const context = {
+          emit: (event: any) => {
+            if (event.type === 'info' && event.message.includes('[analyze]')) {
+              console.log(chalk.gray(`      ${event.message}`));
+            }
+          }
+        };
+
+        // We use analyzeSite with live: true and limit to that specific URL
+        const result = await analyzeSite(url, {
+          live: true,
+          seo: true,
+          content: true,
+          accessibility: true
+        }, context as any);
+
+        console.log(chalk.green(`   ✅ Live crawl completed in ${Date.now() - start}ms`));
+
+        res.json({
+          success: true,
+          snapshotId: result.snapshotId,
+          message: 'Live crawl completed successfully'
+        });
+      } catch (error: any) {
+        console.error(chalk.red(`❌ Live crawl failed: ${error.message}`));
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // 4.8 GET /api/history (List of snapshots with key stats)
     api.get('/history', (req, res) => {
       // Fetch snapshots with summary data from the snapshots table.
@@ -623,6 +687,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       const sql = `
         SELECT
           id,
+          type,
           created_at as createdAt,
           node_count as pages,
           health_score as health,
@@ -645,7 +710,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       // Actually, 'broken links' is not in snapshots table directly. We need to count.
 
       const snapshots = db.prepare(`
-        SELECT id, created_at, node_count, health_score, orphan_count
+        SELECT id, type, created_at, node_count, health_score, orphan_count
         FROM snapshots
         WHERE site_id = ?
         ORDER BY created_at ASC

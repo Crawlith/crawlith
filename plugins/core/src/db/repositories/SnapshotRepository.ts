@@ -28,8 +28,11 @@ export class SnapshotRepository {
     return info.lastInsertRowid as number;
   }
 
-  getLatestSnapshot(siteId: number, status?: 'completed' | 'running' | 'failed'): Snapshot | undefined {
-    let sql = 'SELECT * FROM snapshots WHERE site_id = ? AND type != \'partial\'';
+  getLatestSnapshot(siteId: number, status?: 'completed' | 'running' | 'failed', includePartial: boolean = false): Snapshot | undefined {
+    let sql = 'SELECT * FROM snapshots WHERE site_id = ?';
+    if (!includePartial) {
+      sql += ' AND type != \'partial\'';
+    }
     const params: any[] = [siteId];
     if (status) {
       sql += ' AND status = ?';

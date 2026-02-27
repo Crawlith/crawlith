@@ -1,19 +1,17 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { DashboardContext } from '../../App';
+import { useState, useEffect } from 'react';
 import * as API from '../../api';
-import { HelpCircle, AlertOctagon, Layers } from 'lucide-react';
+import { Layers } from 'lucide-react';
 
-export const ClusterTab = ({ url }: { url: string }) => {
-    const { currentSnapshot } = useContext(DashboardContext);
+export const ClusterTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.ClusterInfo | null>(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!currentSnapshot) return;
+        if (!snapshotId) return;
         const fetch = async () => {
             setLoading(true);
             try {
-                const res = await API.fetchPageCluster(url, currentSnapshot);
+                const res = await API.fetchPageCluster(url, snapshotId);
                 setData(res);
             } catch (e) {
                 console.error(e);
@@ -22,7 +20,7 @@ export const ClusterTab = ({ url }: { url: string }) => {
             }
         };
         fetch();
-    }, [url, currentSnapshot]);
+    }, [url, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Cluster Info...</div>;
     if (!data) return null;

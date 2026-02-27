@@ -1,4 +1,4 @@
-import { load } from 'cheerio';
+import { CheerioAPI, load } from 'cheerio';
 
 export interface ContentAnalysis {
   wordCount: number;
@@ -18,17 +18,24 @@ const DEFAULT_WEIGHTS: ThinScoreWeights = {
   dupWeight: 0.25
 };
 
-export function analyzeContent(html: string): ContentAnalysis {
-  const $ = load(html || '<html></html>');
-  $('script,style,nav,footer').remove();
+export function analyzeContent($: CheerioAPI | string): ContentAnalysis {
+  const isString = typeof $ === 'string';
+  const cheerioObj = isString ? load($ || '<html></html>') : $;
 
-  const text = $('body').length ? $('body').text() : $.text();
+  // We don't want to modify the shared $ object if we remove elements
+  // So we create a localized copy of the body text or use selection
+  const body = cheerioObj('body').length ? cheerioObj('body') : cheerioObj('html');
+
+  // To avoid removing from shared $, we extract text from a clone if possible, 
+  // but cloning in cheerio is expensive. 
+  // Better: just get the text and clean it or use a filter.
+  const text = body.clone().find('script,style,nav,footer').remove().end().text();
   const cleanText = text.replace(/\s+/g, ' ').trim();
 
   const words = cleanText ? cleanText.split(/\s+/).filter(Boolean) : [];
   const wordCount = words.length;
 
-  const htmlLength = Math.max(html.length, 1);
+  const htmlLength = isString ? ($.length || 1) : 1000; // Fallback if we don't have original HTML length
   const textHtmlRatio = cleanText.length / htmlLength;
 
   const sentenceSet = new Set(
