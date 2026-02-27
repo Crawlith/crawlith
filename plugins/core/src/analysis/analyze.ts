@@ -145,7 +145,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
         if (context) context.emit({ type: 'info', message: `URL ${normalizedRoot} not found. Fetching live...` });
         crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
       }
-    } catch (error: any) {
+    } catch (_error: any) {
       if (context) context.emit({ type: 'info', message: 'No local crawl data found. Switching to live...' });
       crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
     }

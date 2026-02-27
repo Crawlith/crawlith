@@ -16,9 +16,9 @@ vi.mock('express', () => {
   const mockApp = {
     use: vi.fn(),
     get: vi.fn(),
+    post: vi.fn(),
     listen: vi.fn((port, host, callback) => {
       if (typeof host === 'function') {
-        // Handle case where host is omitted and callback is second arg
         host();
       } else if (callback) {
         callback();
@@ -31,11 +31,14 @@ vi.mock('express', () => {
   };
   const expressMock: any = vi.fn(() => mockApp);
   expressMock.static = vi.fn();
+  expressMock.json = vi.fn(() => vi.fn());
   expressMock.Router = vi.fn(() => ({
     get: vi.fn(),
+    post: vi.fn(),
     delete: vi.fn(),
     use: vi.fn()
   }));
+
   return {
     default: expressMock
   };

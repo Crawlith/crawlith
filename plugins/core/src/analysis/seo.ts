@@ -68,3 +68,32 @@ export function analyzeH1($: CheerioAPI | string, titleValue: string | null): H1
   }
   return { count, status: 'ok', matchesTitle };
 }
+
+export function applyDuplicateStatuses<T extends { value: string | null; status: string }>(items: T[]): T[] {
+  const counts = new Map<string, number>();
+  const normalizedToOriginal = new Map<string, string>();
+
+  // First pass: count occurrences of each normalized value
+  for (const item of items) {
+    if (item.value) {
+      const normalized = normalizedText(item.value);
+      if (normalized) {
+        counts.set(normalized, (counts.get(normalized) || 0) + 1);
+        if (!normalizedToOriginal.has(normalized)) {
+          normalizedToOriginal.set(normalized, item.value);
+        }
+      }
+    }
+  }
+
+  // Second pass: apply duplicate status
+  return items.map(item => {
+    if (item.value) {
+      const normalized = normalizedText(item.value);
+      if ((counts.get(normalized) || 0) > 1) {
+        return { ...item, status: 'duplicate' };
+      }
+    }
+    return item;
+  });
+}
