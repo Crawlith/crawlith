@@ -7,12 +7,17 @@ import { computePageRank } from '../graph/pagerank.js';
 import { calculateMetrics } from '../graph/metrics.js';
 import { computeHITS } from '../scoring/hits.js';
 import { EngineContext } from '../events.js';
+import { calculateHealthScore, collectCrawlIssues } from '../scoring/health.js';
 
-export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false) {
+import { Graph } from '../graph/graph.js';
+
+export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph) {
     const db = getDb();
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
     const pageRepo = new PageRepository(db);
+
+    const graph = graphInstance || loadGraphFromSnapshot(snapshotId);
 
     // Fallback emitter
     const emit = (event: any) => {
@@ -30,8 +35,9 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
         return;
     }
 
-    emit({ type: 'metrics:start', phase: 'Loading graph' });
-    const graph = loadGraphFromSnapshot(snapshotId);
+    if (!graphInstance) {
+        emit({ type: 'metrics:start', phase: 'Loading graph' });
+    }
 
     emit({ type: 'metrics:start', phase: 'Computing PageRank' });
     computePageRank(graph);
@@ -114,25 +120,16 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
     emit({ type: 'metrics:start', phase: 'Computing aggregate stats' });
     const metrics = calculateMetrics(graph, maxDepth);
 
-    let totalScore = 0;
-    let totalWeight = 0;
-    for (const node of nodes) {
-        const score = node.authorityScore || node.pageRankScore || 0;
-        const depth = node.depth;
-        const weight = 1 / (depth + 1);
-        totalScore += score * weight;
-        totalWeight += weight;
-    }
-    const healthScore = totalWeight > 0 ? (totalScore / totalWeight) * 100 : 0;
-
-    const thinCountRow = db.prepare('SELECT count(*) as count FROM metrics WHERE snapshot_id = ? AND thin_content_score >= 70').get(snapshotId) as { count: number };
+    // Calculate penalty-based health score (matches CLI)
+    const issues = collectCrawlIssues(graph, metrics);
+    const health = calculateHealthScore(metrics.totalPages, issues);
 
     snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
         node_count: metrics.totalPages,
         edge_count: metrics.totalEdges,
-        health_score: healthScore,
-        orphan_count: metrics.orphanPages.length,
-        thin_content_count: thinCountRow.count,
+        health_score: health.score,
+        orphan_count: issues.orphanPages,
+        thin_content_count: issues.thinContent,
         limit_reached: limitReached ? 1 : 0
     });
 

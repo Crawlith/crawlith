@@ -29,6 +29,21 @@ export function calculateMetrics(graph: Graph, _maxDepth: number): Metrics {
   const totalPages = nodes.length;
   const totalEdges = edges.length;
 
+  // Identify broken nodes
+  const brokenNodes = new Set(nodes.filter(n => n.status >= 400 || n.status === 0).map(n => n.url));
+
+  // Populate brokenLinks per node
+  for (const node of nodes) {
+    const nodeEdges = edges.filter(e => e.source === node.url);
+    const broken = nodeEdges
+      .map(e => e.target)
+      .filter(targetUrl => brokenNodes.has(targetUrl));
+
+    if (broken.length > 0) {
+      node.brokenLinks = broken;
+    }
+  }
+
   // Authority Score (per node)
   const maxInLinks = nodes.reduce((max, n) => Math.max(max, n.inLinks), 0);
   const getAuthority = (node: GraphNode) => {

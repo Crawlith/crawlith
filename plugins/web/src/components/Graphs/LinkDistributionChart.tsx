@@ -1,17 +1,34 @@
-import React from 'react';
-import { graphIntelligence } from '../../data';
+import { useContext } from 'react';
+import { DashboardContext } from '../../App';
+import { Tooltip } from '../Tooltip';
 
 export const LinkDistributionChart = () => {
-  const { internalLinkDistribution } = graphIntelligence;
-  const maxCount = Math.max(...internalLinkDistribution.map(d => d.count));
+  // This data is not yet exposed by the API in this iteration (requires histogram computation on edge weights)
+  // We will render a placeholder or minimal version
+  const { overview } = useContext(DashboardContext);
+
+  // Placeholder data
+  const internalLinkDistribution = [
+    { label: 'Total Links', count: overview?.totals.internalLinks || 0 },
+    { label: 'Avg / Page', count: overview && overview.totals.discovered > 0 ? (overview.totals.internalLinks / overview.totals.discovered).toFixed(1) : 0 },
+  ];
+
+  // Simple bar for total links (always 100% relative to itself in this simplified view)
+  // const maxCount = overview?.totals.internalLinks || 1; // Unused
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm h-full flex flex-col">
-      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm mb-4">Internal Link Distribution</h3>
+      <div className="flex items-center mb-4">
+        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Internal Links Overview</h3>
+        <Tooltip content="Average number of internal links per page. A healthy site architecture relies on strong internal linking to distribute PageRank." />
+      </div>
 
       <div className="flex-1 flex flex-col justify-center gap-4">
         {internalLinkDistribution.map((item) => {
-          const widthPercent = (item.count / maxCount) * 100;
+          // Just visualize as full width for now as these are summary stats not distribution buckets
+          // const val = Number(item.count); // Unused
+          const widthPercent = 100;
+
           return (
             <div key={item.label} className="w-full group">
               <div className="flex justify-between text-xs mb-1">

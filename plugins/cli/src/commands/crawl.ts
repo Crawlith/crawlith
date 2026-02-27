@@ -197,18 +197,6 @@ export const crawlCommand = new Command('crawl')
       //   process.exit(1);
       // }
 
-      if (options.format !== 'json') process.stdout.write(chalk.gray('📊 Calculating metrics and saving to database... '));
-      runPostCrawlMetrics(snapshotId, depth, context);
-      if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
-
-
-      // if (nodes.length === 0) {
-      //   console.log(chalk.red('\n❌ No pages were crawled.'));
-      //   console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
-      //   console.log(chalk.gray('Try running with ') + chalk.white('--ignore-robots') + chalk.gray(' or ') + chalk.white('--debug') + chalk.gray(' for more details.\n'));
-      //   process.exit(1);
-      // }
-
       if (options.format !== 'json') {
         console.log(chalk.green(`\n✅ Crawl complete.`));
         process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
@@ -225,6 +213,7 @@ export const crawlCommand = new Command('crawl')
       if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
       if (options.format !== 'json') process.stdout.write(chalk.gray('📊 Calculating final report metrics... '));
+      runPostCrawlMetrics(snapshotId, depth, context, !!graph.limitReached, graph);
       const metrics = calculateMetrics(graph, depth);
       if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 

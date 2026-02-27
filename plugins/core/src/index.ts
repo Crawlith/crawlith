@@ -11,6 +11,7 @@ export * from './scoring/orphanSeverity.js';
 export * from './graph/pagerank.js';
 export * from './graph/duplicate.js';
 export * from './graph/cluster.js';
+export * from './scoring/health.js';
 export * from './scoring/hits.js';
 export * from './analysis/analyze.js';
 export * from './analysis/content.js';

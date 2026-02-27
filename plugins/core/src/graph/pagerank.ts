@@ -26,6 +26,7 @@ export function computePageRank(graph: Graph, options: PageRankOptions = {}) {
         if (node.soft404Score && node.soft404Score > soft404Threshold) return false;
         if (node.canonical && node.canonical !== node.url) return false;
         if (node.status >= 400) return false; // Don't pass rank to broken pages
+        if (node.status === 0) return false; // Don't pass rank to uncrawled/external pages
         return true;
     });
 

@@ -1,17 +1,36 @@
-import React from 'react';
-import { graphIntelligence } from '../../data';
+import { useEffect, useState, useContext } from 'react';
 import { ExternalLink, TrendingUp } from 'lucide-react';
+import { DashboardContext } from '../../App';
+import * as API from '../../api';
+import { Tooltip } from '../Tooltip';
 
 export const PageRankTable = () => {
-  const { topPagesByPageRank } = graphIntelligence;
+  const { currentSnapshot } = useContext(DashboardContext);
+  const [topPages, setTopPages] = useState<API.TopPage[]>([]);
+
+  useEffect(() => {
+    if (!currentSnapshot) return;
+    const fetchData = async () => {
+      try {
+        const data = await API.fetchTopPages(currentSnapshot);
+        setTopPages(data.results);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchData();
+  }, [currentSnapshot]);
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm h-full flex flex-col">
       <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
-        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
-          <TrendingUp size={16} className="text-blue-500" />
-          Top Pages by PageRank
-        </h3>
+        <div className="flex items-center">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+            <TrendingUp size={16} className="text-blue-500" />
+            Top Pages by PageRank
+          </h3>
+          <Tooltip content="Pages with the highest computed internal PageRank. These are computationally the most 'authoritative' pages in your crawl graph based on internal linking." />
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -25,7 +44,7 @@ export const PageRankTable = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-            {topPagesByPageRank.map((page, i) => (
+            {topPages.map((page, i) => (
               <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="px-4 py-2 font-mono text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title={page.url}>
                   <div className="flex items-center gap-2">
@@ -35,9 +54,15 @@ export const PageRankTable = () => {
                     </a>
                   </div>
                 </td>
-                <td className="px-4 py-2 text-right font-mono font-bold text-slate-700 dark:text-slate-300">{page.pageRank}</td>
-                <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">{page.authorityScore}</td>
-                <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">{page.hubScore}</td>
+                <td className="px-4 py-2 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                  {page.pageRank ? page.pageRank.toFixed(4) : '-'}
+                </td>
+                <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">
+                  {page.authorityScore ? page.authorityScore.toFixed(2) : '-'}
+                </td>
+                <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-400">
+                  {page.hubScore ? page.hubScore.toFixed(2) : '-'}
+                </td>
               </tr>
             ))}
           </tbody>
