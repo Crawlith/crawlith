@@ -87,6 +87,10 @@ export class SnapshotRepository {
       // Unlink pages from this snapshot to prevent FK constraint violations or data inconsistencies
       this.db.prepare('UPDATE pages SET first_seen_snapshot_id = NULL WHERE first_seen_snapshot_id = ?').run(id);
       this.db.prepare('UPDATE pages SET last_seen_snapshot_id = NULL WHERE last_seen_snapshot_id = ?').run(id);
+
+      // Cleanup: Delete pages that are no longer referenced by any snapshot
+      this.db.prepare('DELETE FROM pages WHERE first_seen_snapshot_id IS NULL AND last_seen_snapshot_id IS NULL').run();
+
       // Delete the snapshot
       this.db.prepare('DELETE FROM snapshots WHERE id = ?').run(id);
     });

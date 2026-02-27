@@ -4,9 +4,11 @@ import { LayoutDashboard, Network, FileText, Settings, Layers, ChevronRight, X }
 interface SidebarProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  currentView: string;
+  setCurrentView: (view: string) => void;
 }
 
-export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
+export const Sidebar = ({ isOpen, setIsOpen, currentView, setCurrentView }: SidebarProps) => {
   return (
     <>
       {/* Mobile Overlay */}
@@ -42,14 +44,39 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
           <SidebarGroup title="Analytics">
-            <SidebarItem icon={LayoutDashboard} label="Dashboard" active />
-            <SidebarItem icon={Network} label="Structure Graph" />
-            <SidebarItem icon={FileText} label="Content Audit" />
+            <SidebarItem
+              icon={LayoutDashboard}
+              label="Dashboard"
+              active={currentView === 'dashboard'}
+              onClick={() => { setCurrentView('dashboard'); setIsOpen(false); }}
+            />
+            <SidebarItem
+              icon={Network}
+              label="Structure Graph"
+              active={currentView === 'graph'}
+              onClick={() => { setCurrentView('graph'); setIsOpen(false); }}
+            />
+            <SidebarItem
+              icon={FileText}
+              label="Content Audit"
+              active={currentView === 'audit'}
+              onClick={() => { setCurrentView('audit'); setIsOpen(false); }}
+            />
           </SidebarGroup>
 
           <SidebarGroup title="Management">
-            <SidebarItem icon={Layers} label="Crawl History" />
-            <SidebarItem icon={Settings} label="Configuration" />
+            <SidebarItem
+              icon={Layers}
+              label="Crawl History"
+              active={currentView === 'history'}
+              onClick={() => { setCurrentView('history'); setIsOpen(false); }}
+            />
+            <SidebarItem
+              icon={Settings}
+              label="Configuration"
+              active={currentView === 'settings'}
+              onClick={() => { setCurrentView('settings'); setIsOpen(false); }}
+            />
           </SidebarGroup>
         </nav>
 
@@ -69,8 +96,10 @@ const SidebarGroup = ({ title, children }: { title: string, children: React.Reac
   </div>
 );
 
-const SidebarItem = ({ icon: Icon, label, active }: any) => (
-  <button className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all group ${active
+const SidebarItem = ({ icon: Icon, label, active, onClick }: any) => (
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all group ${active
       ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
       : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
     }`}>
