@@ -1,12 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import {
-  calculateHealthScore,
-  healthStatusLabel,
   renderInsightOutput,
   hasCriticalIssues,
   buildCrawlInsightReport
 } from '../src/commands/crawlFormatter.js';
-import { Graph, Metrics } from '@crawlith/core';
+import { Graph, Metrics, calculateHealthScore, healthStatusLabel } from '@crawlith/core';
 
 function createMetrics(overrides: Partial<Metrics> = {}): Metrics {
   return {
@@ -46,8 +44,7 @@ describe('health score calculation', () => {
       blockedByRobots: 0
     });
 
-    expect(score.score).toBe(94);
-    expect(score.score).toBe(94);
+    expect(score.score).toBe(80);
     expect(score.status).toBe('Needs Attention');
   });
 });

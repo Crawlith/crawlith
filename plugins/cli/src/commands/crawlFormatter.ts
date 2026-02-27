@@ -1,8 +1,4 @@
 import {
-  analyzeContent,
-  analyzeH1,
-  analyzeImageAlts,
-  analyzeLinks,
   Graph,
   Metrics,
   HealthScoreWeights,
@@ -12,10 +8,7 @@ import {
   calculateHealthScore,
   collectCrawlIssues,
   THIN_CONTENT_THRESHOLD,
-  LOW_INTERNAL_LINK_THRESHOLD,
-  EXCESSIVE_INTERNAL_LINK_THRESHOLD,
-  HIGH_EXTERNAL_LINK_RATIO_THRESHOLD,
-  OPPORTUNITY_AUTHORITY_THRESHOLD
+  EXCESSIVE_INTERNAL_LINK_THRESHOLD
 } from '@crawlith/core';
 
 export interface CrawlInsightReport {
