@@ -332,6 +332,193 @@ export function startServer(options: ServerOptions): Promise<void> {
       res.json({ results: rows });
     });
 
+    // 4.8 GET /api/history (List of snapshots with key stats)
+    api.get('/history', (req, res) => {
+      // Fetch snapshots with summary data from the snapshots table.
+      // Note: Some stats might be null if not computed, but usually they are present.
+      const sql = `
+        SELECT
+          id,
+          created_at as createdAt,
+          node_count as pages,
+          health_score as health,
+          orphan_count as orphanPages,
+          thin_content_count as thinContent
+        FROM snapshots
+        WHERE site_id = ?
+        ORDER BY created_at DESC
+      `;
+      const snapshots = db.prepare(sql).all(siteId);
+      res.json({ results: snapshots });
+    });
+
+    // 4.9 GET /api/history/trends
+    api.get('/history/trends', (req, res) => {
+      // Return a time-series list of snapshots with key metrics.
+      // We'll need to aggregate metrics if they aren't fully in the snapshots table.
+      // For performance, we'll join snapshots with aggregates from metrics/pages if needed.
+      // But for now, let's rely on what we have in snapshots table + some fast aggregates.
+      // Actually, 'broken links' is not in snapshots table directly. We need to count.
+
+      const snapshots = db.prepare(`
+        SELECT id, created_at, node_count, health_score, orphan_count
+        FROM snapshots
+        WHERE site_id = ?
+        ORDER BY created_at ASC
+      `).all(siteId) as any[];
+
+      // Enrich with broken links count for each snapshot (expensive if many snapshots, but tolerable for < 100)
+      // Optimization: One query to group by snapshot_id
+      const brokenLinksCounts = db.prepare(`
+        SELECT m.snapshot_id, COUNT(*) as count
+        FROM metrics m
+        JOIN pages p ON m.page_id = p.id
+        WHERE p.site_id = ? AND (
+           p.http_status >= 400 OR
+           (p.http_status = 0 AND m.crawl_status IN ('network_error', 'failed_after_retries', 'fetched_error')) OR
+           p.security_error IS NOT NULL
+        )
+        GROUP BY m.snapshot_id
+      `).all(siteId) as any[];
+
+      const brokenMap = new Map(brokenLinksCounts.map(r => [r.snapshot_id, r.count]));
+
+      const duplicateClustersCounts = db.prepare(`
+        SELECT snapshot_id, COUNT(*) as count FROM duplicate_clusters GROUP BY snapshot_id
+      `).all() as any[];
+
+      const dupMap = new Map(duplicateClustersCounts.map(r => [r.snapshot_id, r.count]));
+
+      const trends = snapshots.map(snap => ({
+        id: snap.id,
+        date: snap.created_at,
+        pages: snap.node_count,
+        health: snap.health_score,
+        orphans: snap.orphan_count || 0,
+        brokenLinks: brokenMap.get(snap.id) || 0,
+        duplicateClusters: dupMap.get(snap.id) || 0
+      }));
+
+      res.json({ results: trends });
+    });
+
+    // 4.10 GET /api/history/compare
+    api.get('/history/compare', (req, res) => {
+      const { snapshotA, snapshotB } = req.query;
+
+      if (!snapshotA || !snapshotB) {
+        return res.status(400).json({ error: 'snapshotA and snapshotB are required' });
+      }
+
+      const idA = parseInt(snapshotA as string, 10);
+      const idB = parseInt(snapshotB as string, 10);
+
+      // Verify ownership
+      const snapA = snapshotRepo.getSnapshot(idA);
+      const snapB = snapshotRepo.getSnapshot(idB);
+
+      if (!snapA || snapA.site_id !== siteId || !snapB || snapB.site_id !== siteId) {
+        return res.status(404).json({ error: 'Snapshots not found' });
+      }
+
+      // 1. Pages Added (Present in B, not in A) - Check by URL
+      const addedPagesCount = db.prepare(`
+        SELECT COUNT(*) as count
+        FROM pages pB
+        JOIN metrics mB ON pB.id = mB.page_id AND mB.snapshot_id = ?
+        WHERE NOT EXISTS (
+          SELECT 1 FROM pages pA
+          JOIN metrics mA ON pA.id = mA.page_id AND mA.snapshot_id = ?
+          WHERE pA.normalized_url = pB.normalized_url
+        )
+      `).get(idB, idA) as { count: number };
+
+      // 2. Pages Removed (Present in A, not in B)
+      const removedPagesCount = db.prepare(`
+        SELECT COUNT(*) as count
+        FROM pages pA
+        JOIN metrics mA ON pA.id = mA.page_id AND mA.snapshot_id = ?
+        WHERE NOT EXISTS (
+          SELECT 1 FROM pages pB
+          JOIN metrics mB ON pB.id = mB.page_id AND mB.snapshot_id = ?
+          WHERE pB.normalized_url = pA.normalized_url
+        )
+      `).get(idA, idB) as { count: number };
+
+      // 3. New Issues (Broken links in B that were OK or non-existent in A)
+      // "Broken" def: status >= 400 OR network error
+      const newBrokenLinks = db.prepare(`
+        SELECT pB.normalized_url
+        FROM pages pB
+        JOIN metrics mB ON pB.id = mB.page_id AND mB.snapshot_id = ?
+        WHERE (pB.http_status >= 400 OR mB.crawl_status IN ('network_error', 'fetched_error'))
+        AND NOT EXISTS (
+          SELECT 1 FROM pages pA
+          JOIN metrics mA ON pA.id = mA.page_id AND mA.snapshot_id = ?
+          WHERE pA.normalized_url = pB.normalized_url
+          AND (pA.http_status >= 400 OR mA.crawl_status IN ('network_error', 'fetched_error'))
+        )
+        LIMIT 50
+      `).all(idB, idA) as any[];
+
+      // 4. Resolved Issues (Broken in A, OK in B)
+      const resolvedBrokenLinks = db.prepare(`
+        SELECT pA.normalized_url
+        FROM pages pA
+        JOIN metrics mA ON pA.id = mA.page_id AND mA.snapshot_id = ?
+        WHERE (pA.http_status >= 400 OR mA.crawl_status IN ('network_error', 'fetched_error'))
+        AND EXISTS (
+          SELECT 1 FROM pages pB
+          JOIN metrics mB ON pB.id = mB.page_id AND mB.snapshot_id = ?
+          WHERE pB.normalized_url = pA.normalized_url
+          AND (pB.http_status >= 200 AND pB.http_status < 400 AND mB.crawl_status = 'fetched')
+        )
+        LIMIT 50
+      `).all(idA, idB) as any[];
+
+      // Health Delta
+      const healthDelta = (snapB.health_score || 0) - (snapA.health_score || 0);
+
+      res.json({
+        snapshotA: { id: idA, date: snapA.created_at, health: snapA.health_score, pages: snapA.node_count },
+        snapshotB: { id: idB, date: snapB.created_at, health: snapB.health_score, pages: snapB.node_count },
+        diff: {
+          pagesAdded: addedPagesCount.count,
+          pagesRemoved: removedPagesCount.count,
+          healthDelta,
+          newIssues: {
+            brokenLinks: newBrokenLinks
+          },
+          resolvedIssues: {
+            brokenLinks: resolvedBrokenLinks
+          }
+        }
+      });
+    });
+
+    // 4.11 DELETE /api/history/:id
+    api.delete('/history/:id', (req, res) => {
+      const id = parseInt(req.params.id, 10);
+      const snap = snapshotRepo.getSnapshot(id);
+
+      if (!snap || snap.site_id !== siteId) {
+        return res.status(404).json({ error: 'Snapshot not found' });
+      }
+
+      // Check if it's the ONLY snapshot
+      if (snapshotRepo.getSnapshotCount(siteId) <= 1) {
+         return res.status(400).json({ error: 'Cannot delete the only snapshot.' });
+      }
+
+      try {
+        snapshotRepo.deleteSnapshot(id);
+        res.json({ success: true });
+      } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Failed to delete snapshot' });
+      }
+    });
+
     app.use(API_PREFIX, api);
 
 
