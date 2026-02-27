@@ -2,6 +2,16 @@ import { test, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import { startServer } from '../src/index.js';
 
+vi.mock('chalk', () => ({
+  default: {
+    red: vi.fn((msg) => msg),
+    green: vi.fn((msg) => msg),
+    yellow: vi.fn((msg) => msg),
+    gray: vi.fn((msg) => msg),
+    blue: vi.fn((msg) => msg)
+  }
+}));
+
 vi.mock('express', () => {
   const mockApp = {
     use: vi.fn(),
@@ -48,18 +58,16 @@ vi.mock('@crawlith/core', () => {
     })),
     closeDb: vi.fn(),
     // Important: Use function expression to support 'new' keyword
-    SiteRepository: vi.fn(function () {
-      return {
-        getSiteById: vi.fn(() => ({ domain: 'test.com', created_at: '2024-01-01' }))
-      };
-    }),
-    SnapshotRepository: vi.fn(function () {
-      return {
-        getSnapshot: vi.fn(() => ({ id: 1, site_id: 1, health_score: 90, node_count: 10 }))
-      };
-    }),
-    PageRepository: vi.fn(function () { return {}; }),
-    MetricsRepository: vi.fn(function () { return {}; })
+    SiteRepository: class {
+        constructor() {}
+        getSiteById() { return { domain: 'test.com', created_at: '2024-01-01' }; }
+    },
+    SnapshotRepository: class {
+        constructor() {}
+        getSnapshot() { return { id: 1, site_id: 1, health_score: 90, node_count: 10 }; }
+    },
+    PageRepository: class {},
+    MetricsRepository: class {}
   };
 });
 

@@ -332,6 +332,295 @@ export function startServer(options: ServerOptions): Promise<void> {
       res.json({ results: rows });
     });
 
+    // 5.1 GET /api/page
+    api.get('/page', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const url = req.query.url as string;
+
+      if (!url) {
+        return res.status(400).json({ error: 'URL is required' });
+      }
+
+      const page = db.prepare(`
+        SELECT
+          p.*,
+          m.authority_score, m.hub_score, m.pagerank, m.pagerank_score,
+          m.link_role, m.word_count, m.thin_content_score,
+          m.external_link_ratio, m.orphan_score,
+          m.duplicate_cluster_id, m.duplicate_type, m.is_cluster_primary
+        FROM pages p
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        WHERE p.site_id = ? AND p.normalized_url = ?
+      `).get(currentSnapshotId, siteId, url) as any;
+
+      if (!page) {
+        return res.status(404).json({ error: 'Page not found in this crawl snapshot.' });
+      }
+
+      // Calculate health status
+      let healthStatus = 'Healthy';
+      let criticalIssues = 0;
+      let warningIssues = 0;
+
+      if (page.http_status >= 400 || page.http_status === 0) {
+        healthStatus = 'Critical';
+        criticalIssues++;
+      }
+      if (page.redirect_chain && JSON.parse(page.redirect_chain).length > 1) {
+        if (healthStatus !== 'Critical') healthStatus = 'At Risk';
+        warningIssues++;
+      }
+      if (page.thin_content_score > 70) {
+        if (healthStatus !== 'Critical') healthStatus = 'At Risk';
+        warningIssues++;
+      }
+      if (page.duplicate_type && page.duplicate_type !== 'none') {
+        if (healthStatus !== 'Critical') healthStatus = 'At Risk';
+        warningIssues++;
+      }
+      if (page.noindex) {
+        warningIssues++; // Information/Warning depending on context
+      }
+
+      // Inlinks count
+      const inlinksCount = db.prepare(`
+        SELECT COUNT(*) as count FROM edges
+        WHERE snapshot_id = ? AND target_page_id = ? AND rel = 'internal'
+      `).get(currentSnapshotId, page.id) as { count: number };
+
+      // Outlinks count
+      const outlinksCount = db.prepare(`
+        SELECT COUNT(*) as count FROM edges
+        WHERE snapshot_id = ? AND source_page_id = ? AND rel = 'internal'
+      `).get(currentSnapshotId, page.id) as { count: number };
+
+      res.json({
+        identity: {
+          url: page.normalized_url,
+          status: page.http_status,
+          canonical: page.canonical_url,
+          title: null, // Need to parse HTML or store title separately if available
+          metaDescription: null,
+          h1: null
+        },
+        metrics: {
+          pageRank: page.pagerank_score, // Scaled score
+          rawPageRank: page.pagerank,
+          authority: page.authority_score,
+          hub: page.hub_score,
+          depth: page.depth,
+          inlinks: inlinksCount.count,
+          outlinks: outlinksCount.count
+        },
+        health: {
+          status: healthStatus,
+          criticalCount: criticalIssues,
+          warningCount: warningIssues,
+          isThinContent: page.thin_content_score > 70,
+          isDuplicate: page.duplicate_type && page.duplicate_type !== 'none',
+          indexabilityRisk: page.noindex || page.canonical_url !== page.normalized_url
+        },
+        content: {
+          wordCount: page.word_count,
+          textRatio: null, // Not currently stored
+          imageCount: null,
+          missingAlt: null
+        }
+      });
+    });
+
+    // 5.2 GET /api/page/inlinks
+    api.get('/page/inlinks', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const url = req.query.url as string;
+      const pageNum = parseInt(req.query.page as string || '1', 10);
+      const pageSize = parseInt(req.query.pageSize as string || '50', 10);
+      const offset = (pageNum - 1) * pageSize;
+
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
+      if (!page) return res.status(404).json({ error: 'Page not found' });
+
+      const total = db.prepare(`
+        SELECT COUNT(*) as count
+        FROM edges
+        WHERE snapshot_id = ? AND target_page_id = ? AND rel = 'internal'
+      `).get(currentSnapshotId, page.id) as { count: number };
+
+      const rows = db.prepare(`
+        SELECT
+          p.normalized_url as sourceUrl,
+          m.pagerank_score as sourcePageRank,
+          e.rel as linkType,
+          'Follow' as followState -- Needs column in edges if we distinguish nofollow per link
+        FROM edges e
+        JOIN pages p ON e.source_page_id = p.id
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        WHERE e.snapshot_id = ? AND e.target_page_id = ? AND e.rel = 'internal'
+        ORDER BY m.pagerank_score DESC
+        LIMIT ? OFFSET ?
+      `).all(currentSnapshotId, currentSnapshotId, page.id, pageSize, offset);
+
+      res.json({
+        total: total.count,
+        page: pageNum,
+        pageSize,
+        results: rows
+      });
+    });
+
+    // 5.3 GET /api/page/outlinks
+    api.get('/api/page/outlinks', validateSnapshot, (req, res) => {
+        // ... handled below because of prefix issue?
+        // Express router matches relative to mount path.
+    });
+
+    api.get('/page/outlinks', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const url = req.query.url as string;
+      const pageNum = parseInt(req.query.page as string || '1', 10);
+      const pageSize = parseInt(req.query.pageSize as string || '50', 10);
+      const offset = (pageNum - 1) * pageSize;
+
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
+      if (!page) return res.status(404).json({ error: 'Page not found' });
+
+      const total = db.prepare(`
+        SELECT COUNT(*) as count
+        FROM edges
+        WHERE snapshot_id = ? AND source_page_id = ?
+      `).get(currentSnapshotId, page.id) as { count: number };
+
+      const rows = db.prepare(`
+        SELECT
+          p.normalized_url as targetUrl,
+          p.http_status as status,
+          e.rel as type,
+          CASE WHEN e.rel = 'nofollow' THEN 0 ELSE 1 END as follow
+        FROM edges e
+        JOIN pages p ON e.target_page_id = p.id
+        WHERE e.snapshot_id = ? AND e.source_page_id = ?
+        ORDER BY p.http_status DESC
+        LIMIT ? OFFSET ?
+      `).all(currentSnapshotId, page.id, pageSize, offset);
+
+      res.json({
+        total: total.count,
+        page: pageNum,
+        pageSize,
+        results: rows
+      });
+    });
+
+    // 5.4 GET /api/page/cluster
+    api.get('/page/cluster', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const url = req.query.url as string;
+
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const page = db.prepare(`
+        SELECT p.id, m.duplicate_cluster_id
+        FROM pages p
+        JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        WHERE p.site_id = ? AND p.normalized_url = ?
+      `).get(currentSnapshotId, siteId, url) as any;
+
+      if (!page || !page.duplicate_cluster_id) {
+        return res.json({ hasCluster: false });
+      }
+
+      const cluster = db.prepare(`
+        SELECT * FROM duplicate_clusters WHERE snapshot_id = ? AND id = ?
+      `).get(currentSnapshotId, page.duplicate_cluster_id) as any;
+
+      const similarPages = db.prepare(`
+        SELECT p.normalized_url
+        FROM metrics m
+        JOIN pages p ON m.page_id = p.id
+        WHERE m.snapshot_id = ? AND m.duplicate_cluster_id = ? AND p.id != ?
+        LIMIT 10
+      `).all(currentSnapshotId, page.duplicate_cluster_id, page.id);
+
+      res.json({
+        hasCluster: true,
+        clusterSize: cluster.size,
+        representative: cluster.representative,
+        similarity: 'High', // Simplified
+        similarUrls: similarPages.map((r: any) => r.normalized_url)
+      });
+    });
+
+    // 5.5 GET /api/page/technical
+    api.get('/page/technical', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const url = req.query.url as string;
+
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const page = db.prepare(`
+        SELECT * FROM pages WHERE site_id = ? AND normalized_url = ?
+      `).get(siteId, url) as any;
+
+      if (!page) return res.status(404).json({ error: 'Page not found' });
+
+      res.json({
+        redirectChain: page.redirect_chain ? JSON.parse(page.redirect_chain) : null,
+        headers: [], // Not stored in DB currently
+        responseTime: null, // Not stored
+        contentType: 'text/html',
+        contentSize: page.bytes_received,
+        serverError: page.http_status >= 500
+      });
+    });
+
+    // 5.6 GET /api/page/graph-context
+    api.get('/page/graph-context', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const url = req.query.url as string;
+
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const page = db.prepare(`
+        SELECT p.id, m.pagerank_score
+        FROM pages p
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        WHERE p.site_id = ? AND p.normalized_url = ?
+      `).get(currentSnapshotId, siteId, url) as any;
+
+      if (!page) return res.status(404).json({ error: 'Page not found' });
+
+      // Get neighbors (depth 1)
+      const incoming = db.prepare(`
+        SELECT p.normalized_url, m.pagerank_score
+        FROM edges e
+        JOIN pages p ON e.source_page_id = p.id
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        WHERE e.snapshot_id = ? AND e.target_page_id = ? AND e.rel = 'internal'
+        LIMIT 10
+      `).all(currentSnapshotId, currentSnapshotId, page.id);
+
+      const outgoing = db.prepare(`
+        SELECT p.normalized_url, m.pagerank_score
+        FROM edges e
+        JOIN pages p ON e.target_page_id = p.id
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        WHERE e.snapshot_id = ? AND e.source_page_id = ? AND e.rel = 'internal'
+        LIMIT 10
+      `).all(currentSnapshotId, currentSnapshotId, page.id);
+
+      res.json({
+        centrality: page.pagerank_score,
+        incoming: incoming,
+        outgoing: outgoing,
+        // Calculate a simple "equity ratio"
+        equityRatio: incoming.length > 0 ? (outgoing.length / incoming.length) : 0
+      });
+    });
+
     app.use(API_PREFIX, api);
 
 

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, AlertCircle, Info, ChevronRight, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { DashboardContext } from '../App';
 import * as API from '../api';
 
 export const IssuesTable = () => {
+  const navigate = useNavigate();
   const { currentSnapshot } = useContext(DashboardContext);
 
   const [issues, setIssues] = useState<API.Issue[]>([]);
@@ -126,10 +128,13 @@ export const IssuesTable = () => {
             {issues.map((issue, idx) => (
               <tr
                 key={idx}
+                onClick={() => navigate(`/page?url=${encodeURIComponent(issue.url)}`)}
                 className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group cursor-pointer"
               >
                 <td className="px-6 py-3 font-mono text-xs text-slate-600 dark:text-slate-400 truncate max-w-xs" title={issue.url}>
-                  {issue.url}
+                  <Link to={`/page?url=${encodeURIComponent(issue.url)}`} className="hover:text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>
+                    {issue.url}
+                  </Link>
                 </td>
                 <td className="px-6 py-3 text-slate-700 dark:text-slate-300 font-medium">{issue.issueType}</td>
                 <td className="px-6 py-3">

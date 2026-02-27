@@ -64,6 +64,96 @@ export interface Snapshot {
   createdAt: string;
 }
 
+// --- New Interfaces for Single Page View ---
+
+export interface PageDetails {
+  identity: {
+    url: string;
+    status: number;
+    canonical: string | null;
+    title: string | null;
+    metaDescription: string | null;
+    h1: string | null;
+  };
+  metrics: {
+    pageRank: number;
+    rawPageRank: number;
+    authority: number;
+    hub: number;
+    depth: number;
+    inlinks: number;
+    outlinks: number;
+  };
+  health: {
+    status: string;
+    criticalCount: number;
+    warningCount: number;
+    isThinContent: boolean;
+    isDuplicate: boolean;
+    indexabilityRisk: boolean;
+  };
+  content: {
+    wordCount: number;
+    textRatio: number | null;
+    imageCount: number | null;
+    missingAlt: number | null;
+  };
+}
+
+export interface Inlink {
+  sourceUrl: string;
+  sourcePageRank: number;
+  linkType: string;
+  followState: string;
+}
+
+export interface InlinksResponse {
+  total: number;
+  page: number;
+  pageSize: number;
+  results: Inlink[];
+}
+
+export interface Outlink {
+  targetUrl: string;
+  status: number;
+  type: string;
+  follow: number;
+}
+
+export interface OutlinksResponse {
+  total: number;
+  page: number;
+  pageSize: number;
+  results: Outlink[];
+}
+
+export interface ClusterInfo {
+  hasCluster: boolean;
+  clusterSize?: number;
+  representative?: string;
+  similarity?: string;
+  similarUrls?: string[];
+}
+
+export interface TechnicalSignals {
+  redirectChain: string[] | null;
+  headers: any[];
+  responseTime: number | null;
+  contentType: string;
+  contentSize: number;
+  serverError: boolean;
+}
+
+export interface GraphContext {
+  centrality: number;
+  incoming: { normalized_url: string; pagerank_score: number }[];
+  outgoing: { normalized_url: string; pagerank_score: number }[];
+  equityRatio: number;
+}
+
+// --- Existing Functions ---
+
 export async function fetchOverview(snapshotId?: number): Promise<OverviewData> {
   const query = snapshotId ? `?snapshot=${snapshotId}` : '';
   const res = await fetch(`${API_PREFIX}/overview${query}`);
@@ -113,5 +203,72 @@ export async function fetchSnapshots(): Promise<{ results: Snapshot[] }> {
 export async function fetchContext(): Promise<{ siteId: number, snapshotId: number, domain: string, createdAt: string }> {
   const res = await fetch(`${API_PREFIX}/context`);
   if (!res.ok) throw new Error('Failed to fetch context');
+  return res.json();
+}
+
+// --- New Functions for Single Page View ---
+
+export async function fetchPageDetails(url: string, snapshotId?: number): Promise<PageDetails> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page?${params.toString()}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('Page not found');
+    throw new Error('Failed to fetch page details');
+  }
+  return res.json();
+}
+
+export async function fetchPageInlinks(url: string, page: number = 1, snapshotId?: number): Promise<InlinksResponse> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  params.append('page', page.toString());
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page/inlinks?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch inlinks');
+  return res.json();
+}
+
+export async function fetchPageOutlinks(url: string, page: number = 1, snapshotId?: number): Promise<OutlinksResponse> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  params.append('page', page.toString());
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page/outlinks?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch outlinks');
+  return res.json();
+}
+
+export async function fetchPageCluster(url: string, snapshotId?: number): Promise<ClusterInfo> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page/cluster?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch cluster info');
+  return res.json();
+}
+
+export async function fetchPageTechnical(url: string, snapshotId?: number): Promise<TechnicalSignals> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page/technical?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch technical signals');
+  return res.json();
+}
+
+export async function fetchPageGraphContext(url: string, snapshotId?: number): Promise<GraphContext> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page/graph-context?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch graph context');
   return res.json();
 }
