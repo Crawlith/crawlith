@@ -47,7 +47,7 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                                 </div>
                             </div>
                             <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                                {data.centrality.toFixed(2)}
+                                {(data.centrality || 0).toFixed(2)}
                             </div>
                         </div>
 
@@ -62,7 +62,7 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                                 </div>
                             </div>
                             <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                                {data.equityRatio.toFixed(2)}
+                                {(data.equityRatio || 0).toFixed(2)}
                             </div>
                         </div>
                     </div>
@@ -90,10 +90,11 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                     </g>
 
                     {/* Incoming Nodes (Left) */}
-                    {data.incoming.map((node, i) => {
+                    {(data.incoming || []).map((node, i) => {
                         const x = -150;
-                        const y = (i - (data.incoming.length - 1) / 2) * 45;
-                        const shortUrl = node.normalized_url.split('/').pop() || '/';
+                        const arrayLength = (data.incoming || []).length;
+                        const y = (i - (arrayLength - 1) / 2) * 45;
+                        const shortUrl = (node.normalized_url || '').split('/').pop() || '/';
                         return (
                             <g key={`in-${i}`} className="group/node cursor-pointer">
                                 <line x1={x} y1={y} x2="-25" y2="0" stroke="#10b981" strokeWidth="1" strokeDasharray="4" opacity="0.4" />
@@ -101,16 +102,17 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                                 <text x={x - 12} y={y + 4} textAnchor="end" className="text-[9px] fill-slate-400 font-mono opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none">
                                     {shortUrl}
                                 </text>
-                                <title>{node.normalized_url} (PR: {node.pagerank_score.toFixed(1)})</title>
+                                <title>{node.normalized_url} (PR: {(node.pagerank_score || 0).toFixed(1)})</title>
                             </g>
                         );
                     })}
 
                     {/* Outgoing Nodes (Right) */}
-                    {data.outgoing.map((node, i) => {
+                    {(data.outgoing || []).map((node, i) => {
                         const x = 150;
-                        const y = (i - (data.outgoing.length - 1) / 2) * 45;
-                        const shortUrl = node.normalized_url.split('/').pop() || '/';
+                        const arrayLength = (data.outgoing || []).length;
+                        const y = (i - (arrayLength - 1) / 2) * 45;
+                        const shortUrl = (node.normalized_url || '').split('/').pop() || '/';
                         return (
                             <g key={`out-${i}`} className="group/node cursor-pointer">
                                 <line x1="25" y1="0" x2={x} y2={y} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4" opacity="0.4" />
@@ -118,7 +120,7 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                                 <text x={x + 12} y={y + 4} textAnchor="start" className="text-[9px] fill-slate-400 font-mono opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none">
                                     {shortUrl}
                                 </text>
-                                <title>{node.normalized_url} (PR: {node.pagerank_score.toFixed(1)})</title>
+                                <title>{node.normalized_url} (PR: {(node.pagerank_score || 0).toFixed(1)})</title>
                             </g>
                         );
                     })}
