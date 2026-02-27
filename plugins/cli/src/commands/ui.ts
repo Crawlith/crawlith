@@ -17,6 +17,11 @@ export const ui = new Command('ui')
   .option('--port <number>', 'Port to run server on', '23484')
   .option('--host <address>', 'Host to bind server to', '127.0.0.1')
   .action(async (siteUrl, options) => {
+    if (!siteUrl) {
+      console.error(chalk.red('❌ ssquired argument: url'));
+      ui.outputHelp();
+      process.exit(0);
+    }
     try {
       const port = parseInt(options.port, 10);
       const host = options.host;

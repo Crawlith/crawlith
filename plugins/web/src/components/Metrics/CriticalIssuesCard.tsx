@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { AlertTriangle, TrendingDown } from 'lucide-react';
 import { DashboardContext } from '../../App';
 
@@ -11,12 +11,9 @@ export const CriticalIssuesCard = ({ showCompare }: CriticalIssuesCardProps) => 
 
   if (!overview) return <div className="animate-pulse bg-slate-100 h-48 rounded-2xl"></div>;
 
-  const { brokenLinks, redirectChains } = overview.totals;
-  // TODO: Add metrics for 5xx errors and canonical conflicts once available in API
-  const serverErrors = 0;
-  const canonicalConflicts = 0;
+  const { brokenLinks, redirectChains, serverErrors, crawlTraps } = overview.totals;
 
-  const total = brokenLinks + redirectChains + serverErrors + canonicalConflicts;
+  const total = brokenLinks + redirectChains + serverErrors + crawlTraps;
   const delta = 0; // TODO: Calculate delta
 
   return (
@@ -39,18 +36,17 @@ export const CriticalIssuesCard = ({ showCompare }: CriticalIssuesCardProps) => 
         </div>
 
         <div className="text-right">
-             {/* Placeholder for "affects high PR pages" metric */}
-           <div className="text-xs text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded border border-red-100 dark:border-red-900/30">
-             Needs Attention
-           </div>
+          <div className="text-xs text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded border border-red-100 dark:border-red-900/30">
+            Fix Failures
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mt-4 z-10">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-4 z-10">
         <MetricItem label="Broken Links" value={brokenLinks} />
         <MetricItem label="5xx Errors" value={serverErrors} />
         <MetricItem label="Redirect Chains" value={redirectChains} />
-        <MetricItem label="Canonical Conflicts" value={canonicalConflicts} />
+        <MetricItem label="Crawl Traps" value={crawlTraps} />
       </div>
 
       {/* Decorative background */}

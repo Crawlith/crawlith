@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import { DashboardContext } from '../../App';
 
 interface HealthScoreCardProps {
@@ -34,15 +34,14 @@ export const HealthScoreCard = ({ showCompare }: HealthScoreCardProps) => {
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${
-            status === 'Good' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' :
+          <span className={`px-2 py-0.5 rounded text-xs font-bold border ${status === 'Good' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' :
             status === 'Warning' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' :
-            'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
-          }`}>
+              'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+            }`}>
             {status}
           </span>
-          {showCompare && delta !== undefined && (
-            <span className={`text-xs font-semibold ${delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {showCompare && delta !== undefined && Math.abs(delta) > 0.01 && (
+            <span className={`text-xs font-semibold ${delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
               {delta > 0 ? '+' : ''}{delta.toFixed(1)} vs prev
             </span>
           )}

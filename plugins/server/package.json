@@ -17,7 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@crawlith/core": "^0.1.0",
+    "@crawlith/core": "workspace:*",
     "chalk": "^5.3.0",
     "express": "^4.19.2"
   },

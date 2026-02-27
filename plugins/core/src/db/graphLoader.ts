@@ -36,10 +36,15 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
 
         const m = metricsMap.get(p.id);
         if (m) {
-            if (m.crawl_status === 'fetched') pagesFetched++;
+            const isProcessed = m.crawl_status === 'fetched' ||
+                m.crawl_status === 'fetched_error' ||
+                m.crawl_status === 'network_error' ||
+                m.crawl_status === 'failed_after_retries' ||
+                m.crawl_status === 'blocked_by_robots';
+
+            if (isProcessed) pagesFetched++;
             else if (m.crawl_status === 'cached') pagesCached++;
             else if (m.crawl_status === 'skipped') pagesSkipped++;
-            else if (m.crawl_status === 'blocked_by_robots') pagesFetched++; // Count as fetched/processed for the limit verbiage
         }
 
         let incrementalStatus: 'new' | 'changed' | 'unchanged' | undefined;

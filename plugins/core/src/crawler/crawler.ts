@@ -500,9 +500,13 @@ export class Crawler {
 
       const isStringStatus = typeof res.status === 'string';
       if (isStringStatus || (typeof res.status === 'number' && res.status >= 300)) {
-        this.bufferPage(finalUrl, depth, typeof res.status === 'number' ? res.status : 0, {
+        const statusNum = typeof res.status === 'number' ? res.status : 0;
+        this.bufferPage(finalUrl, depth, statusNum, {
           security_error: isStringStatus ? res.status : undefined,
           retries: res.retries
+        });
+        this.bufferMetrics(finalUrl, {
+          crawl_status: isStringStatus ? res.status : 'fetched_error'
         });
         return;
       }

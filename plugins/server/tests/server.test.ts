@@ -48,19 +48,23 @@ vi.mock('@crawlith/core', () => {
     })),
     closeDb: vi.fn(),
     // Important: Use function expression to support 'new' keyword
-    SiteRepository: vi.fn(function() { return {}; }),
-    SnapshotRepository: vi.fn(function() {
+    SiteRepository: vi.fn(function () {
+      return {
+        getSiteById: vi.fn(() => ({ domain: 'test.com', created_at: '2024-01-01' }))
+      };
+    }),
+    SnapshotRepository: vi.fn(function () {
       return {
         getSnapshot: vi.fn(() => ({ id: 1, site_id: 1, health_score: 90, node_count: 10 }))
       };
     }),
-    PageRepository: vi.fn(function() { return {}; }),
-    MetricsRepository: vi.fn(function() { return {}; })
+    PageRepository: vi.fn(function () { return {}; }),
+    MetricsRepository: vi.fn(function () { return {}; })
   };
 });
 
 // Mock process.exit to avoid killing the test runner if something slips through
-const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+vi.spyOn(process, 'exit').mockImplementation((code) => {
   throw new Error(`process.exit called with ${code}`);
 });
 
@@ -91,4 +95,20 @@ test('startServer uses provided host', async () => {
   });
 
   expect(mockApp.listen).toHaveBeenCalledWith(3000, '0.0.0.0', expect.any(Function));
+});
+
+test('startServer registers API routes', async () => {
+  const mockApp = express();
+  await startServer({
+    port: 3000,
+    staticPath: './static',
+    siteId: 1,
+    snapshotId: 1
+  });
+
+  // Verify that app.use('/api', ...) was called
+  expect(mockApp.use).toHaveBeenCalledWith('/api', expect.anything());
+
+  // Verify express.Router() was called to create the API router
+  expect(express.Router).toHaveBeenCalled();
 });

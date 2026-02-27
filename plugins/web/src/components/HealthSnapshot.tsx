@@ -8,7 +8,7 @@ export const HealthSnapshot = () => {
       <StatCard label="Broken Links" value={healthMetrics.brokenLinks} icon={Link} color="text-red-500" />
       <StatCard label="Orphan Pages" value={healthMetrics.orphanPages} icon={Ghost} color="text-yellow-500" />
       <StatCard label="Dup. Clusters" value={healthMetrics.duplicateClusters} icon={Copy} color="text-orange-500" />
-      <StatCard label="Pages Crawled" value={healthMetrics.pagesCrawled} icon={Layers} color="text-blue-500" />
+      <StatCard label="Pages Discovered" value={healthMetrics.pagesCrawled} icon={Layers} color="text-blue-500" />
       <StatCard label="Efficiency" value={healthMetrics.efficiency} unit="%" icon={TrendingUp} color="text-purple-500" />
     </div>
   );

@@ -6,8 +6,7 @@ import {
   closeDb,
   SiteRepository,
   SnapshotRepository,
-  PageRepository,
-  MetricsRepository,
+
   Snapshot
 } from '@crawlith/core';
 
@@ -26,28 +25,26 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // Initialize DB and Repositories
     const db = getDb();
-    // Repositories instantiated for potential future use or consistency, but currently unused variables prefixed with _
-    const _siteRepo = new SiteRepository(db);
-    const _snapshotRepo = new SnapshotRepository(db);
-    const _pageRepo = new PageRepository(db);
-    const _metricsRepo = new MetricsRepository(db);
+    const siteRepo = new SiteRepository(db);
+    const snapshotRepo = new SnapshotRepository(db);
+    // const pageRepo = new PageRepository(db);
+    // const metricsRepo = new MetricsRepository(db);
 
     const app = express();
     const API_PREFIX = '/api';
 
     // Verify initial context
-    const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(siteId) as { domain: string, created_at: string };
+    const site = siteRepo.getSiteById(siteId);
     if (!site) {
       console.error(chalk.red(`❌ Site ID ${siteId} not found.`));
       process.exit(1);
     }
 
     // Check if snapshot exists
-    // Use direct DB query or the repo instance if we were using it, but for now strict consistency with existing logic
-    const initialSnapshot = db.prepare('SELECT * FROM snapshots WHERE id = ?').get(snapshotId);
+    const initialSnapshot = snapshotRepo.getSnapshot(snapshotId);
     if (!initialSnapshot) {
-       console.error(chalk.red(`❌ Snapshot ID ${snapshotId} not found.`));
-       process.exit(1);
+      console.error(chalk.red(`❌ Snapshot ID ${snapshotId} not found.`));
+      process.exit(1);
     }
 
     console.log(chalk.gray(`   Loaded Context: ${site.domain} (Snapshot #${snapshotId})`));
@@ -61,7 +58,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       const snapId = req.query.snapshot ? parseInt(req.query.snapshot as string, 10) : snapshotId;
 
       // Basic validation: ensure snapshot belongs to site
-      const snap = db.prepare('SELECT * FROM snapshots WHERE id = ?').get(snapId) as Snapshot | undefined;
+      const snap = snapshotRepo.getSnapshot(snapId);
       if (!snap || snap.site_id !== siteId) {
         return res.status(404).json({ error: 'Snapshot not found or does not belong to this site' });
       }
@@ -87,28 +84,41 @@ export function startServer(options: ServerOptions): Promise<void> {
       const snap = (req as any).snapshot as Snapshot;
 
       // Get previous snapshot for comparison
-      const snapshots = db.prepare('SELECT id, created_at, health_score FROM snapshots WHERE site_id = ? AND id < ? ORDER BY id DESC LIMIT 1').get(siteId, currentSnapshotId) as { id: number, health_score: number } | undefined;
+      const previousSnapshot = db.prepare('SELECT id, created_at, health_score FROM snapshots WHERE site_id = ? AND id < ? ORDER BY id DESC LIMIT 1').get(siteId, currentSnapshotId) as { id: number, health_score: number } | undefined;
 
       // Aggregates from metrics table
       const metricsAgg = db.prepare(`
         SELECT
-          COUNT(CASE WHEN link_role = 'orphan' THEN 1 END) as orphan_count,
-          COUNT(CASE WHEN duplicate_cluster_id IS NOT NULL AND is_cluster_primary = 0 THEN 1 END) as duplicate_count
+          COUNT(CASE WHEN duplicate_cluster_id IS NOT NULL AND is_cluster_primary = 0 THEN 1 END) as duplicate_pages
         FROM metrics
         WHERE snapshot_id = ?
       `).get(currentSnapshotId) as any;
 
-      // Aggregates from pages table
+      // Actual cluster counts from the specific tables
+      const clustersCount = db.prepare(`
+        SELECT COUNT(*) as count FROM duplicate_clusters WHERE snapshot_id = ?
+      `).get(currentSnapshotId) as { count: number };
+
+      // Aggregates from pages & metrics table for the specific snapshot
       const pagesAgg = db.prepare(`
         SELECT
            COUNT(*) as total_pages,
-           COUNT(CASE WHEN http_status >= 400 THEN 1 END) as broken_links,
-           COUNT(CASE WHEN redirect_chain IS NOT NULL THEN 1 END) as redirect_chains,
-           COUNT(CASE WHEN noindex = 1 THEN 1 END) as noindex_pages
-        FROM pages
-        JOIN snapshots ON pages.site_id = snapshots.site_id
-        WHERE snapshots.id = ? AND pages.first_seen_snapshot_id <= ?
-      `).get(currentSnapshotId, currentSnapshotId) as any;
+           COUNT(CASE WHEN m.crawl_status IN ('fetched', 'cached', 'fetched_error') THEN 1 END) as crawled_pages,
+           COUNT(CASE WHEN (
+             p.http_status >= 400 OR 
+             (p.http_status = 0 AND m.crawl_status IN ('network_error', 'failed_after_retries', 'fetched_error')) OR
+             p.security_error IS NOT NULL
+           ) THEN 1 END) as broken_node_count,
+           COUNT(CASE WHEN p.http_status >= 500 THEN 1 END) as server_errors,
+           COUNT(CASE WHEN p.redirect_chain IS NOT NULL AND json_array_length(p.redirect_chain) > 1 THEN 1 END) as redirect_chains,
+           COUNT(CASE WHEN p.noindex = 1 THEN 1 END) as noindex_pages,
+           COUNT(CASE WHEN p.canonical_url IS NOT NULL AND p.canonical_url != p.normalized_url THEN 1 END) as canonical_issues,
+           COUNT(CASE WHEN m.crawl_status = 'blocked_by_robots' THEN 1 END) as blocked_robots,
+           COUNT(CASE WHEN p.crawl_trap_flag = 1 THEN 1 END) as crawl_traps
+        FROM metrics m
+        JOIN pages p ON m.page_id = p.id
+        WHERE m.snapshot_id = ?
+      `).get(currentSnapshotId) as any;
 
       // Internal links count (sum of all internal edges)
       const linksCount = db.prepare('SELECT COUNT(*) as count FROM edges WHERE snapshot_id = ? AND rel = ?').get(currentSnapshotId, 'internal') as { count: number };
@@ -118,16 +128,23 @@ export function startServer(options: ServerOptions): Promise<void> {
         health: {
           score: snap.health_score ?? 0,
           status: (snap.health_score ?? 0) > 80 ? 'Good' : (snap.health_score ?? 0) > 50 ? 'Warning' : 'Critical',
-          delta: snapshots ? (snap.health_score ?? 0) - (snapshots.health_score ?? 0) : 0
+          delta: previousSnapshot ? Math.round(((snap.health_score ?? 0) - (previousSnapshot.health_score ?? 0)) * 100) / 100 : 0
         },
         totals: {
-          pages: snap.node_count,
+          discovered: pagesAgg.total_pages,
+          crawled: pagesAgg.crawled_pages,
           internalLinks: linksCount.count,
-          duplicateClusters: metricsAgg?.duplicate_count || 0, // This is count of duplicate pages, not clusters. Correcting below.
+          duplicateClusters: clustersCount.count,
+          duplicatePages: metricsAgg.duplicate_pages,
           orphanPages: snap.orphan_count ?? 0,
-          brokenLinks: pagesAgg?.broken_links || 0,
+          brokenLinks: pagesAgg?.broken_node_count || 0,
+          serverErrors: pagesAgg?.server_errors || 0,
           redirectChains: pagesAgg?.redirect_chains || 0,
-          noindexPages: pagesAgg?.noindex_pages || 0
+          noindexPages: pagesAgg?.noindex_pages || 0,
+          canonicalIssues: pagesAgg?.canonical_issues || 0,
+          thinContent: snap.thin_content_count || 0,
+          blockedRobots: pagesAgg?.blocked_robots || 0,
+          crawlTraps: pagesAgg?.crawl_traps || 0
         },
         crawl: {
           durationMs: 0, // Not stored currently
@@ -140,23 +157,32 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 4.3 GET /api/issues
     api.get('/issues', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const _severity = req.query.severity as string; // Unused for now
+      const severity = req.query.severity as string;
       const search = req.query.search as string;
-      const page = parseInt(req.query.page as string || '1', 10);
+      const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
-      const offset = (page - 1) * pageSize;
+      const offset = (pageNum - 1) * pageSize;
 
+      // We fetch all potential pages and filter them in JS for richer logic
+      // In a larger system, this would be moved to a SQL VIEW or materialized table
       let sql = `
         SELECT
           p.normalized_url as url,
           p.http_status,
-          m.pagerank_score as pageRank,
-          p.last_seen_snapshot_id as lastSeen,
-          'Info' as severity, -- Default
-          0 as impactScore,   -- Default
-          'Generic' as issueType -- Default
+          p.noindex,
+          p.redirect_chain,
+          m.pagerank as rawPageRank,
+          m.pagerank_score as pageRankScore,
+          m.duplicate_type,
+          m.thin_content_score,
+          m.word_count,
+          m.link_role,
+          m.crawl_status,
+          p.security_error,
+          s.created_at as lastSeen
         FROM pages p
         JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        JOIN snapshots s ON m.snapshot_id = s.id
         WHERE p.site_id = ?
       `;
 
@@ -167,36 +193,89 @@ export function startServer(options: ServerOptions): Promise<void> {
         params.push(`%${search}%`);
       }
 
-      // Note: This is a simplified implementation.
-      // Real implementation would join with an issues table or view if it existed.
-      // Since we don't have an issues table, we'll return raw pages with some basic logic for now
-      // and let frontend filter/map or enhance this SQL later.
-      // Given the requirements, we need to map actual issues.
+      sql += ' ORDER BY m.pagerank_score DESC';
 
-      // Let's modify to return specific "bad" pages
-      // Broken Links
-      // Redirect Chains
-      // Etc.
+      const results = db.prepare(sql).all(...params) as any[];
 
-      // For now, let's return all pages but prioritize "interesting" ones
-      sql += ' ORDER BY m.pagerank_score DESC LIMIT ? OFFSET ?';
-      params.push(pageSize, offset);
+      const allIssues = results.map((r: any) => {
+        let issueType = 'Page';
+        let sev = 'Info' as 'Critical' | 'Warning' | 'Info';
+        let impactFactor = 0;
+        let isProblematic = false;
 
-      const results = db.prepare(sql).all(...params);
-      const count = db.prepare(`SELECT COUNT(*) as count FROM pages p JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ? WHERE p.site_id = ?`).get(currentSnapshotId, siteId) as { count: number };
+        const importanceMultiplier = 0.5 + ((r.pageRankScore || 0) / 200); // 0.5 to 1.0
+
+        const isNetworkError = (r.http_status === 0 && (r.crawl_status === 'network_error' || r.crawl_status === 'failed_after_retries' || r.crawl_status === 'fetched_error')) || r.security_error !== null;
+        const isHttpError = r.http_status >= 400;
+
+        if (isHttpError || isNetworkError) {
+          issueType = 'Broken Link';
+          sev = 'Critical';
+          impactFactor = 80;
+          isProblematic = true;
+        } else if (r.redirect_chain) {
+          issueType = 'Redirect Chain';
+          sev = 'Warning';
+          impactFactor = 40;
+          isProblematic = true;
+        } else if (r.noindex) {
+          issueType = 'Indexability Risk';
+          sev = 'Warning';
+          impactFactor = 30;
+          isProblematic = true;
+        } else if (r.word_count > 0 && r.thin_content_score > 70) {
+          issueType = 'Thin Content';
+          sev = 'Warning';
+          impactFactor = 25;
+          isProblematic = true;
+        } else if (r.word_count > 0 && r.word_count < 200) {
+          issueType = 'Low Word Count';
+          sev = 'Warning';
+          impactFactor = 30;
+          isProblematic = true;
+        } else if (r.word_count > 0 && r.duplicate_type && r.duplicate_type !== 'none') {
+          issueType = `Duplicate Content`;
+          sev = 'Info';
+          impactFactor = 10;
+          isProblematic = true;
+        } else if (r.link_role === 'orphan') {
+          issueType = 'Orphan Page';
+          sev = 'Warning';
+          impactFactor = 20;
+          isProblematic = true;
+        }
+
+        return {
+          url: r.url,
+          issueType,
+          severity: sev,
+          impactScore: Math.round(impactFactor * importanceMultiplier),
+          pageRank: r.rawPageRank,
+          pageRankScore: r.pageRankScore,
+          lastSeen: r.lastSeen,
+          isProblematic
+        };
+      });
+
+      // Filter: Only problematic ones by default, unless searching
+      let filtered = allIssues;
+      if (!search && (!severity || severity === 'All')) {
+        filtered = allIssues.filter(i => i.isProblematic);
+      } else if (severity && severity !== 'All') {
+        filtered = allIssues.filter(i => i.severity === severity);
+      }
+
+      // If we filtered out EVERYTHING and user isn't searching, maybe show something? 
+      // No, let's be strict. If it's a healthy site, show 0 issues.
+
+      const total = filtered.length;
+      const paginated = filtered.slice(offset, offset + pageSize);
 
       res.json({
-        total: count.count,
-        page,
+        total,
+        page: pageNum,
         pageSize,
-        results: results.map((r: any) => ({
-            url: r.url,
-            issueType: r.http_status >= 400 ? 'Broken Link' : (r.http_status >= 300 ? 'Redirect' : 'Page'),
-            severity: r.http_status >= 400 ? 'Critical' : 'Info',
-            impactScore: Math.floor((r.pageRank || 0) * 100),
-            pageRank: r.pageRank,
-            lastSeen: new Date().toISOString() // Placeholder as we don't have snapshot date easily joined here yet
-        }))
+        results: paginated
       });
     });
 
@@ -217,11 +296,11 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.5 GET /api/metrics/depth-distribution
     api.get('/metrics/depth-distribution', validateSnapshot, (req, res) => {
-        const currentSnapshotId = (req as any).snapshotId as number;
-        // Depth is stored on pages table, but it's constant per crawl usually.
-        // Actually depth is property of crawl traversal.
-        // We'll aggregate from pages table for pages seen in this snapshot.
-        const rows = db.prepare(`
+      const currentSnapshotId = (req as any).snapshotId as number;
+      // Depth is stored on pages table, but it's constant per crawl usually.
+      // Actually depth is property of crawl traversal.
+      // We'll aggregate from pages table for pages seen in this snapshot.
+      const rows = db.prepare(`
             SELECT depth, COUNT(*) as count
             FROM pages
             JOIN snapshots s ON pages.site_id = s.site_id
@@ -230,13 +309,13 @@ export function startServer(options: ServerOptions): Promise<void> {
             ORDER BY depth ASC
         `).all(currentSnapshotId, currentSnapshotId);
 
-        res.json({ buckets: rows });
+      res.json({ buckets: rows });
     });
 
     // 4.6 GET /api/metrics/duplicate-clusters
     api.get('/metrics/duplicate-clusters', validateSnapshot, (req, res) => {
-        const currentSnapshotId = (req as any).snapshotId as number;
-        const rows = db.prepare(`
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const rows = db.prepare(`
             SELECT size, COUNT(*) as count
             FROM duplicate_clusters
             WHERE snapshot_id = ?
@@ -244,7 +323,7 @@ export function startServer(options: ServerOptions): Promise<void> {
             ORDER BY size ASC
         `).all(currentSnapshotId);
 
-        res.json({ buckets: rows });
+      res.json({ buckets: rows });
     });
 
     // 4.7 GET /api/snapshots

@@ -11,6 +11,10 @@ export interface Site {
 export class SiteRepository {
   constructor(private db: Database) { }
 
+  getSiteById(id: number): Site | undefined {
+    return this.db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as Site | undefined;
+  }
+
   getSite(domain: string): Site | undefined {
     return this.db.prepare('SELECT * FROM sites WHERE domain = ?').get(domain) as Site | undefined;
   }

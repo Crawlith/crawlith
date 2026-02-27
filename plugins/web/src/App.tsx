@@ -20,7 +20,7 @@ export const DashboardContext = React.createContext<{
   overview: null,
   currentSnapshot: null,
   snapshots: [],
-  setSnapshot: () => {},
+  setSnapshot: () => { },
   domain: ''
 });
 
@@ -32,7 +32,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [context, setContext] = useState<{siteId: number, snapshotId: number, domain: string} | null>(null);
+  const [context, setContext] = useState<{ siteId: number, snapshotId: number, domain: string } | null>(null);
   const [snapshots, setSnapshots] = useState<API.Snapshot[]>([]);
   const [currentSnapshotId, setCurrentSnapshotId] = useState<number | null>(null);
   const [overview, setOverview] = useState<API.OverviewData | null>(null);
@@ -80,15 +80,15 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0b1120] text-red-500">
         <div className="text-center">
-            <h1 className="text-2xl font-bold mb-2">Error Loading Dashboard</h1>
-            <p>{error}</p>
+          <h1 className="text-2xl font-bold mb-2">Error Loading Dashboard</h1>
+          <p>{error}</p>
         </div>
       </div>
     );
   }
 
   if (loading && !overview) {
-     return (
+    return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0b1120] text-slate-500">
         <div className="animate-pulse">Loading Crawlith Context...</div>
       </div>
@@ -96,20 +96,21 @@ function App() {
   }
 
   const secondaryMetrics = overview ? [
-    { label: 'Pages Crawled', value: overview.totals.pages, delta: 0 },
+    { label: 'Pages Discovered', value: overview.totals.discovered, delta: 0 },
+    { label: 'Successfully Crawled', value: overview.totals.crawled, delta: 0 },
     { label: 'Duplicate Clusters', value: overview.totals.duplicateClusters, delta: 0 },
+    { label: 'Thin Content', value: overview.totals.thinContent, delta: 0 },
     { label: 'Crawl Efficiency', value: overview.crawl.efficiency, unit: '%', delta: 0 },
     { label: 'Internal Links', value: overview.totals.internalLinks, delta: 0 },
-    { label: 'Avg Crawl Depth', value: overview.crawl.avgDepth, delta: 0 },
   ] : [];
 
   return (
     <DashboardContext.Provider value={{
-        overview,
-        currentSnapshot: currentSnapshotId,
-        snapshots,
-        setSnapshot: setCurrentSnapshotId,
-        domain: context?.domain || 'Loading...'
+      overview,
+      currentSnapshot: currentSnapshotId,
+      snapshots,
+      setSnapshot: setCurrentSnapshotId,
+      domain: context?.domain || 'Loading...'
     }}>
       <div className="min-h-screen bg-gray-50 dark:bg-[#0b1120] text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900/30">
         <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />

@@ -48,11 +48,11 @@ export const IssuesTable = () => {
 
     // Client-side sort for current page (since API sort is limited in this scope)
     const sorted = [...issues].sort((a, b) => {
-        // @ts-expect-error - dynamic key access
-        if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
-        // @ts-expect-error - dynamic key access
-        if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
-        return 0;
+      // @ts-expect-error - dynamic key access
+      if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
+      // @ts-expect-error - dynamic key access
+      if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
+      return 0;
     });
     setIssues(sorted);
   };
@@ -68,7 +68,7 @@ export const IssuesTable = () => {
           <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
             Issues Detected
             <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-2.5 py-0.5 rounded-full font-mono">
-                {loading ? '...' : issues.length}
+              {loading ? '...' : issues.length}
             </span>
           </h3>
 
@@ -89,14 +89,13 @@ export const IssuesTable = () => {
             <button
               key={severity}
               onClick={() => { setSeverityFilter(severity as any); setPage(1); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                severityFilter === severity
-                  ? severity === 'All' ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900' :
-                    severity === 'Critical' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900/30' :
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${severityFilter === severity
+                ? severity === 'All' ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900' :
+                  severity === 'Critical' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900/30' :
                     severity === 'Warning' ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/30' :
-                    'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900/30'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-800'
-              }`}
+                      'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900/30'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-800'
+                }`}
             >
               {severity}
             </button>
@@ -107,17 +106,18 @@ export const IssuesTable = () => {
       {/* Table */}
       <div className="overflow-auto flex-1 relative">
         {loading && (
-            <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 flex items-center justify-center z-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            </div>
+          <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 flex items-center justify-center z-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
         )}
         <table className="w-full text-left text-sm border-collapse">
           <thead className="bg-slate-50 dark:bg-slate-950 sticky top-0 z-10 shadow-sm">
             <tr>
-              <SortableHeader label="URL" sortKey="url" currentSort={sortConfig} onSort={handleSort} className="pl-6 w-1/3" />
+              <SortableHeader label="URL" sortKey="url" currentSort={sortConfig} onSort={handleSort} className="pl-6 w-1/4" />
               <SortableHeader label="Issue Type" sortKey="issueType" currentSort={sortConfig} onSort={handleSort} />
               <SortableHeader label="Severity" sortKey="severity" currentSort={sortConfig} onSort={handleSort} />
               <SortableHeader label="Impact" sortKey="impactScore" currentSort={sortConfig} onSort={handleSort} align="right" />
+              <SortableHeader label="Importance" sortKey="pageRankScore" currentSort={sortConfig} onSort={handleSort} align="right" />
               <SortableHeader label="PageRank" sortKey="pageRank" currentSort={sortConfig} onSort={handleSort} align="right" />
               <th className="px-6 py-3 border-b border-slate-200 dark:border-slate-800 w-10"></th>
             </tr>
@@ -140,22 +140,27 @@ export const IssuesTable = () => {
                     {issue.impactScore}
                   </div>
                 </td>
+                <td className="px-6 py-3 text-right">
+                  <div className="inline-flex items-center justify-end text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {Math.round(issue.pageRankScore)}%
+                  </div>
+                </td>
                 <td className="px-6 py-3 text-slate-500 dark:text-slate-500 tabular-nums text-right text-xs">
-                  {issue.pageRank ? issue.pageRank.toFixed(4) : '-'}
+                  {issue.pageRank ? issue.pageRank.toFixed(6) : '-'}
                 </td>
                 <td className="px-6 py-3 text-center">
                   <button className="p-1 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
-                     <ChevronRight size={16} />
+                    <ChevronRight size={16} />
                   </button>
                 </td>
               </tr>
             ))}
             {issues.length === 0 && !loading && (
-                <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                        No issues found matching your filters.
-                    </td>
-                </tr>
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  No issues found matching your filters.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -163,21 +168,21 @@ export const IssuesTable = () => {
 
       {/* Pagination */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            className="px-3 py-1 text-sm rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-50"
-          >
-              Previous
-          </button>
-          <span className="text-sm text-slate-500">Page {page} of {totalPages}</span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            className="px-3 py-1 text-sm rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-50"
-          >
-              Next
-          </button>
+        <button
+          disabled={page <= 1}
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          className="px-3 py-1 text-sm rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span className="text-sm text-slate-500">Page {page} of {totalPages}</span>
+        <button
+          disabled={page >= totalPages}
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          className="px-3 py-1 text-sm rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-50"
+        >
+          Next
+        </button>
       </div>
     </div>
   );

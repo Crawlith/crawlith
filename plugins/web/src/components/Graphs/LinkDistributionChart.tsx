@@ -2,18 +2,18 @@ import React, { useContext } from 'react';
 import { DashboardContext } from '../../App';
 
 export const LinkDistributionChart = () => {
-    // This data is not yet exposed by the API in this iteration (requires histogram computation on edge weights)
-    // We will render a placeholder or minimal version
-    const { overview } = useContext(DashboardContext);
+  // This data is not yet exposed by the API in this iteration (requires histogram computation on edge weights)
+  // We will render a placeholder or minimal version
+  const { overview } = useContext(DashboardContext);
 
-    // Placeholder data
-    const internalLinkDistribution = [
-        { label: 'Total Links', count: overview?.totals.internalLinks || 0 },
-        { label: 'Avg / Page', count: overview && overview.totals.pages > 0 ? (overview.totals.internalLinks / overview.totals.pages).toFixed(1) : 0 },
-    ];
+  // Placeholder data
+  const internalLinkDistribution = [
+    { label: 'Total Links', count: overview?.totals.internalLinks || 0 },
+    { label: 'Avg / Page', count: overview && overview.totals.discovered > 0 ? (overview.totals.internalLinks / overview.totals.discovered).toFixed(1) : 0 },
+  ];
 
-    // Simple bar for total links (always 100% relative to itself in this simplified view)
-    // const maxCount = overview?.totals.internalLinks || 1; // Unused
+  // Simple bar for total links (always 100% relative to itself in this simplified view)
+  // const maxCount = overview?.totals.internalLinks || 1; // Unused
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm h-full flex flex-col">

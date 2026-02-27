@@ -7,13 +7,20 @@ export interface OverviewData {
     delta: number;
   };
   totals: {
-    pages: number;
+    discovered: number;
+    crawled: number;
     internalLinks: number;
     duplicateClusters: number;
+    duplicatePages: number;
     orphanPages: number;
     brokenLinks: number;
+    serverErrors: number;
     redirectChains: number;
     noindexPages: number;
+    canonicalIssues: number;
+    thinContent: number;
+    blockedRobots: number;
+    crawlTraps: number;
   };
   crawl: {
     durationMs: number;
@@ -28,6 +35,7 @@ export interface Issue {
   severity: 'Critical' | 'Warning' | 'Info';
   impactScore: number;
   pageRank: number;
+  pageRankScore: number;
   lastSeen: string;
 }
 
