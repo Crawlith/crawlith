@@ -25,7 +25,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 ## Development Workflow
 
-We use a monorepo structure with `plugins`:
+We use a package-first monorepo structure:
 - `packages/core`: The core crawling and graph analysis logic.
 - `packages/cli`: The CLI interface and commands.
 - `packages/server`: The web server/API.
