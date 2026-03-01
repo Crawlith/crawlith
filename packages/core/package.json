@@ -1,5 +1,5 @@
 {
-  "name": "@crawlith/internal-core",
+  "name": "@crawlith/core",
   "version": "0.1.1",
   "type": "module",
   "main": "dist/index.js",
@@ -11,9 +11,12 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc && node scripts/copy-assets.js",
-    "test": "vitest run"
+    "build": "pnpm --filter @crawlith/internal-core build && rm -rf dist && cp -r ../../plugins/core/dist ./dist",
+    "test": "pnpm --filter @crawlith/internal-core test"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",
@@ -23,12 +26,5 @@
     "robots-parser": "^3.0.1",
     "undici": "^6.13.0",
     "vite": "7.3.1"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^20.12.7",
-    "typescript": "^5.4.5",
-    "vitest": "^4.0.18"
-  },
-  "private": true
+  }
 }

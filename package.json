@@ -3,13 +3,13 @@
   "type": "module",
   "private": true,
   "bin": {
-    "crawlith": "plugins/cli/dist/index.js"
+    "crawlith": "packages/cli/dist/index.js"
   },
   "scripts": {
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "build": "pnpm --filter @crawlith/core build && pnpm --filter @crawlith/cli build",
+    "test": "pnpm --filter @crawlith/core test && pnpm --filter @crawlith/cli test",
     "lint": "eslint .",
-    "crawlith": "node plugins/cli/dist/index.js",
+    "crawlith": "node packages/cli/dist/index.js",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "npm run build && changeset publish"

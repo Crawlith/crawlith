@@ -21,6 +21,13 @@ vi.mock('@crawlith/core', async (importOriginal) => {
     LockManager: {
       acquireLock: vi.fn().mockResolvedValue(undefined),
       releaseLock: vi.fn()
+    },
+    CrawlSitegraph: class {
+      async execute(input: any) {
+        const id = await (core.crawl as any)(input.url, input.options, input.context);
+        const graph = (core.loadGraphFromSnapshot as any)(id);
+        return { snapshotId: id, graph };
+      }
     }
   };
 });

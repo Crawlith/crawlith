@@ -106,24 +106,26 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   let crawlData: CrawlData;
   let robots: any = null;
 
-  // 1. Robots fetch
-  try {
-    const robotsUrl = new URL('/robots.txt', normalizedRoot).toString();
-    const { Fetcher } = await import('../crawler/fetcher.js');
-    const fetcher = new Fetcher({
-      rate: options.live ? 10 : options.rate,
-      proxyUrl: options.proxyUrl,
-      userAgent: options.userAgent
-    });
-    const robotsRes = await fetcher.fetch(robotsUrl, { maxBytes: 500000 });
-    if (typeof robotsRes.status === 'number' && robotsRes.status >= 200 && robotsRes.status < 300) {
-      const robotsParserModule = await import('robots-parser');
-      const robotsParser = (robotsParserModule as any).default || robotsParserModule;
-      robots = (robotsParser as any)(robotsUrl, robotsRes.body);
-      if (context) context.emit({ type: 'info', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
+  // 1. Robots fetch (live-mode only to keep snapshot analysis deterministic and fast)
+  if (options.live) {
+    try {
+      const robotsUrl = new URL('/robots.txt', normalizedRoot).toString();
+      const { Fetcher } = await import('../crawler/fetcher.js');
+      const fetcher = new Fetcher({
+        rate: 10,
+        proxyUrl: options.proxyUrl,
+        userAgent: options.userAgent
+      });
+      const robotsRes = await fetcher.fetch(robotsUrl, { maxBytes: 500000 });
+      if (typeof robotsRes.status === 'number' && robotsRes.status >= 200 && robotsRes.status < 300) {
+        const robotsParserModule = await import('robots-parser');
+        const robotsParser = (robotsParserModule as any).default || robotsParserModule;
+        robots = (robotsParser as any)(robotsUrl, robotsRes.body);
+        if (context) context.emit({ type: 'info', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
+      }
+    } catch {
+      // Fallback
     }
-  } catch {
-    // Fallback
   }
 
   // 2. Data Acquisition
