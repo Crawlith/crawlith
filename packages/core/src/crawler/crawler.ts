@@ -205,12 +205,14 @@ export class Crawler {
     return true;
   }
 
-  addToQueue(u: string, d: number): void {
+  addToQueue(u: string, d: number, data: any = {}): void {
     if (this.scopeManager!.isUrlEligible(u) !== 'allowed') return;
     if (!this.uniqueQueue.has(u)) {
       this.uniqueQueue.add(u);
       this.queue.push({ url: u, depth: d });
       this.context.emit({ type: 'queue:enqueue', url: u, depth: d });
+
+      this.bufferPage(u, d, 0, data);
 
       const currentDiscovery = this.discoveryDepths.get(u);
       if (currentDiscovery === undefined || d < currentDiscovery) {
@@ -229,7 +231,7 @@ export class Crawler {
           const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
           for (const u of sitemapUrls) {
             const normalized = normalizeUrl(u, '', this.options);
-            if (normalized) this.addToQueue(normalized, 0);
+            if (normalized) this.addToQueue(normalized, 0, { discovered_via_sitemap: 1 });
           }
         }
       } catch (e) {

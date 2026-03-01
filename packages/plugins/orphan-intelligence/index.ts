@@ -27,7 +27,7 @@ export const OrphanIntelligencePlugin: CrawlPlugin = {
         enabled: true,
         severityEnabled: true,
         includeSoftOrphans: !!flags.includeSoftOrphans,
-        minInbound: parseInt(flags.minInbound as string ?? '2', 10),
+        minInbound: parseInt(flags.minInbound as string ?? '1', 10), // Default to 1 for more conservative reporting
       };
 
       const nodes = ctx.graph.getNodes();
@@ -38,14 +38,24 @@ export const OrphanIntelligencePlugin: CrawlPlugin = {
       let criticalOrphans = 0;
 
       for (const annotated of annotatedNodes) {
+        // Normalize severity to 0-1 scale for storage
+        const normalizedSeverity = (annotated.orphanSeverity || 0) / 100;
+
         ctx.store.upsertPageData(annotated.url, {
           is_orphan: annotated.orphan ? 1 : 0,
-          severity: annotated.orphanSeverity || 0
+          severity: normalizedSeverity
         });
 
         if (annotated.orphan) {
-          orphanCount++;
-          if ((annotated.orphanSeverity || 0) > 0.8) criticalOrphans++;
+          // If the page hasn't been fetched yet (status 0), and has at least one in-link,
+          // it's not strictly an orphan in a shallow crawl.
+          const isActuallyOrphan = annotated.status !== 0 || (annotated.inLinks === 0);
+
+          if (isActuallyOrphan) {
+            orphanCount++;
+            // Critical if severity > 80%
+            if (normalizedSeverity > 0.8) criticalOrphans++;
+          }
         }
       }
 

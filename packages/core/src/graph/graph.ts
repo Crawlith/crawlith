@@ -9,6 +9,7 @@ export interface GraphNode {
   nofollow?: boolean;
   brokenLinks?: string[];
   redirectChain?: string[];
+  discoveredViaSitemap?: boolean;
   incrementalStatus?: 'new' | 'changed' | 'unchanged' | 'deleted';
   etag?: string;
   lastModified?: string;

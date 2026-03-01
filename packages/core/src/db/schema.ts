@@ -51,6 +51,7 @@ export function initSchema(db: Database) {
       security_error TEXT,
       retries INTEGER DEFAULT 0,
       depth INTEGER DEFAULT 0,
+      discovered_via_sitemap INTEGER DEFAULT 0,
       redirect_chain TEXT,
       bytes_received INTEGER,
       crawl_trap_flag INTEGER DEFAULT 0,
@@ -161,6 +162,8 @@ export function initSchema(db: Database) {
 function migrateSchema(db: Database) {
   // Add missing columns to pages (safe: ALTER TABLE ADD COLUMN is idempotent-safe with try/catch)
   const pageColumns = [
+    ['depth', 'INTEGER DEFAULT 0'],
+    ['discovered_via_sitemap', 'INTEGER DEFAULT 0'],
     ['redirect_chain', 'TEXT'],
     ['bytes_received', 'INTEGER'],
     ['crawl_trap_flag', 'INTEGER DEFAULT 0'],

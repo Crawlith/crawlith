@@ -58,6 +58,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
 
         graph.updateNodeData(p.normalized_url, {
             canonical: p.canonical_url || undefined,
+            discoveredViaSitemap: !!p.discovered_via_sitemap,
             contentHash: p.content_hash || undefined,
             simhash: p.simhash || undefined,
             etag: p.etag || undefined,

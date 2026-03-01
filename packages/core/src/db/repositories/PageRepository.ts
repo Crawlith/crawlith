@@ -19,6 +19,7 @@ export interface Page {
   security_error: string | null;
   retries: number;
   depth: number;
+  discovered_via_sitemap: number;
   redirect_chain: string | null;
   bytes_received: number | null;
   crawl_trap_flag: number;
@@ -38,13 +39,13 @@ export class PageRepository {
         site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id,
         http_status, canonical_url, content_hash, simhash, etag, last_modified, html,
         soft404_score, noindex, nofollow, security_error, retries, depth,
-        redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
+        discovered_via_sitemap, redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
         updated_at
       ) VALUES (
         @site_id, @normalized_url, @first_seen_snapshot_id, @last_seen_snapshot_id,
         @http_status, @canonical_url, @content_hash, @simhash, @etag, @last_modified, @html,
         @soft404_score, @noindex, @nofollow, @security_error, @retries, @depth,
-        @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
+        @discovered_via_sitemap, @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
         datetime('now')
       )
       ON CONFLICT(site_id, normalized_url) DO UPDATE SET
@@ -62,6 +63,7 @@ export class PageRepository {
         security_error = COALESCE(excluded.security_error, pages.security_error),
         retries = MAX(pages.retries, excluded.retries),
         depth = MIN(pages.depth, excluded.depth),
+        discovered_via_sitemap = MAX(pages.discovered_via_sitemap, excluded.discovered_via_sitemap),
         redirect_chain = COALESCE(excluded.redirect_chain, pages.redirect_chain),
         bytes_received = COALESCE(excluded.bytes_received, pages.bytes_received),
         crawl_trap_flag = MAX(pages.crawl_trap_flag, excluded.crawl_trap_flag),
@@ -92,6 +94,7 @@ export class PageRepository {
       security_error: page.security_error ?? null,
       retries: page.retries ?? 0,
       depth: page.depth ?? 0,
+      discovered_via_sitemap: page.discovered_via_sitemap ?? 0,
       redirect_chain: page.redirect_chain ?? null,
       bytes_received: page.bytes_received ?? null,
       crawl_trap_flag: page.crawl_trap_flag ?? 0,
@@ -140,13 +143,13 @@ export class PageRepository {
         site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id,
         http_status, canonical_url, content_hash, simhash, etag, last_modified, html,
         soft404_score, noindex, nofollow, security_error, retries, depth,
-        redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
+        discovered_via_sitemap, redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
         updated_at
       ) VALUES (
         @site_id, @normalized_url, @first_seen_snapshot_id, @last_seen_snapshot_id,
         @http_status, @canonical_url, @content_hash, @simhash, @etag, @last_modified, @html,
         @soft404_score, @noindex, @nofollow, @security_error, @retries, @depth,
-        @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
+        @discovered_via_sitemap, @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
         datetime('now')
       )
       ON CONFLICT(site_id, normalized_url) DO UPDATE SET
@@ -164,6 +167,7 @@ export class PageRepository {
         security_error = COALESCE(excluded.security_error, pages.security_error),
         retries = MAX(pages.retries, excluded.retries),
         depth = MIN(pages.depth, excluded.depth),
+        discovered_via_sitemap = MAX(pages.discovered_via_sitemap, excluded.discovered_via_sitemap),
         redirect_chain = COALESCE(excluded.redirect_chain, pages.redirect_chain),
         bytes_received = COALESCE(excluded.bytes_received, pages.bytes_received),
         crawl_trap_flag = MAX(pages.crawl_trap_flag, excluded.crawl_trap_flag),
@@ -194,6 +198,7 @@ export class PageRepository {
           security_error: page.security_error ?? null,
           retries: page.retries ?? 0,
           depth: page.depth ?? 0,
+          discovered_via_sitemap: page.discovered_via_sitemap ?? 0,
           redirect_chain: page.redirect_chain ?? null,
           bytes_received: page.bytes_received ?? null,
           crawl_trap_flag: page.crawl_trap_flag ?? 0,

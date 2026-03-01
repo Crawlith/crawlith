@@ -65,7 +65,8 @@ export function calculateOrphanSeverity(orphanType: OrphanType, node: ExtendedGr
       score = 90;
       break;
     case 'crawl-only':
-      score = 80;
+      // Sitemap-only URLs are less severe if we haven't even tried to crawl them yet.
+      score = node.status === 0 ? 50 : 70;
       break;
     case 'near':
       score = node.inLinks <= 1 ? 70 : 60;
@@ -91,6 +92,12 @@ export function calculateOrphanSeverity(orphanType: OrphanType, node: ExtendedGr
 
   score += positiveModifier;
   score -= negativeModifier;
+
+  // Safety: unvisited nodes should not be flagged as high-severity orphans
+  // because we haven't confirmed they are real pages or fully explored their context.
+  if (node.status === 0) {
+    score = Math.min(score, 60);
+  }
 
   return clampScore(score);
 }
