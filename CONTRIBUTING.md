@@ -28,8 +28,8 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 We use a monorepo structure with `plugins`:
 - `packages/core`: The core crawling and graph analysis logic.
 - `packages/cli`: The CLI interface and commands.
-- `plugins/server`: The web server/API.
-- `plugins/web`: The UI dashboard.
+- `packages/server`: The web server/API.
+- `packages/web`: The UI dashboard.
 
 To test your CLI changes locally, you can run:
 ```bash

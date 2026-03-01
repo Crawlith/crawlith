@@ -1,6 +1,16 @@
 {
   "name": "@crawlith/server",
   "version": "0.1.1",
+  "private": true,
   "type": "module",
-  "exports": "./src/index.ts"
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@crawlith/core": "workspace:*",
+    "chalk": "^5.3.0",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "typescript": "^5.4.5"
+  }
 }

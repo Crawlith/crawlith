@@ -145,85 +145,7 @@ importers:
 
   packages/plugins/simhash: {}
 
-  packages/server: {}
-
-  packages/shared: {}
-
-  plugins/cli:
-    dependencies:
-      '@crawlith/core':
-        specifier: workspace:*
-        version: link:../core
-      chalk:
-        specifier: ^5.3.0
-        version: 5.6.2
-      commander:
-        specifier: ^12.0.0
-        version: 12.1.0
-      express:
-        specifier: ^4.19.2
-        version: 4.22.1
-      open:
-        specifier: ^10.1.0
-        version: 10.2.0
-    devDependencies:
-      '@crawlith/server':
-        specifier: workspace:*
-        version: link:../server
-      '@crawlith/web':
-        specifier: workspace:*
-        version: link:../web
-      '@types/node':
-        specifier: ^20.12.7
-        version: 20.19.33
-      tsup:
-        specifier: ^8.0.0
-        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.4.5
-        version: 5.9.3
-      vitest:
-        specifier: ^4.0.18
-        version: 4.0.18(@types/node@20.19.33)(jiti@1.21.7)
-
-  plugins/core:
-    dependencies:
-      better-sqlite3:
-        specifier: ^12.6.2
-        version: 12.6.2
-      chalk:
-        specifier: ^5.3.0
-        version: 5.6.2
-      cheerio:
-        specifier: ^1.0.0-rc.12
-        version: 1.2.0
-      p-limit:
-        specifier: ^7.3.0
-        version: 7.3.0
-      robots-parser:
-        specifier: ^3.0.1
-        version: 3.0.1
-      undici:
-        specifier: ^6.13.0
-        version: 6.23.0
-      vite:
-        specifier: 7.3.1
-        version: 7.3.1(@types/node@20.19.33)(jiti@1.21.7)
-    devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.13
-        version: 7.6.13
-      '@types/node':
-        specifier: ^20.12.7
-        version: 20.19.33
-      typescript:
-        specifier: ^5.4.5
-        version: 5.9.3
-      vitest:
-        specifier: ^4.0.18
-        version: 4.0.18(@types/node@20.19.33)(jiti@1.21.7)
-
-  plugins/server:
+  packages/server:
     dependencies:
       '@crawlith/core':
         specifier: workspace:*
@@ -242,7 +164,12 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
 
-  plugins/web:
+
+  packages/shared: {}
+
+
+
+  packages/web:
     dependencies:
       lucide-react:
         specifier: ^0.378.0

@@ -75,7 +75,7 @@ crawlith export https://example.com --export json,html,visualize,csv
 Crawlith is divided into workspaces:
 - `packages/core`: The heavy-lifting engine (Database, Graph algorithms, Crawler, Security boundaries).
 - `packages/cli`: The terminal user interface.
-- `plugins/web`: The React-based dashboard frontend.
+- `packages/web`: The React-based dashboard frontend.
 
 All data is stored locally in an SQLite database at `~/.crawlith/crawlith.db`.
 
