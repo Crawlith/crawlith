@@ -4,7 +4,7 @@ import * as cheerio from 'cheerio';
 export const Soft404DetectorPlugin: CrawlPlugin = {
   name: 'Soft404DetectorPlugin',
   cli: {
-    defaultFor: ['crawl'],
+    defaultFor: ['crawl', 'page'],
     options: [
       { flags: "--detect-soft404", description: "Detect soft 404 pages" }
     ]
@@ -17,6 +17,9 @@ export const Soft404DetectorPlugin: CrawlPlugin = {
     }
 
     context.logger?.info?.('🕵️ Detecting soft 404 pages...');
+
+    let totalSoft404Count = 0;
+    let highConfidenceCount = 0;
 
     const nodes = graph.getNodes();
 
@@ -75,9 +78,68 @@ export const Soft404DetectorPlugin: CrawlPlugin = {
         node.soft404Score = soft404Score;
         // Even though GraphNode doesn't explicitly guarantee signals, plugins can attach any property dynamically for serializers
         node.soft404Signals = soft404Signals;
+
+        if (soft404Score > 0) {
+          totalSoft404Count++;
+        }
+        if (soft404Score >= 0.7) {
+          highConfidenceCount++;
+        }
       }
     }
 
-    context.logger?.info?.(`🕵️ Soft 404 detection complete.`);
+    if (!context.metadata) {
+      context.metadata = {};
+    }
+    context.metadata.soft404Stats = {
+      totalSoft404Count,
+      highConfidenceCount
+    };
+
+    context.logger?.info?.(`🕵️ Soft 404 detection complete. High confidence 404s: ${highConfidenceCount}`);
+  },
+
+  hooks: {
+    onMetrics: ({ cli, metadata, flags }) => {
+      if (!flags?.detectSoft404) return;
+      const stats = metadata?.soft404Stats as any;
+      if (!stats) return;
+
+      cli.section("Soft 404 Detection", {
+        "Total Flagged": stats.totalSoft404Count,
+        "High Confidence": stats.highConfidenceCount
+      });
+    },
+
+    onReport: ({ report, metadata, flags }) => {
+      if (!flags?.detectSoft404) return;
+      const stats = metadata?.soft404Stats as any;
+      if (!stats) return;
+
+      report.addSection('soft404-detector', {
+        metrics: {
+          totalFlagged: stats.totalSoft404Count,
+          highConfidenceCount: stats.highConfidenceCount
+        }
+      });
+
+      // Simple punishment: if there are ANY high confidence soft 404s, punish health
+      if (stats.highConfidenceCount > 0) {
+        let score = 100 - (stats.highConfidenceCount * 5);
+        if (score < 0) score = 0;
+
+        report.contributeScore?.({
+          label: "Soft 404 Presence",
+          score,
+          weight: 0.15
+        });
+      } else {
+        report.contributeScore?.({
+          label: "Soft 404 Presence",
+          score: 100,
+          weight: 0.10
+        });
+      }
+    }
   }
 };
