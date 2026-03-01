@@ -11,7 +11,12 @@ import { calculateHealthScore, collectCrawlIssues } from '../scoring/health.js';
 
 import { Graph } from '../graph/graph.js';
 
-export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph) {
+export interface PostCrawlMetricOptions {
+    computePageRank?: boolean;
+    computeHITS?: boolean;
+}
+
+export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph, options: PostCrawlMetricOptions = {}) {
     const db = getDb();
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
@@ -39,11 +44,15 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
         emit({ type: 'metrics:start', phase: 'Loading graph' });
     }
 
-    emit({ type: 'metrics:start', phase: 'Computing PageRank' });
-    computePageRank(graph);
+    if (options.computePageRank !== false) {
+        emit({ type: 'metrics:start', phase: 'Computing PageRank' });
+        computePageRank(graph);
+    }
 
-    emit({ type: 'metrics:start', phase: 'Computing HITS' });
-    computeHITS(graph);
+    if (options.computeHITS !== false) {
+        emit({ type: 'metrics:start', phase: 'Computing HITS' });
+        computeHITS(graph);
+    }
 
     emit({ type: 'metrics:start', phase: 'Updating metrics in DB' });
     const nodes = graph.getNodes();

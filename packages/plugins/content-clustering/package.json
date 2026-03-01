@@ -1,0 +1,6 @@
+{
+  "name": "@crawlith/plugin-content-clustering",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module"
+}

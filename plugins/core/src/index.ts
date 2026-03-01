@@ -31,3 +31,13 @@ export * from './lock/lockManager.js';
 export * from './lock/hashKey.js';
 export * from './utils/version.js';
 export * from './events.js';
+
+
+export * from './plugin/types.js';
+export * from './plugin/resolve.js';
+export * from './plugin/manager.js';
+export * from './plugin/loader.js';
+export * from './ports/index.js';
+export * from './application/usecase.js';
+export * from './application/usecases.js';
+export * from './plugin/builtin.js';

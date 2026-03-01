@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { analyzeSite, EngineContext } from '@crawlith/core';
 import { OutputController } from '../output/controller.js';
+import { resolveCommandPlugins, registerPluginFlags } from '../plugins.js';
 import { exportAnalysisResult } from '../output/export.js';
 import {
   buildAnalyzeInsightReport,
@@ -26,7 +27,9 @@ export const analyze = new Command('page')
   .option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10')
   .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
 
-  .action(async (url: string, options: any) => {
+registerPluginFlags(analyze, 'page');
+
+analyze.action(async (url: string, options: any) => {
     if (!url) {
       console.error(chalk.red('\n❌ Error: URL argument is required for analysis\n'));
       analyze.outputHelp();
@@ -46,6 +49,9 @@ export const analyze = new Command('page')
     const context: EngineContext = {
       emit: (event) => controller.handle(event)
     };
+
+    const activePlugins = resolveCommandPlugins('page', options as Record<string, boolean>);
+    context.emit({ type: 'debug', message: `Active plugins: ${activePlugins.map((p) => p.name).join(', ')}` });
 
     try {
       if (!url) {

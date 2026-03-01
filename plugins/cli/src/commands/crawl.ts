@@ -3,21 +3,18 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import chalk from 'chalk';
 import {
-  crawl,
   calculateMetrics,
   Graph,
   compareGraphs,
   annotateOrphans,
-  detectDuplicates,
-  detectContentClusters,
-  runPostCrawlMetrics,
-  loadGraphFromSnapshot,
+  CrawlSitegraph,
   LockManager,
   EngineContext
 } from '@crawlith/core';
 import { buildCrawlInsightReport, hasCriticalIssues, renderInsightOutput, renderScoreBreakdown } from './crawlFormatter.js';
 import { parseExportFormats, runCrawlExports } from '../utils/exportRunner.js';
 import { OutputController } from '../output/controller.js';
+import { resolveCommandPlugins } from '../plugins.js';
 
 export const crawlCommand = new Command('crawl')
   .description('Crawl an entire website and build its internal link graph, metrics, and SEO structure.')
@@ -80,6 +77,9 @@ export const crawlCommand = new Command('crawl')
     const context: EngineContext = {
       emit: (e) => controller.handle(e)
     };
+
+    const activePlugins = resolveCommandPlugins('crawl', options as Record<string, boolean>);
+    context.emit({ type: 'debug', message: `Active plugins: ${activePlugins.map(p => p.name).join(', ')}` });
 
     try {
       // Handle compare mode first
@@ -169,27 +169,45 @@ export const crawlCommand = new Command('crawl')
         sitemap = 'true'; // trigger auto-discovery in crawl function
       }
 
-      const snapshotId = await crawl(url, {
-        limit,
-        depth,
-        stripQuery,
-        ignoreRobots: options.ignoreRobots,
-        sitemap: sitemap as string | undefined,
-        debug: options.logLevel === 'debug',
-        detectSoft404: options.detectSoft404,
-        detectTraps: options.detectTraps,
-        rate: parseFloat(options.rate),
-        maxBytes: parseInt(options.maxBytes, 10),
-        allowedDomains,
-        deniedDomains,
-        includeSubdomains: !!options.includeSubdomains,
-        proxyUrl,
-        maxRedirects,
-        userAgent: options.ua,
-        concurrency: options.concurrency ? parseInt(options.concurrency, 10) : 2
-      }, context);
-      // Load graph from DB (single source of truth)
-      const graph = loadGraphFromSnapshot(snapshotId);
+      const crawlSitegraph = new CrawlSitegraph();
+      const { snapshotId, graph } = await crawlSitegraph.execute({
+        url,
+        options: {
+          limit,
+          depth,
+          stripQuery,
+          ignoreRobots: options.ignoreRobots,
+          sitemap: sitemap as string | undefined,
+          debug: options.logLevel === 'debug',
+          detectSoft404: options.detectSoft404,
+          detectTraps: options.detectTraps,
+          rate: parseFloat(options.rate),
+          maxBytes: parseInt(options.maxBytes, 10),
+          allowedDomains,
+          deniedDomains,
+          includeSubdomains: !!options.includeSubdomains,
+          proxyUrl,
+          maxRedirects,
+          userAgent: options.ua,
+          concurrency: options.concurrency ? parseInt(options.concurrency, 10) : 2,
+          clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
+          minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3,
+        } as any,
+        plugins: activePlugins,
+        context: {
+          command: 'crawl',
+          flags: options as Record<string, boolean>,
+          logger: {
+            info: (m: string) => context.emit({ type: 'debug', message: m }),
+            warn: (m: string) => context.emit({ type: 'warn', message: m }),
+            error: (m: string) => context.emit({ type: 'error', message: m })
+          },
+          metadata: {
+            clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
+            minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3,
+          }
+        }
+      });
       // if (nodes.length === 0) {
       //   console.log(chalk.red('\n❌ No pages were crawled.'));
       //   console.log(chalk.gray(`The target URL ${chalk.white(url)} could not be reached or is blocked by robots.txt.`));
@@ -202,18 +220,12 @@ export const crawlCommand = new Command('crawl')
         process.stdout.write(chalk.gray('🔍 Detecting duplicates... '));
       }
 
-      detectDuplicates(graph, { collapse: !options.noCollapse });
       if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
-      if (options.format !== 'json') process.stdout.write(chalk.gray('🧩 Clustering content... '));
-      detectContentClusters(graph,
-        options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
-        options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3
-      );
+      if (options.format !== 'json') process.stdout.write(chalk.gray('🧩 Running active plugins... '));
       if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 
       if (options.format !== 'json') process.stdout.write(chalk.gray('📊 Calculating final report metrics... '));
-      runPostCrawlMetrics(snapshotId, depth, context, !!graph.limitReached, graph);
       const metrics = calculateMetrics(graph, depth);
       if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
 

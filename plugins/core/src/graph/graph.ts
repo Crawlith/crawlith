@@ -40,6 +40,9 @@ export interface GraphNode {
   thinContentScore?: number;
   externalLinkRatio?: number;
   orphanScore?: number;
+  h1Count?: number;
+  h2Count?: number;
+  headingHealthScore?: number;
 }
 
 export interface GraphEdge {
