@@ -1,51 +1,79 @@
-import { CrawlPlugin } from '@crawlith/core';
+import { CrawlPlugin, PluginContext, CLIWriter, ReportWriter, PluginStore } from '@crawlith/core';
 import { annotateOrphans, OrphanScoringOptions } from './src/orphanSeverity.js';
 
-export * from './src/orphanSeverity.js';
-
 export const OrphanIntelligencePlugin: CrawlPlugin = {
-  name: 'OrphanIntelligencePlugin',
+  name: 'orphan-intelligence',
   cli: {
-    defaultFor: ['crawl'],
-    options: [
-      { flags: "--orphans", description: "Detect orphaned pages" },
-      { flags: "--orphan-severity", description: "Severity for orphans (low/medium/high)" },
-      { flags: "--include-soft-orphans", description: "Include soft orphans" },
-      { flags: "--min-inbound <value>", description: "Minimum inbound links to not be an orphan", defaultValue: "2" }
-    ]
+    flag: 'orphans',
+    description: 'Intelligence engine to detect and score orphaned pages',
+    defaultFor: ['crawl']
   },
-  onMetricsPhase: async (graph: any, context: any) => {
-    const flags = context.flags || {};
 
-    if (!flags.orphans) {
-      return;
-    }
-
-    context.logger?.info?.('🔍 Detecting orphaned pages...');
-
-    const options: OrphanScoringOptions = {
-      enabled: true,
-      severityEnabled: !!flags.orphanSeverity,
-      includeSoftOrphans: !!flags.includeSoftOrphans,
-      minInbound: parseInt(flags.minInbound as string ?? '2', 10),
-      rootUrl: undefined // can't reliably get rootUrl from graph without a startUrl property, but depth 0 does exactly the same check normally.
-    };
-
-    const nodes = graph.getNodes();
-    const edges = graph.getEdges();
-
-    const annotatedNodes = annotateOrphans(nodes, edges, options);
-
-    // Mutate the graph nodes in place as expected by @crawlith/core graph plugin pattern
-    for (const annotated of annotatedNodes) {
-      if (annotated.orphan) {
-        const graphNode = graph.getNode(annotated.url);
-        if (graphNode) {
-          graphNode.orphanScore = annotated.orphanSeverity;
-        }
+  storage: {
+    perPage: {
+      columns: {
+        is_orphan: 'INTEGER',
+        severity: 'REAL'
       }
     }
+  },
 
-    context.logger?.info?.(`🔍 Orphan detection complete.`);
+  hooks: {
+    async onMetrics(ctx: PluginContext & { cli: CLIWriter; store: PluginStore; graph?: any }) {
+      if (!ctx.graph) return;
+
+      const flags = ctx.flags || {};
+      const options: OrphanScoringOptions = {
+        enabled: true,
+        severityEnabled: true,
+        includeSoftOrphans: !!flags.includeSoftOrphans,
+        minInbound: parseInt(flags.minInbound as string ?? '2', 10),
+      };
+
+      const nodes = ctx.graph.getNodes();
+      const edges = ctx.graph.getEdges();
+      const annotatedNodes = annotateOrphans(nodes, edges, options);
+
+      let orphanCount = 0;
+      let criticalOrphans = 0;
+
+      for (const annotated of annotatedNodes) {
+        ctx.store.upsertPageData(annotated.url, {
+          is_orphan: annotated.orphan ? 1 : 0,
+          severity: annotated.orphanSeverity || 0
+        });
+
+        if (annotated.orphan) {
+          orphanCount++;
+          if ((annotated.orphanSeverity || 0) > 0.8) criticalOrphans++;
+        }
+      }
+
+      ctx.store.saveSummary({
+        orphanCount,
+        criticalOrphans,
+        totalEvaluated: nodes.length
+      });
+    },
+
+    async onReport(ctx: PluginContext & { report: ReportWriter; store: PluginStore; cli?: CLIWriter }) {
+      const summary = ctx.store.loadSummary<any>();
+      if (!summary) return;
+
+      ctx.report.addSection('Orphan Intelligence', {
+        metrics: {
+          'Orphan Count': summary.orphanCount,
+          'Critical': summary.criticalOrphans
+        },
+        headers: ['Metric', 'Value'],
+        rows: [
+          ['Total Orphaned Pages', summary.orphanCount],
+          ['High-Severity Orphans', summary.criticalOrphans],
+          ['Evaluation Base', summary.totalEvaluated]
+        ]
+      });
+    }
   }
 };
+
+export default OrphanIntelligencePlugin;

@@ -1,64 +1,86 @@
-import { CrawlPlugin, CrawlContext } from '@crawlith/core';
+import { CrawlPlugin, CrawlContext, PluginContext, CLIWriter, ReportWriter, PluginStore } from '@crawlith/core';
 import { TrapDetector, TrapResult } from './src/trap.js';
 
 let detector: TrapDetector | null = null;
 const trapResults = new Map<string, TrapResult>();
 
 export const CrawlTrapAnalyzerPlugin: CrawlPlugin = {
-    name: 'CrawlTrapAnalyzerPlugin',
+    name: 'crawl-trap-analyzer',
     cli: {
-        defaultFor: ['crawl'],
-        options: [
-            { flags: "--detect-traps", description: "Detect and cluster crawl traps" }
-        ]
+        flag: 'traps',
+        description: 'Detect and isolate infinite crawl traps / faceted navigation explosion',
+        defaultFor: ['crawl']
     },
-    onInit: async (ctx) => {
-        const flags = ctx.flags || {};
-        if (flags.detectTraps) {
+
+    storage: {
+        perPage: {
+            columns: {
+                risk: 'REAL',
+                type: 'TEXT'
+            }
+        }
+    },
+
+    hooks: {
+        async onInit(ctx: PluginContext) {
             detector = new TrapDetector();
             trapResults.clear();
-        }
-    },
-    shouldEnqueueUrl: (url: string, depth: number, ctx: CrawlContext) => {
-        if (!detector) return true;
-        const trap = detector.checkTrap(url, depth);
-        if (trap.risk > 0) {
-            trapResults.set(url, trap);
-        }
-        if (trap.risk > 0.8) {
-            ctx.logger?.info?.(`🪤 Caught potential crawl trap: ${url} (risk: ${trap.risk.toFixed(2)})`);
-            return false;
-        }
-        return true;
-    },
-    onMetricsPhase: async (graph: any, context: any) => {
-        if (!detector) return;
+        },
 
-        context.logger?.info?.('🔍 Processing crawl traps...');
-
-        const nodes = graph.getNodes();
-        let trapCount = 0;
-
-        for (const node of nodes) {
-            // Re-evaluate in case any weren't checked during shouldEnqueueUrl, or use cached
-            let trap = trapResults.get(node.url);
-            if (!trap) {
-                trap = detector.checkTrap(node.url, node.depth);
+        shouldEnqueueUrl(url: string, depth: number, ctx: CrawlContext) {
+            if (!detector) return true;
+            const trap = detector.checkTrap(url, depth);
+            if (trap.risk > 0) {
+                trapResults.set(url, trap);
             }
-            if (trap && trap.risk > 0.8) {
-                node.crawlTrapFlag = true;
-                node.crawlTrapRisk = trap.risk;
-                node.trapType = trap.type;
-                trapCount++;
-            } else if (trap && trap.risk > 0) {
-                node.crawlTrapFlag = false;
-                node.crawlTrapRisk = trap.risk;
-                node.trapType = trap.type;
+            if (trap.risk > 0.8) {
+                ctx.logger?.info?.(`🪤 Caught potential crawl trap: ${url} (risk: ${trap.risk.toFixed(2)})`);
+                return false;
             }
-        }
+            return true;
+        },
 
-        if (trapCount > 0) {
-            context.logger?.info?.(`🪤 Identified ${trapCount} crawl traps`);
+        async onMetrics(ctx: PluginContext & { cli: CLIWriter; store: PluginStore; graph?: any }) {
+            if (!ctx.graph) return;
+
+            let totalTraps = 0;
+            let criticalTraps = 0;
+
+            for (const node of ctx.graph.getNodes()) {
+                const trap = trapResults.get(node.url) || { risk: 0, type: null };
+
+                ctx.store.upsertPageData(node.url, {
+                    risk: trap.risk,
+                    type: trap.type
+                });
+
+                if (trap.risk > 0) totalTraps++;
+                if (trap.risk > 0.8) criticalTraps++;
+            }
+
+            ctx.store.saveSummary({
+                totalTraps,
+                criticalTraps
+            });
+        },
+
+        async onReport(ctx: PluginContext & { report: ReportWriter; store: PluginStore; cli?: CLIWriter }) {
+            const summary = ctx.store.loadSummary<any>();
+            if (!summary) return;
+
+            ctx.report.addSection('Crawl Trap Analysis', {
+                metrics: {
+                    'Identified': summary.totalTraps,
+                    'Critical': summary.criticalTraps
+                },
+                headers: ['Metric', 'Count'],
+                rows: [
+                    ['Total Signals Detected', summary.totalTraps],
+                    ['High-Risk Traps Blocked', summary.criticalTraps]
+                ]
+            });
         }
     }
 };
+
+export default CrawlTrapAnalyzerPlugin;

@@ -11,6 +11,9 @@ importers:
       update-notifier:
         specifier: ^7.3.1
         version: 7.3.1
+      uuid:
+        specifier: ^13.0.0
+        version: 13.0.0
       vite:
         specifier: 7.3.1
         version: 7.3.1(@types/node@20.19.33)(jiti@1.21.7)
@@ -90,6 +93,9 @@ importers:
       '@crawlith/plugin-orphan-intelligence':
         specifier: workspace:*
         version: link:../plugins/orphan-intelligence
+      '@crawlith/plugin-page-analyzer':
+        specifier: workspace:*
+        version: link:../plugins/page-analyzer
       '@crawlith/plugin-pagerank':
         specifier: workspace:*
         version: link:../plugins/pagerank
@@ -239,6 +245,15 @@ importers:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../../core
+
+  packages/plugins/page-analyzer:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.2.0
 
   packages/plugins/pagerank:
     dependencies:
@@ -2803,6 +2818,10 @@ packages:
   utils-merge@1.0.1:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
+
+  uuid@13.0.0:
+    resolution: {integrity: sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==}
+    hasBin: true
 
   v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
@@ -5503,6 +5522,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@13.0.0: {}
 
   v8-compile-cache-lib@3.0.1: {}
 

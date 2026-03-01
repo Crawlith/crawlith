@@ -82,6 +82,7 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       ...ctx,
       command: 'crawl',
       snapshotId,
+      graph,
       metadata: {
         ...(ctx.metadata ?? {}),
       }
