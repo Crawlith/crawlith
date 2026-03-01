@@ -30,7 +30,10 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
             context.emit(event);
         } else {
             if (event.type === 'error') console.error(event.message);
-            else if (event.type !== 'debug') console.log(event.message || event.phase);
+            else if (event.type !== 'debug') {
+                const out = event.message || event.phase;
+                if (out) console.log(out);
+            }
         }
     };
 

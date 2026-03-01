@@ -33,10 +33,6 @@ export interface SiteCrawlInput {
   proxyUrl?: string;
   maxRedirects?: number;
   userAgent?: string;
-  // plugin-specific arguments that may be passed along
-  clusterThreshold?: number;
-  minClusterSize?: number;
-
   plugins?: CrawlPlugin[];
   context?: PluginContext;
 }
@@ -86,8 +82,6 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       snapshotId,
       metadata: {
         ...(ctx.metadata ?? {}),
-        clusterThreshold: input.clusterThreshold,
-        minClusterSize: input.minClusterSize,
       }
     };
     await pm.runHook('onMetricsPhase', graph, metricsCtx);
@@ -97,7 +91,7 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       computeHITS: false      // plugin managed
     });
 
-    await pm.runHook('onAfterCrawl', { ...ctx, command: 'crawl', snapshotId });
+    await pm.runHook('onAfterCrawl', { ...ctx, command: 'crawl', snapshotId, graph });
     return { snapshotId, graph };
   }
 }

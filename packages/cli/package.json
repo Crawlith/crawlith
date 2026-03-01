@@ -28,6 +28,7 @@
     "@crawlith/plugin-snapshot-diff": "workspace:*",
     "@crawlith/plugin-crawl-policy": "workspace:*",
     "@crawlith/plugin-exporter": "workspace:*",
+    "@crawlith/plugin-reporter": "workspace:*",
     "chalk": "^5.3.0",
     "commander": "^12.0.0",
     "express": "^4.19.2",

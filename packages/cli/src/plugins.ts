@@ -14,6 +14,7 @@ import { HealthScoreEnginePlugin } from '@crawlith/plugin-health-score-engine';
 import { SnapshotDiffPlugin } from '@crawlith/plugin-snapshot-diff';
 import { CrawlPolicyPlugin } from '@crawlith/plugin-crawl-policy';
 import { ExporterPlugin } from '@crawlith/plugin-exporter';
+import { ReporterPlugin } from '@crawlith/plugin-reporter';
 
 export const allPlugins: CrawlPlugin[] = [
   PageRankPlugin,
@@ -29,6 +30,7 @@ export const allPlugins: CrawlPlugin[] = [
   SnapshotDiffPlugin,
   CrawlPolicyPlugin,
   ExporterPlugin,
+  ReporterPlugin,
 ];
 
 /**

@@ -14,7 +14,7 @@ import chalk from 'chalk';
 export const ExporterPlugin: CrawlPlugin = {
   name: 'ExporterPlugin',
   cli: {
-    defaultFor: ['crawl', 'page'],
+    defaultFor: ['crawl', 'page', 'probe', 'export',],
     options: [
       { flags: "--export [formats]", description: "Export formats (comma-separated: json,markdown,csv,html,visualize)", defaultValue: false },
       { flags: "--format <value>", description: "Output format (pretty, json)", defaultValue: "pretty" },

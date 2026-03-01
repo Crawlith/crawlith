@@ -9,8 +9,8 @@ export const ContentClusteringPlugin: CrawlPlugin = {
     ]
   },
   async onMetricsPhase(graph: SiteGraph, ctx: MetricsContext) {
-    const threshold = Number((ctx.metadata?.clusterThreshold as number) ?? 10);
-    const minSize = Number((ctx.metadata?.minClusterSize as number) ?? 3);
+    const threshold = Number(ctx.flags?.clusterThreshold ?? ctx.metadata?.clusterThreshold ?? 10);
+    const minSize = Number(ctx.flags?.minClusterSize ?? ctx.metadata?.minClusterSize ?? 3);
     detectContentClusters(graph, threshold, minSize);
   }
 };

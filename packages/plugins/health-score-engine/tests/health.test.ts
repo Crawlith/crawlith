@@ -3,7 +3,7 @@ import { HealthScoreEnginePlugin } from '../index.js';
 
 describe('HealthScoreEnginePlugin', () => {
     it('should exit with code 1 if failOnCritical is set and score < 50', async () => {
-        const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: number) => {
+        const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
             throw new Error(`exit:${code}`);
         });
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
@@ -22,7 +22,7 @@ describe('HealthScoreEnginePlugin', () => {
     });
 
     it('should not exit if score is >= 50', async () => {
-        const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: number) => {
+        const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
             throw new Error(`exit:${code}`);
         });
 

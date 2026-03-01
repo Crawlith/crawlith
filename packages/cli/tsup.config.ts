@@ -22,6 +22,7 @@ export default defineConfig({
         '@crawlith/plugin-snapshot-diff',
         '@crawlith/plugin-crawl-policy',
         '@crawlith/plugin-exporter',
+        '@crawlith/plugin-reporter',
     ],
     banner: {
         js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`

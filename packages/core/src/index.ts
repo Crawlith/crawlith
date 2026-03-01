@@ -6,6 +6,7 @@ export * from './report/html.js';
 export * from './report/crawl_template.js';
 export * from './report/crawlExport.js';
 export * from './report/export.js';
+export * from './report/insight.js';
 export * from './graph/graph.js';
 export * from './diff/compare.js';
 export * from './graph/pagerank.js';

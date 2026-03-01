@@ -7,7 +7,7 @@ import {
   EngineContext,
   PluginManager
 } from '@crawlith/core';
-import { buildCrawlInsightReport, hasCriticalIssues, renderInsightOutput, renderScoreBreakdown } from './crawlFormatter.js';
+import { buildCrawlInsightReport } from './crawlFormatter.js';
 import { OutputController } from '../output/controller.js';
 import { resolveCommandPlugins, registerPluginFlags } from '../plugins.js';
 
@@ -20,9 +20,7 @@ export const crawlCommand = new Command('crawl')
   .option('--no-query', 'strip query params')
   .option('--sitemap [url]', 'sitemap URL (defaults to /sitemap.xml if not specified)')
 
-  // Unified Output Flags
   .option('--log-level <level>', 'Log level (normal, verbose, debug)', 'normal')
-
   .option('--force', 'force run (override existing lock)');
 
 
@@ -37,15 +35,13 @@ crawlCommand
       process.exit(0);
     }
 
-    if (options.json) options.format = 'json';
     if (options.debug) options.logLevel = 'debug';
     if (options.verbose) options.logLevel = 'verbose';
-    if (options.format === 'text') options.format = 'pretty';
 
     // 2. Initialize Controller
     const controller = new OutputController({
-      format: options.format,
-      logLevel: options.logLevel
+      format: options.format as any,
+      logLevel: options.logLevel as any
     });
     const context: EngineContext = {
       emit: (e) => controller.handle(e)
@@ -89,17 +85,14 @@ crawlCommand
       }
 
       const crawlSitegraph = new CrawlSitegraph();
-      const { snapshotId, graph } = await crawlSitegraph.execute({
+      const { graph } = await crawlSitegraph.execute({
         url,
         limit,
         depth,
         stripQuery,
-        ignoreRobots: options.ignoreRobots,
         sitemap: sitemap as string | undefined,
         debug: options.logLevel === 'debug',
         concurrency: options.concurrency ? parseInt(options.concurrency, 10) : 2,
-        clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
-        minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3,
         plugins: activePlugins,
         context: {
           command: 'crawl',
@@ -114,40 +107,7 @@ crawlCommand
         }
       });
 
-      if (options.format !== 'json') {
-        process.stdout.write(chalk.gray('📊 Calculating final report metrics... '));
-      }
       const metrics = calculateMetrics(graph, depth);
-      if (options.format !== 'json') process.stdout.write(chalk.green('Done\n'));
-
-      // === Console output (always from DB) ===
-      const insightReport = buildCrawlInsightReport(graph, metrics);
-      if (options.format === 'json') {
-        process.stdout.write(JSON.stringify(insightReport, null, 2));
-      } else {
-        process.stdout.write(renderInsightOutput(insightReport, snapshotId));
-      }
-
-      if (options.scoreBreakdown && options.format !== 'json') {
-        console.log(renderScoreBreakdown(insightReport.health));
-      }
-
-      if (options.verbose && options.format !== 'json') {
-        console.log(chalk.bold('\nVerbose Crawl Stats'));
-        console.log(`Fetched: ${graph.sessionStats.pagesFetched}`);
-        console.log(`Cached: ${graph.sessionStats.pagesCached}`);
-        console.log(`Skipped: ${graph.sessionStats.pagesSkipped}`);
-        console.log(`Total Found: ${graph.sessionStats.totalFound}`);
-      }
-
-      if (options.format !== 'json') {
-        console.log("\n💾 run `crawlith ui` to view the full report");
-        console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
-      }
-      if (options.failOnCritical && hasCriticalIssues(insightReport)) {
-        process.exit(1);
-      }
-
     } catch (error) {
       controller.handle({ type: 'error', message: 'Error', error });
       process.exit(1);

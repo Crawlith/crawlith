@@ -27,10 +27,8 @@ analyze.action(async (url: string, options: any) => {
     process.exit(0);
   }
 
-  if (options.json) options.format = 'json';
   if (options.debug) options.logLevel = 'debug';
   if (options.verbose) options.logLevel = 'verbose';
-  if (options.format === 'text') options.format = 'pretty';
 
   const controller = new OutputController({
     format: options.format as any,
@@ -59,13 +57,7 @@ analyze.action(async (url: string, options: any) => {
       seo: options.seo,
       content: options.content,
       accessibility: options.accessibility,
-      rate: options.rate ? parseFloat(options.rate) : 2,
-      proxyUrl: options.proxy,
-      userAgent: options.ua,
-      maxRedirects: options.maxRedirects ? parseInt(options.maxRedirects, 10) : 2,
       debug: options.logLevel === 'debug',
-      clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
-      minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3,
       plugins: activePlugins,
       context: { command: 'page', flags: options as Record<string, boolean> }
     });

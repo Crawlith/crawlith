@@ -16,6 +16,7 @@ export interface PluginContext {
 
 export interface CrawlContext extends PluginContext {
   snapshotId?: number;
+  graph?: Graph;
 }
 
 export interface MetricsContext extends PluginContext {
