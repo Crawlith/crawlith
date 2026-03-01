@@ -29,7 +29,8 @@ export const HealthScoreEnginePlugin: CrawlPlugin = {
       ctx.store.saveSummary({
         score: insightReport.health.score,
         status: insightReport.health.status,
-        components: insightReport.health.components,
+        weights: insightReport.health.weights,
+        penalties: insightReport.health.weightedPenalties,
         hasCritical: hasCriticalIssues(insightReport)
       });
 
@@ -47,8 +48,9 @@ export const HealthScoreEnginePlugin: CrawlPlugin = {
         ctx.cli.info('\n' + renderScoreBreakdown({
           score: summary.score,
           status: summary.status,
-          components: summary.components
-        }));
+          weights: summary.weights,
+          weightedPenalties: summary.penalties
+        } as any));
       }
 
       ctx.report.addSection('Health Score Analysis', {
@@ -56,12 +58,15 @@ export const HealthScoreEnginePlugin: CrawlPlugin = {
           'Score': summary.score,
           'Status': summary.status.toUpperCase()
         },
-        headers: ['Component', 'Score', 'Status'],
-        rows: Object.entries(summary.components).map(([name, data]: [string, any]) => [
-          name.replace(/_/g, ' ').toUpperCase(),
-          data.score,
-          data.status.toUpperCase()
-        ])
+        headers: ['Metric', 'Points Deducted', 'Max Weight'],
+        rows: summary.penalties ? Object.entries(summary.penalties).map(([name, deduction]: [string, any]) => {
+          const weight = (summary.weights as any)?.[name] || 0;
+          return [
+            name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+            `-${deduction.toFixed(1)}`,
+            weight
+          ];
+        }) : []
       });
     }
   },
