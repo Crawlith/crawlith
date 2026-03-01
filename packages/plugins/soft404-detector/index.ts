@@ -105,10 +105,8 @@ export const Soft404DetectorPlugin: CrawlPlugin = {
       const stats = metadata?.soft404Stats as any;
       if (!stats) return;
 
-      cli.section("Soft 404 Detection", {
-        "Total Flagged": stats.totalSoft404Count,
-        "High Confidence": stats.highConfidenceCount
-      });
+      // Realtime logging is okay, but detailed metrics are now natively formatted by ReporterPlugin
+      cli.info(`🕵️ Soft 404 metrics aggregated.`);
     },
 
     onReport: ({ report, metadata, flags }) => {

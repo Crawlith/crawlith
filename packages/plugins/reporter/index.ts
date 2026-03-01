@@ -33,6 +33,30 @@ export const ReporterPlugin: CrawlPlugin = {
         const insightReport = buildCrawlInsightReport(graph, metrics);
         process.stdout.write(renderInsightOutput(insightReport, snapshotId));
 
+        if (ctx.report && ctx.report.plugins && Object.keys(ctx.report.plugins).length > 0) {
+            console.log(chalk.bold.magenta('🧩 Plugin Insights'));
+            for (const [key, pluginData] of Object.entries(ctx.report.plugins)) {
+                const title = key.split(/[-_]/).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+                let metricsOut = '';
+                if (pluginData && typeof pluginData === 'object' && 'metrics' in pluginData && pluginData.metrics) {
+                    const entries = Object.entries(pluginData.metrics as Record<string, any>);
+                    if (entries.length > 0) {
+                        metricsOut = entries.map(([mKey, mVal]) => {
+                            const fKey = mKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => (str as string).toUpperCase());
+                            return `${chalk.gray(fKey)} ${chalk.yellow(mVal)}`;
+                        }).join('  •  ');
+                    }
+                }
+
+                console.log(`  ${chalk.cyan('■')} ${chalk.bold(title)}`);
+                if (metricsOut) {
+                    console.log(`    ${metricsOut}`);
+                }
+            }
+            console.log('');
+        }
+
         if (flags.verbose) {
             console.log(chalk.bold('\nVerbose Crawl Stats'));
             console.log(`Fetched: ${graph.sessionStats.pagesFetched}`);
