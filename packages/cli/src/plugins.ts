@@ -52,12 +52,16 @@ export function registerPluginFlags(command: any, commandName: string) {
     if (!cli) continue;
 
     // Register the opt-in toggle flag (e.g. --compute-hits for HITS)
-    if (cli.flag && cli.optionalFor?.includes(commandName)) {
-      command.option(`--${cli.flag}`, cli.description ?? `Enable ${plugin.name}`);
+    const isRelevant = cli.defaultFor?.includes(commandName) || cli.optionalFor?.includes(commandName);
+    if (cli.flag && isRelevant) {
+      if (cli.optionalFor?.includes(commandName)) {
+        command.option(`--${cli.flag}`, cli.description ?? `Enable ${plugin.name}`);
+      } else {
+        command.option(`--${cli.flag}`, cli.description ?? `Run ${plugin.name} (enabled by default)`);
+      }
     }
 
     // Register plugin-declared options (e.g. --cluster-threshold <number>)
-    const isRelevant = cli.defaultFor?.includes(commandName) || cli.optionalFor?.includes(commandName);
     if (isRelevant && cli.options) {
       for (const opt of cli.options) {
         if (opt.defaultValue !== undefined) {

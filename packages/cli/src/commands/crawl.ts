@@ -35,9 +35,6 @@ crawlCommand
       process.exit(0);
     }
 
-    if (options.debug) options.logLevel = 'debug';
-    if (options.verbose) options.logLevel = 'verbose';
-
     // 2. Initialize Controller
     const controller = new OutputController({
       format: options.format as any,
