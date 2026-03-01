@@ -8,7 +8,6 @@ import {
   SnapshotRepository,
 
   Snapshot,
-  crawl,
   analyzeSite,
   analyzePages
 } from '@crawlith/core';
@@ -362,7 +361,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
       const targetSnapshotId = latestSnapshotForUrl.snapshot_id;
 
-      let page = db.prepare(`
+      const page = db.prepare(`
         SELECT 
           p.*,
           m.authority_score, m.hub_score, m.pagerank, m.pagerank_score,
