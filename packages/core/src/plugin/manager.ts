@@ -1,4 +1,4 @@
-import type { CrawlPlugin, PluginContext } from './types.js';
+import type { CrawlPlugin, PluginContext, CLIWriter, ReportWriter } from './types.js';
 
 export interface PluginManagerLogger {
   debug(message: string): void;
@@ -39,5 +39,38 @@ export class PluginManager {
 
   async init(ctx: PluginContext): Promise<void> {
     await this.runHook('onInit', ctx);
+  }
+
+  async runOnMetrics(ctx: PluginContext, cli: CLIWriter): Promise<void> {
+    for (const plugin of this.plugins) {
+      const fn = plugin.hooks?.onMetrics;
+      if (typeof fn !== 'function') continue;
+
+      const started = performance.now();
+      try {
+        await fn({ ...ctx, cli });
+      } catch (err: any) {
+        cli.error(`[plugin:${plugin.name}] onMetrics error: ${err.message || String(err)}`);
+      }
+      const elapsed = performance.now() - started;
+      this.logger.debug(`[plugin:${plugin.name}] hooks.onMetrics ${elapsed.toFixed(2)}ms`);
+    }
+  }
+
+  async runOnReport(ctx: PluginContext, report: ReportWriter, cli: CLIWriter): Promise<void> {
+    for (const plugin of this.plugins) {
+      const fn = plugin.hooks?.onReport;
+      if (typeof fn !== 'function') continue;
+
+      const started = performance.now();
+      try {
+        await fn({ ...ctx, report });
+      } catch (err: any) {
+        cli.error(`[plugin:${plugin.name}] onReport error: ${err.message || String(err)}`);
+        throw err; // "Plugin attempting root mutation -> throw error / Duplicate addSection() call -> throw error"
+      }
+      const elapsed = performance.now() - started;
+      this.logger.debug(`[plugin:${plugin.name}] hooks.onReport ${elapsed.toFixed(2)}ms`);
+    }
   }
 }

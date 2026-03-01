@@ -15,6 +15,8 @@ import {
     renderAnalysisCsv
 } from '../analysis/analyze.js';
 
+import type { BaseReport } from '../plugin/types.js';
+
 export function parseExportFormats(exportOption: string | boolean | undefined): string[] {
     if (exportOption === undefined || exportOption === false) return [];
     if (exportOption === true) return ['json'];
@@ -27,7 +29,8 @@ export async function runCrawlExports(
     url: string,
     graphData: any,
     metrics: any,
-    graphObj: any
+    graphObj: any,
+    report?: BaseReport
 ) {
     if (formats.length === 0) return;
 
@@ -36,7 +39,11 @@ export async function runCrawlExports(
     if (formats.includes('json')) {
         await fs.writeFile(path.join(outputDir, 'graph.json'), JSON.stringify(graphData, null, 2));
         await fs.writeFile(path.join(outputDir, 'metrics.json'), JSON.stringify(metrics, null, 2));
-        console.log(chalk.green(`JSON exports saved to ${outputDir} (graph.json, metrics.json)`));
+
+        if (report) {
+            await fs.writeFile(path.join(outputDir, 'report.json'), JSON.stringify(report, null, 2));
+        }
+        console.log(chalk.green(`JSON exports saved to ${outputDir} (graph.json, metrics.json${report ? ', report.json' : ''})`));
     }
 
     if (formats.includes('html')) {
@@ -61,6 +68,15 @@ export async function runCrawlExports(
         const md = renderCrawlMarkdown(url, graphData, metrics, graphObj);
         await fs.writeFile(path.join(outputDir, 'summary.md'), md);
         console.log(chalk.green(`Markdown summary saved to ${path.join(outputDir, 'summary.md')}`));
+
+        if (report && report.plugins) {
+            for (const [pluginName, pluginData] of Object.entries(report.plugins)) {
+                // Ensure Exporter remains generic without plugin-specific logical branches
+                const serialized = JSON.stringify(pluginData, null, 2);
+                const pluginMd = `\n## Plugin: ${pluginName}\n\n\`\`\`json\n${serialized}\n\`\`\`\n`;
+                await fs.appendFile(path.join(outputDir, 'summary.md'), pluginMd);
+            }
+        }
     }
 }
 

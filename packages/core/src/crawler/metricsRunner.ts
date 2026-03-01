@@ -146,4 +146,6 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
     });
 
     emit({ type: 'metrics:complete', durationMs: 0 });
+
+    return { metrics, issues, health };
 }

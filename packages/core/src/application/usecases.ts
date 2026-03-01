@@ -4,7 +4,8 @@ import { analyzeSite, type AnalyzeOptions, type AnalysisResult } from '../analys
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { compareGraphs } from '../diff/compare.js';
 import { PluginManager } from '../plugin/manager.js';
-import type { CrawlPlugin, MetricsContext, PluginContext } from '../plugin/types.js';
+import type { CrawlPlugin, MetricsContext, PluginContext, BaseReport } from '../plugin/types.js';
+import { ConsoleCLIWriter, CoreReportBuilder } from '../plugin/writers.js';
 import type { UseCase } from './usecase.js';
 import type { Graph } from '../graph/graph.js';
 import type { EngineContext } from '../events.js';
@@ -12,6 +13,7 @@ import type { EngineContext } from '../events.js';
 export interface CrawlSitegraphResult {
   snapshotId: number;
   graph: Graph;
+  report?: BaseReport;
 }
 
 export interface SiteCrawlInput {
@@ -86,13 +88,47 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     };
     await pm.runHook('onMetricsPhase', graph, metricsCtx);
 
-    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {
+    const postCrawlResult = runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {
       computePageRank: false, // plugin managed
       computeHITS: false      // plugin managed
     });
 
-    await pm.runHook('onAfterCrawl', { ...ctx, command: 'crawl', snapshotId, graph });
-    return { snapshotId, graph };
+    const cli = new ConsoleCLIWriter('info');
+
+    let report: BaseReport | undefined;
+    if (postCrawlResult) {
+      const { metrics, issues, health } = postCrawlResult;
+      report = {
+        snapshotId: String(snapshotId),
+        pages: metrics.totalPages,
+        summary: {
+          healthScore: health.score,
+          status: health.score < 50 ? 'critical' : health.score < 80 ? 'warning' : 'good'
+        },
+        issues,
+        metrics,
+        plugins: {}
+      };
+
+      const reportWriter = new CoreReportBuilder(report);
+
+      await pm.runOnMetrics(metricsCtx, cli);
+      await pm.runOnReport(metricsCtx, reportWriter, cli);
+
+      reportWriter.contributeScore({
+        label: "Core Health Engine",
+        score: health.score,
+        weight: 1.0
+      });
+
+      reportWriter.finalizeScore();
+
+      const finalScore = report.summary.healthScore;
+      // You could update Snapshot db with finalScore if needed here
+    }
+
+    await pm.runHook('onAfterCrawl', { ...ctx, command: 'crawl', snapshotId, graph, report });
+    return { snapshotId, graph, report };
   }
 }
 

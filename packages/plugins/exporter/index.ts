@@ -55,7 +55,8 @@ export const ExporterPlugin: CrawlPlugin = {
       url,
       graphData,
       metrics,
-      graph
+      graph,
+      ctx.report
     );
 
     if (String(flags.format) !== 'json') {

@@ -14,9 +14,45 @@ export interface PluginContext {
   logger?: { info(msg: string): void; warn(msg: string): void; error(msg: string): void };
 }
 
+export interface CLIWriter {
+  info(message: string): void;
+  warn(message: string): void;
+  error(message: string): void;
+  verbose(message: string): void;
+  debug(message: string): void;
+  section(title: string, data: unknown): void;
+  table(data: unknown[]): void;
+}
+
+export interface ReportWriter {
+  addSection(pluginName: string, data: unknown): void;
+
+  contributeScore?(input: {
+    label: string;
+    score: number;
+    weight: number;
+  }): void;
+}
+
+export interface BaseReport {
+  snapshotId: string;
+  pages: number;
+
+  summary: {
+    healthScore: number;
+    status: 'good' | 'warning' | 'critical';
+  };
+
+  issues: Record<string, any>;
+  metrics: Record<string, any>;
+
+  plugins: Record<string, unknown>;
+}
+
 export interface CrawlContext extends PluginContext {
   snapshotId?: number;
   graph?: Graph;
+  report?: BaseReport;
 }
 
 export interface MetricsContext extends PluginContext {
@@ -53,4 +89,9 @@ export interface CrawlPlugin {
   onAfterCrawl?(ctx: CrawlContext): Promise<void>;
   onAnalyzeDone?(result: any, ctx: PluginContext): Promise<void>;
   extendSchema?(schema: SchemaBuilder): void;
+
+  hooks?: {
+    onMetrics?: (ctx: PluginContext & { cli: CLIWriter }) => void | Promise<void>;
+    onReport?: (ctx: PluginContext & { report: ReportWriter }) => void | Promise<void>;
+  };
 }
