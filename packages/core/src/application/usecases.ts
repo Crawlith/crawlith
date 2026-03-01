@@ -14,8 +14,35 @@ export interface CrawlSitegraphResult {
   graph: Graph;
 }
 
-export class CrawlSitegraph implements UseCase<{ url: string; options: CrawlOptions; plugins?: CrawlPlugin[]; context?: PluginContext }, CrawlSitegraphResult> {
-  async execute(input: { url: string; options: CrawlOptions; plugins?: CrawlPlugin[]; context?: PluginContext }): Promise<CrawlSitegraphResult> {
+export interface SiteCrawlInput {
+  url: string;
+  limit?: number;
+  depth?: number;
+  concurrency?: number;
+  stripQuery?: boolean;
+  ignoreRobots?: boolean;
+  sitemap?: string;
+  debug?: boolean;
+  detectSoft404?: boolean;
+  detectTraps?: boolean;
+  rate?: number;
+  maxBytes?: number;
+  allowedDomains?: string[];
+  deniedDomains?: string[];
+  includeSubdomains?: boolean;
+  proxyUrl?: string;
+  maxRedirects?: number;
+  userAgent?: string;
+  // plugin-specific arguments that may be passed along
+  clusterThreshold?: number;
+  minClusterSize?: number;
+
+  plugins?: CrawlPlugin[];
+  context?: PluginContext;
+}
+
+export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphResult> {
+  async execute(input: SiteCrawlInput): Promise<CrawlSitegraphResult> {
     const ctx = input.context ?? { command: 'crawl' };
     const pm = new PluginManager(input.plugins ?? [], {
       debug: (message: string) => ctx.logger?.info?.(message)
@@ -24,7 +51,31 @@ export class CrawlSitegraph implements UseCase<{ url: string; options: CrawlOpti
     await pm.init(ctx);
     await pm.runHook('onBeforeCrawl', { ...ctx, command: 'crawl' });
 
-    const snapshotId = await crawl(input.url, input.options);
+    const policy = (ctx.metadata?.crawlPolicy || {}) as any;
+
+    // Map the unified DTO into the underlying CrawlOptions
+    const crawlOpts: CrawlOptions = {
+      limit: input.limit ?? 500,
+      depth: input.depth ?? 5,
+      concurrency: input.concurrency,
+      stripQuery: input.stripQuery,
+      ignoreRobots: policy.ignoreRobots !== undefined ? policy.ignoreRobots : input.ignoreRobots,
+      sitemap: input.sitemap,
+      debug: input.debug,
+      detectSoft404: input.detectSoft404,
+      detectTraps: input.detectTraps,
+      rate: policy.rate !== undefined ? policy.rate : input.rate,
+      maxBytes: policy.maxBytes !== undefined ? policy.maxBytes : input.maxBytes,
+      allowedDomains: policy.allowedDomains?.length ? policy.allowedDomains : input.allowedDomains,
+      deniedDomains: policy.deniedDomains?.length ? policy.deniedDomains : input.deniedDomains,
+      includeSubdomains: policy.includeSubdomains !== undefined ? policy.includeSubdomains : input.includeSubdomains,
+      proxyUrl: policy.proxyUrl !== undefined ? policy.proxyUrl : input.proxyUrl,
+      maxRedirects: policy.maxRedirects !== undefined ? policy.maxRedirects : input.maxRedirects,
+      userAgent: policy.userAgent !== undefined ? policy.userAgent : input.userAgent,
+      pluginManager: pm
+    };
+
+    const snapshotId = await crawl(input.url, crawlOpts);
     const graph = loadGraphFromSnapshot(snapshotId);
 
     await pm.runHook('onGraphBuilt', graph, { ...ctx, command: 'crawl', snapshotId });
@@ -35,15 +86,15 @@ export class CrawlSitegraph implements UseCase<{ url: string; options: CrawlOpti
       snapshotId,
       metadata: {
         ...(ctx.metadata ?? {}),
-        clusterThreshold: (input.options as any).clusterThreshold,
-        minClusterSize: (input.options as any).minClusterSize,
+        clusterThreshold: input.clusterThreshold,
+        minClusterSize: input.minClusterSize,
       }
     };
     await pm.runHook('onMetricsPhase', graph, metricsCtx);
 
-    runPostCrawlMetrics(snapshotId, input.options.depth, undefined, false, graph, {
-      computePageRank: false,
-      computeHITS: false
+    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {
+      computePageRank: false, // plugin managed
+      computeHITS: false      // plugin managed
     });
 
     await pm.runHook('onAfterCrawl', { ...ctx, command: 'crawl', snapshotId });
@@ -51,9 +102,19 @@ export class CrawlSitegraph implements UseCase<{ url: string; options: CrawlOpti
   }
 }
 
-export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeOptions }, AnalysisResult> {
-  async execute(input: { url: string; options: AnalyzeOptions }): Promise<AnalysisResult> {
-    return analyzeSite(input.url, { ...input.options, live: false });
+export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeOptions; plugins?: CrawlPlugin[]; context?: PluginContext }, AnalysisResult> {
+  async execute(input: { url: string; options: AnalyzeOptions; plugins?: CrawlPlugin[]; context?: PluginContext }): Promise<AnalysisResult> {
+    const result = await analyzeSite(input.url, { ...input.options, live: false });
+
+    if (input.plugins && input.plugins.length > 0) {
+      const pm = new PluginManager(input.plugins, {
+        debug: (message: string) => input.context?.logger?.info?.(message)
+      });
+      await pm.init(input.context ?? { command: 'analyze' });
+      await pm.runHook('onAnalyzeDone', result, input.context ?? { command: 'analyze' });
+    }
+
+    return result;
   }
 }
 
@@ -72,13 +133,15 @@ export interface PageAnalysisInput {
   minClusterSize?: number;
   debug?: boolean;
   allPages?: boolean;
+  plugins?: CrawlPlugin[];
+  context?: PluginContext;
 }
 
 export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisResult> {
   constructor(private readonly context?: EngineContext) { }
 
   async execute(input: PageAnalysisInput): Promise<AnalysisResult> {
-    return analyzeSite(input.url, {
+    const result = await analyzeSite(input.url, {
       live: input.live,
       snapshotId: input.snapshotId,
       seo: input.seo,
@@ -93,6 +156,16 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       debug: input.debug,
       allPages: input.allPages,
     }, this.context);
+
+    if (input.plugins && input.plugins.length > 0) {
+      const pm = new PluginManager(input.plugins || [], {
+        debug: (message: string) => input.context?.logger?.info?.(message)
+      });
+      await pm.init(input.context ?? { command: 'page' });
+      await pm.runHook('onAnalyzeDone', result, input.context ?? { command: 'page' });
+    }
+
+    return result;
   }
 }
 

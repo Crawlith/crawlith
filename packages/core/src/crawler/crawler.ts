@@ -6,7 +6,6 @@ import { Fetcher, FetchResult } from './fetcher.js';
 import { Parser } from './parser.js';
 import { Sitemap } from './sitemap.js';
 import { normalizeUrl } from './normalize.js';
-import { TrapDetector } from './trap.js';
 import { ScopeManager } from '../core/scope/scopeManager.js';
 import { getDb } from '../db/index.js';
 import { SiteRepository } from '../db/repositories/SiteRepository.js';
@@ -17,6 +16,7 @@ import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { analyzeContent, calculateThinContentScore } from '../analysis/content.js';
 import { analyzeLinks } from '../analysis/links.js';
 import { EngineContext } from '../events.js';
+import { PluginManager } from '../plugin/manager.js';
 
 export interface CrawlOptions {
   limit: number;
@@ -38,6 +38,7 @@ export interface CrawlOptions {
   maxRedirects?: number;
   userAgent?: string;
   snapshotType?: 'full' | 'partial' | 'incremental';
+  pluginManager?: PluginManager;
   robots?: any;
 }
 
@@ -63,6 +64,7 @@ export class Crawler {
   private startUrl: string;
   private options: CrawlOptions;
   private context: EngineContext;
+  private pluginManager?: PluginManager;
   private visited: Set<string>;
   private uniqueQueue: Set<string>;
   private queue: QueueItem[];
@@ -99,13 +101,13 @@ export class Crawler {
   private fetcher: Fetcher | null = null;
   private parser: Parser | null = null;
   private sitemapFetcher: Sitemap | null = null;
-  private trapDetector: TrapDetector | null = null;
   private robots: any = null;
 
   constructor(startUrl: string, options: CrawlOptions, context?: EngineContext) {
     this.startUrl = startUrl;
     this.options = options;
     this.context = context || nullContext;
+    this.pluginManager = options.pluginManager;
     this.visited = new Set<string>();
     this.uniqueQueue = new Set<string>();
     this.queue = [];
@@ -174,7 +176,6 @@ export class Crawler {
 
     this.parser = new Parser();
     this.sitemapFetcher = new Sitemap(this.context);
-    this.trapDetector = new TrapDetector();
   }
 
   async fetchRobots(): Promise<void> {
@@ -196,10 +197,11 @@ export class Crawler {
     if (depth > this.maxDepthInCrawl) return false;
     if (this.scopeManager!.isUrlEligible(url) !== 'allowed') return false;
 
-    if (this.options.detectTraps) {
-      const trap = this.trapDetector!.checkTrap(url, depth);
-      if (trap.risk > 0.8) return false;
+    if (this.pluginManager) {
+      const allowed = this.pluginManager.runSyncBailHook('shouldEnqueueUrl', url, depth, this.context);
+      if (allowed === false) return false;
     }
+
     return true;
   }
 

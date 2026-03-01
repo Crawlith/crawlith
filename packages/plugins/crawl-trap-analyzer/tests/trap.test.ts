@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TrapDetector } from '../src/crawler/trap.js';
+import { TrapDetector } from '../src/trap.js';
 
 describe('TrapDetector', () => {
     const detector = new TrapDetector();

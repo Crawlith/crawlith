@@ -1,10 +1,11 @@
 {
-  "name": "@crawlith/plugin-simhash",
+  "name": "@crawlith/plugin-snapshot-diff",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@crawlith/core": "workspace:*"
+    "@crawlith/core": "workspace:*",
+    "chalk": "^5.6.2"
   },
   "scripts": {
     "build": "tsc",

@@ -1,13 +1,19 @@
 import type { CrawlPlugin } from '@crawlith/core';
 import { resolvePlugins } from '@crawlith/core';
 
-// Import canonical plugin implementations from their own packages
 import { PageRankPlugin } from '@crawlith/plugin-pagerank';
 import { HitsPlugin } from '@crawlith/plugin-hits';
 import { DuplicateDetectionPlugin } from '@crawlith/plugin-duplicate-detection';
 import { ContentClusteringPlugin } from '@crawlith/plugin-content-clustering';
 import { SimhashPlugin } from '@crawlith/plugin-simhash';
 import { HeadingHealthPlugin } from '@crawlith/plugin-heading-health';
+import { OrphanIntelligencePlugin } from '@crawlith/plugin-orphan-intelligence';
+import { Soft404DetectorPlugin } from '@crawlith/plugin-soft404-detector';
+import { CrawlTrapAnalyzerPlugin } from '@crawlith/plugin-crawl-trap-analyzer';
+import { HealthScoreEnginePlugin } from '@crawlith/plugin-health-score-engine';
+import { SnapshotDiffPlugin } from '@crawlith/plugin-snapshot-diff';
+import { CrawlPolicyPlugin } from '@crawlith/plugin-crawl-policy';
+import { ExporterPlugin } from '@crawlith/plugin-exporter';
 
 export const allPlugins: CrawlPlugin[] = [
   PageRankPlugin,
@@ -16,6 +22,13 @@ export const allPlugins: CrawlPlugin[] = [
   ContentClusteringPlugin,
   SimhashPlugin,
   HeadingHealthPlugin,
+  OrphanIntelligencePlugin,
+  Soft404DetectorPlugin,
+  CrawlTrapAnalyzerPlugin,
+  HealthScoreEnginePlugin,
+  SnapshotDiffPlugin,
+  CrawlPolicyPlugin,
+  ExporterPlugin,
 ];
 
 /**

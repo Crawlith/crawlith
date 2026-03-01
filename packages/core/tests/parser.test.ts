@@ -80,17 +80,6 @@ test('detects relative canonical', () => {
   expect(result.canonical).toBe('https://example.com/canon');
 });
 
-test('detects soft 404', () => {
-  const html = `
-    <html>
-      <head><title>Page Not Found</title></head>
-      <body>Sorry, the page you are looking for does not exist.</body>
-    </html>
-  `;
-  const result = parser.parse(html, baseUrl, 200);
-  expect(result.soft404Score).toBeGreaterThanOrEqual(0.5);
-});
-
 test('content hash ignores scripts', () => {
   const html1 = `
     <html><body><script>var x=1;</script><p>Hello</p></body></html>

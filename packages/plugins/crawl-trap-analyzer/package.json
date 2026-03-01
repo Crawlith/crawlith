@@ -1,5 +1,5 @@
 {
-  "name": "@crawlith/plugin-simhash",
+  "name": "@crawlith/plugin-crawl-trap-analyzer",
   "private": true,
   "version": "0.0.0",
   "type": "module",

@@ -1,28 +1,17 @@
+import type { GraphNode, GraphEdge } from '@crawlith/core';
+
+export interface ExtendedGraphNode extends GraphNode {
+  pageType?: string;
+  hasStructuredData?: boolean;
+  isProductOrCommercial?: boolean;
+  duplicateContent?: boolean;
+  isHomepage?: boolean;
+  robotsExcluded?: boolean;
+  discoveredViaSitemap?: boolean;
+}
+
 export type OrphanType = 'hard' | 'near' | 'soft' | 'crawl-only';
 export type ImpactLevel = 'low' | 'medium' | 'high' | 'critical';
-
-export interface CrawlNode {
-  url: string;
-  depth: number;
-  inLinks: number;
-  outLinks: number;
-  status: number;
-  discoveredViaSitemap?: boolean;
-  robotsExcluded?: boolean;
-  canonicalUrl?: string;
-  isHomepage?: boolean;
-  wordCount?: number;
-  hasStructuredData?: boolean;
-  pageType?: string;
-  noindex?: boolean;
-  duplicateContent?: boolean;
-  isProductOrCommercial?: boolean;
-}
-
-export interface CrawlEdge {
-  source: string;
-  target: string;
-}
 
 export interface OrphanScoringOptions {
   enabled: boolean;
@@ -32,7 +21,7 @@ export interface OrphanScoringOptions {
   rootUrl?: string;
 }
 
-export type AnnotatedNode = CrawlNode & {
+export type AnnotatedNode = GraphNode & {
   orphan: boolean;
   orphanType?: OrphanType;
   orphanSeverity?: number;
@@ -46,7 +35,7 @@ const LOW_VALUE_PATTERNS = [
   /\/search(\/|\?|$)/i
 ];
 
-function isLowValuePage(node: CrawlNode): boolean {
+function isLowValuePage(node: ExtendedGraphNode): boolean {
   const type = (node.pageType || '').toLowerCase();
   if (['pagination', 'tag', 'category', 'filter', 'search', 'archive'].includes(type)) {
     return true;
@@ -68,7 +57,7 @@ export function mapImpactLevel(score: number): ImpactLevel {
   return 'critical';
 }
 
-export function calculateOrphanSeverity(orphanType: OrphanType, node: CrawlNode): number {
+export function calculateOrphanSeverity(orphanType: OrphanType, node: ExtendedGraphNode): number {
   let score = 0;
 
   switch (orphanType) {
@@ -106,16 +95,16 @@ export function calculateOrphanSeverity(orphanType: OrphanType, node: CrawlNode)
   return clampScore(score);
 }
 
-function consolidateInboundByCanonical(nodes: CrawlNode[]): Map<string, number> {
+function consolidateInboundByCanonical(nodes: ExtendedGraphNode[]): Map<string, number> {
   const canonicalInbound = new Map<string, number>();
   for (const node of nodes) {
-    const canonical = node.canonicalUrl || node.url;
+    const canonical = node.canonical || node.url;
     canonicalInbound.set(canonical, (canonicalInbound.get(canonical) || 0) + node.inLinks);
   }
   return canonicalInbound;
 }
 
-export function annotateOrphans(nodes: CrawlNode[], edges: CrawlEdge[], options: OrphanScoringOptions): AnnotatedNode[] {
+export function annotateOrphans(nodes: ExtendedGraphNode[], edges: GraphEdge[], options: OrphanScoringOptions): AnnotatedNode[] {
   if (!options.enabled) {
     return nodes.map((node) => ({ ...node, orphan: false }));
   }
@@ -129,7 +118,7 @@ export function annotateOrphans(nodes: CrawlNode[], edges: CrawlEdge[], options:
       return { ...node, orphan: false };
     }
 
-    const canonical = node.canonicalUrl || node.url;
+    const canonical = node.canonical || node.url;
     const inbound = canonicalInbound.get(canonical) || 0;
 
     let orphanType: OrphanType | undefined;
@@ -144,7 +133,7 @@ export function annotateOrphans(nodes: CrawlNode[], edges: CrawlEdge[], options:
       const inboundSources = edges
         .filter((edge) => edge.target === node.url)
         .map((edge) => nodeByUrl.get(edge.source))
-        .filter((source): source is CrawlNode => Boolean(source));
+        .filter((source): source is GraphNode => Boolean(source));
 
       if (inboundSources.length > 0 && inboundSources.every((source) => isLowValuePage(source))) {
         orphanType = 'soft';

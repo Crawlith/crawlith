@@ -9,6 +9,7 @@ export interface ParsedPage {
 export interface PluginContext {
   command?: string;
   flags?: Record<string, boolean>;
+  terminate?: boolean;
   metadata?: Record<string, unknown>;
   logger?: { info(msg: string): void; warn(msg: string): void; error(msg: string): void };
 }
@@ -30,7 +31,7 @@ export type SiteGraph = Graph;
 export interface PluginCliOption {
   flags: string;           // Commander flag syntax, e.g. '--cluster-threshold <number>'
   description: string;
-  defaultValue?: string;
+  defaultValue?: string | boolean | number;
 }
 
 export interface CrawlPlugin {
@@ -43,10 +44,12 @@ export interface CrawlPlugin {
     options?: PluginCliOption[];
   };
   onInit?(ctx: PluginContext): Promise<void>;
+  shouldEnqueueUrl?(url: string, depth: number, ctx: CrawlContext): boolean | void;
   onBeforeCrawl?(ctx: CrawlContext): Promise<void>;
   onPageParsed?(page: ParsedPage, ctx: CrawlContext): Promise<void>;
   onGraphBuilt?(graph: SiteGraph, ctx: CrawlContext): Promise<void>;
   onMetricsPhase?(graph: SiteGraph, ctx: MetricsContext): Promise<void>;
   onAfterCrawl?(ctx: CrawlContext): Promise<void>;
+  onAnalyzeDone?(result: any, ctx: PluginContext): Promise<void>;
   extendSchema?(schema: SchemaBuilder): void;
 }

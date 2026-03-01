@@ -25,7 +25,7 @@ export class Parser {
   /**
    * Parses HTML content to extract metadata and links.
    */
-  parse(html: string, baseUrl: string, status: number): ParseResult {
+  parse(html: string, baseUrl: string, _status: number): ParseResult {
     const $ = cheerio.load(html);
 
     // 1. Robots Meta
@@ -121,58 +121,9 @@ export class Parser {
     const uniqueTokenRatio = tokens.length > 0 ? (uniqueTokens.size / tokens.length) : 0;
     const simhash = SimHash.generate(tokens).toString();
 
-    // 5. Soft 404 Detection
-    let soft404Score = 0;
+    // 5. Soft 404 Detection (Migrated to Soft404DetectorPlugin)
+    const soft404Score = 0;
     const soft404Signals: string[] = [];
-
-    if (status === 200) {
-      const title = $('title').text().toLowerCase();
-      const h1Text = $('h1').first().text().toLowerCase();
-      const bodyText = cleanText.toLowerCase();
-
-      const errorPatterns = ['404', 'not found', 'error', 'doesn\'t exist', 'unavailable', 'invalid'];
-
-      // Pattern checks
-      for (const pattern of errorPatterns) {
-        if (title.includes(pattern)) {
-          soft404Score += 0.4;
-          soft404Signals.push(`title_pattern_${pattern.replace(/\s+/g, '_')}`);
-          break;
-        }
-      }
-
-      for (const pattern of errorPatterns) {
-        if (h1Text.includes(pattern)) {
-          soft404Score += 0.3;
-          soft404Signals.push(`h1_pattern_${pattern.replace(/\s+/g, '_')}`);
-          break;
-        }
-      }
-
-      if (bodyText.includes('page not found') || bodyText.includes('404 error')) {
-        soft404Score += 0.2;
-        soft404Signals.push('body_error_phrase');
-      }
-
-      // Content length check (Word count approximation)
-      const words = cleanText.split(/\s+/).filter(w => w.length > 0);
-      if (words.length < 50) {
-        soft404Score += 0.3;
-        soft404Signals.push('very_low_word_count');
-      } else if (words.length < 150) {
-        soft404Score += 0.1;
-        soft404Signals.push('low_word_count');
-      }
-
-      // Link count check
-      if (links.size === 0) {
-        soft404Score += 0.2;
-        soft404Signals.push('no_outbound_links');
-      }
-
-      // Cap at 1.0
-      soft404Score = Math.min(1.0, soft404Score);
-    }
 
     return {
       links: Array.from(links.entries()).map(([url, weight]) => ({ url, weight })),

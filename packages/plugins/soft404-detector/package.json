@@ -1,10 +1,11 @@
 {
-  "name": "@crawlith/plugin-simhash",
+  "name": "@crawlith/plugin-soft404-detector",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@crawlith/core": "workspace:*"
+    "@crawlith/core": "workspace:*",
+    "cheerio": "^1.2.0"
   },
   "scripts": {
     "build": "tsc",

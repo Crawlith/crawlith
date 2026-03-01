@@ -66,21 +66,42 @@ importers:
       '@crawlith/plugin-content-clustering':
         specifier: workspace:*
         version: link:../plugins/content-clustering
+      '@crawlith/plugin-crawl-policy':
+        specifier: workspace:*
+        version: link:../plugins/crawl-policy
+      '@crawlith/plugin-crawl-trap-analyzer':
+        specifier: workspace:*
+        version: link:../plugins/crawl-trap-analyzer
       '@crawlith/plugin-duplicate-detection':
         specifier: workspace:*
         version: link:../plugins/duplicate-detection
+      '@crawlith/plugin-exporter':
+        specifier: workspace:*
+        version: link:../plugins/exporter
       '@crawlith/plugin-heading-health':
         specifier: workspace:*
         version: link:../plugins/heading-health
+      '@crawlith/plugin-health-score-engine':
+        specifier: workspace:*
+        version: link:../plugins/health-score-engine
       '@crawlith/plugin-hits':
         specifier: workspace:*
         version: link:../plugins/hits
+      '@crawlith/plugin-orphan-intelligence':
+        specifier: workspace:*
+        version: link:../plugins/orphan-intelligence
       '@crawlith/plugin-pagerank':
         specifier: workspace:*
         version: link:../plugins/pagerank
       '@crawlith/plugin-simhash':
         specifier: workspace:*
         version: link:../plugins/simhash
+      '@crawlith/plugin-snapshot-diff':
+        specifier: workspace:*
+        version: link:../plugins/snapshot-diff
+      '@crawlith/plugin-soft404-detector':
+        specifier: workspace:*
+        version: link:../plugins/soft404-detector
       '@crawlith/server':
         specifier: workspace:*
         version: link:../server
@@ -159,11 +180,35 @@ importers:
         specifier: workspace:*
         version: link:../../core
 
+  packages/plugins/crawl-policy:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+
+  packages/plugins/crawl-trap-analyzer:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+
   packages/plugins/duplicate-detection:
     dependencies:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../../core
+
+  packages/plugins/exporter:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
 
   packages/plugins/heading-health:
     dependencies:
@@ -171,7 +216,22 @@ importers:
         specifier: workspace:*
         version: link:../../core
 
+  packages/plugins/health-score-engine:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+
   packages/plugins/hits:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/plugins/orphan-intelligence:
     dependencies:
       '@crawlith/core':
         specifier: workspace:*
@@ -188,6 +248,24 @@ importers:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../../core
+
+  packages/plugins/snapshot-diff:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+
+  packages/plugins/soft404-detector:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
 
   packages/server:
     dependencies:
