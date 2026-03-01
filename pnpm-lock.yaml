@@ -63,6 +63,24 @@ importers:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../core
+      '@crawlith/plugin-content-clustering':
+        specifier: workspace:*
+        version: link:../plugins/content-clustering
+      '@crawlith/plugin-duplicate-detection':
+        specifier: workspace:*
+        version: link:../plugins/duplicate-detection
+      '@crawlith/plugin-heading-health':
+        specifier: workspace:*
+        version: link:../plugins/heading-health
+      '@crawlith/plugin-hits':
+        specifier: workspace:*
+        version: link:../plugins/hits
+      '@crawlith/plugin-pagerank':
+        specifier: workspace:*
+        version: link:../plugins/pagerank
+      '@crawlith/plugin-simhash':
+        specifier: workspace:*
+        version: link:../plugins/simhash
       '@crawlith/server':
         specifier: workspace:*
         version: link:../server

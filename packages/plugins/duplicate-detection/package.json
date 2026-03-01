@@ -8,5 +8,6 @@
   },
   "scripts": {
     "build": "tsc"
-  }
+  },
+  "exports": "./index.ts"
 }
