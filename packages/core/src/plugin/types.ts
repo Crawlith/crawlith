@@ -71,6 +71,16 @@ export interface PluginCliOption {
   defaultValue?: string | boolean | number;
 }
 
+export interface PluginStore {
+  // Snapshot summary
+  saveSummary(data: unknown): void;
+  loadSummary<T>(): T | null;
+
+  // Per-page data (only if declared)
+  upsertPageData(url: string, data: Record<string, unknown>): void;
+  getPageData<T>(url: string): T | null;
+}
+
 export interface CrawlPlugin {
   name: string;
   cli?: {
@@ -79,6 +89,13 @@ export interface CrawlPlugin {
     defaultFor?: string[];
     optionalFor?: string[];
     options?: PluginCliOption[];
+  };
+  storage?: {
+    perPage?: {
+      columns: {
+        [columnName: string]: 'INTEGER' | 'REAL' | 'TEXT';
+      };
+    };
   };
   onInit?(ctx: PluginContext): Promise<void>;
   shouldEnqueueUrl?(url: string, depth: number, ctx: CrawlContext): boolean | void;
@@ -91,7 +108,7 @@ export interface CrawlPlugin {
   extendSchema?(schema: SchemaBuilder): void;
 
   hooks?: {
-    onMetrics?: (ctx: PluginContext & { cli: CLIWriter }) => void | Promise<void>;
-    onReport?: (ctx: PluginContext & { report: ReportWriter }) => void | Promise<void>;
+    onMetrics?: (ctx: PluginContext & { cli: CLIWriter; store: PluginStore }) => void | Promise<void>;
+    onReport?: (ctx: PluginContext & { report: ReportWriter; store: PluginStore; cli?: CLIWriter }) => void | Promise<void>;
   };
 }

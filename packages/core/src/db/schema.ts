@@ -141,6 +141,19 @@ export function initSchema(db: Database) {
     );
   `);
 
+  // Plugin Reports Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_reports (
+      snapshot_id INTEGER NOT NULL,
+      plugin_name TEXT NOT NULL,
+      data TEXT NOT NULL,
+      PRIMARY KEY (snapshot_id, plugin_name),
+      FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_plugin_reports_snapshot ON plugin_reports(snapshot_id);`);
+
   // Migration: add columns to existing DBs that were created before this update
   migrateSchema(db);
 }
