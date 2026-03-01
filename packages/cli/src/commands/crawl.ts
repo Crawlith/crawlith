@@ -14,7 +14,7 @@ import {
 import { buildCrawlInsightReport, hasCriticalIssues, renderInsightOutput, renderScoreBreakdown } from './crawlFormatter.js';
 import { parseExportFormats, runCrawlExports } from '../utils/exportRunner.js';
 import { OutputController } from '../output/controller.js';
-import { resolveCommandPlugins } from '../plugins.js';
+import { resolveCommandPlugins, registerPluginFlags } from '../plugins.js';
 
 export const crawlCommand = new Command('crawl')
   .description('Crawl an entire website and build its internal link graph, metrics, and SEO structure.')
@@ -41,7 +41,6 @@ export const crawlCommand = new Command('crawl')
 
   .option('--detect-soft404', 'Detect soft 404 pages')
   .option('--detect-traps', 'Detect and cluster crawl traps')
-  .option('--no-collapse', 'Do not collapse duplicate clusters before PageRank')
   .option('--fail-on-critical', 'exit code 1 if critical issues exist')
   .option('--score-breakdown', 'print health score component weights')
   .option('--rate <number>', 'requests per second per host', '2')
@@ -52,10 +51,12 @@ export const crawlCommand = new Command('crawl')
   .option('--include-subdomains', 'include subdomains in crawl')
   .option('--proxy <url>', 'proxy URL (e.g. http://user:pass@host:port)')
   .option('--ua <string>', 'custom User-Agent string')
-  .option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10')
-  .option('--compute-hits', 'compute Hub and Authority scores (HITS)')
-  .option('--min-cluster-size <number>', 'minimum pages per cluster', '3')
-  .option('--force', 'force run (override existing lock)')
+  .option('--force', 'force run (override existing lock)');
+
+// Dynamically register plugin-declared flags (--compute-hits, --cluster-threshold, etc.)
+registerPluginFlags(crawlCommand, 'crawl');
+
+crawlCommand
   .action(async (url: string, options: any) => {
 
     if (!url) {

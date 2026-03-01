@@ -27,6 +27,12 @@ export interface SchemaBuilder {
 
 export type SiteGraph = Graph;
 
+export interface PluginCliOption {
+  flags: string;           // Commander flag syntax, e.g. '--cluster-threshold <number>'
+  description: string;
+  defaultValue?: string;
+}
+
 export interface CrawlPlugin {
   name: string;
   cli?: {
@@ -34,6 +40,7 @@ export interface CrawlPlugin {
     description?: string;
     defaultFor?: string[];
     optionalFor?: string[];
+    options?: PluginCliOption[];
   };
   onInit?(ctx: PluginContext): Promise<void>;
   onBeforeCrawl?(ctx: CrawlContext): Promise<void>;
