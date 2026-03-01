@@ -109,7 +109,7 @@ clean.action(async (url: string, options) => {
         }
 
         if (cleanExports) {
-            const outputDir = path.resolve(options.output);
+            const outputDir = path.resolve(String(options.output || './crawlith-reports'));
             const siteExportDir = path.join(outputDir, domainFolder);
             try {
                 await fs.rm(siteExportDir, { recursive: true, force: true });
