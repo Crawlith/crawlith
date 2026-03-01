@@ -1,7 +1,7 @@
-import { computePageRank, type CrawlPlugin } from '@crawlith/core';
+import { computePageRank, type CrawlPlugin, type SiteGraph } from '@crawlith/core';
 export const PageRankPlugin: CrawlPlugin = {
   name: 'pagerank',
   cli: { defaultFor: ['crawl'] },
-  async onMetricsPhase(graph) { computePageRank(graph); }
+  async onMetricsPhase(graph: SiteGraph) { computePageRank(graph); }
 };
 export default PageRankPlugin;

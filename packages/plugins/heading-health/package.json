@@ -2,5 +2,11 @@
   "name": "@crawlith/plugin-heading-health",
   "private": true,
   "version": "0.0.0",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@crawlith/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc"
+  }
 }

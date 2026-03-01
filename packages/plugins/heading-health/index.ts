@@ -1,4 +1,4 @@
-import type { CrawlPlugin } from '@crawlith/core';
+import type { CrawlPlugin, ParsedPage, CrawlContext } from '@crawlith/core';
 
 function headingHealth(html?: string): number {
   if (!html) return 0;
@@ -16,7 +16,7 @@ export const HeadingHealthPlugin: CrawlPlugin = {
     defaultFor: ['crawl'],
     optionalFor: ['page']
   },
-  async onPageParsed(page, ctx) {
+  async onPageParsed(page: ParsedPage, ctx: CrawlContext) {
     ctx.metadata = ctx.metadata ?? {};
     const map = (ctx.metadata.headingHealth as Record<string, number> | undefined) ?? {};
     map[page.url] = headingHealth(page.html);

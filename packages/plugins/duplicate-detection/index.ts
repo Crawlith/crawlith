@@ -1,7 +1,7 @@
-import { detectDuplicates, type CrawlPlugin } from '@crawlith/core';
+import { detectDuplicates, type CrawlPlugin, type SiteGraph } from '@crawlith/core';
 export const DuplicateDetectionPlugin: CrawlPlugin = {
   name: 'duplicate-detection',
   cli: { defaultFor: ['crawl'] },
-  async onMetricsPhase(graph) { detectDuplicates(graph); }
+  async onMetricsPhase(graph: SiteGraph) { detectDuplicates(graph); }
 };
 export default DuplicateDetectionPlugin;

@@ -43,6 +43,7 @@ export interface GraphNode {
   h1Count?: number;
   h2Count?: number;
   headingHealthScore?: number;
+  title?: string;
 }
 
 export interface GraphEdge {

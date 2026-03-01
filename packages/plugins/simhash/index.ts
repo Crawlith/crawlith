@@ -1,11 +1,11 @@
-import { SimHash, type CrawlPlugin } from '@crawlith/core';
+import { SimHash, type CrawlPlugin, type SiteGraph } from '@crawlith/core';
 export const SimhashPlugin: CrawlPlugin = {
   name: 'simhash',
   cli: { defaultFor: ['crawl'] },
-  async onMetricsPhase(graph) {
+  async onMetricsPhase(graph: SiteGraph) {
     for (const node of graph.getNodes()) {
-      const tokens = (node.title ?? node.url).toLowerCase().split(/\W+/).filter(Boolean);
-      node.simhash = SimHash.generate(tokens).toString(16);
+      const tokens = (((node as any).title ?? node.url) as string).toLowerCase().split(/\W+/).filter(Boolean);
+      (node as any).simhash = SimHash.generate(tokens).toString(16);
     }
   }
 };
