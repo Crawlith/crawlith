@@ -1,1 +1,1 @@
-export { Fetcher } from '../../../../plugins/core/src/crawler/fetcher.js';
+export { Fetcher } from '@crawlith/core';

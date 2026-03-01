@@ -26,7 +26,7 @@ npm run build
 
 To use the CLI globally or link it:
 ```bash
-npm link ./plugins/cli
+npm link ./packages/cli
 ```
 
 *(Note: In development, you can use `npm run crawlith -- <command>` to run the CLI directly from the root).*
@@ -73,8 +73,8 @@ crawlith export https://example.com --export json,html,visualize,csv
 ## Architecture
 
 Crawlith is divided into workspaces:
-- `plugins/core`: The heavy-lifting engine (Database, Graph algorithms, Crawler, Security boundaries).
-- `plugins/cli`: The terminal user interface.
+- `packages/core`: The heavy-lifting engine (Database, Graph algorithms, Crawler, Security boundaries).
+- `packages/cli`: The terminal user interface.
 - `plugins/web`: The React-based dashboard frontend.
 
 All data is stored locally in an SQLite database at `~/.crawlith/crawlith.db`.

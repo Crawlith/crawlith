@@ -21,9 +21,7 @@ export default tseslint.config(
             '**/*.d.ts',
             'coverage/**',
             'crawlith-reports/**',
-            'plugins/*/ui/**',
-            'plugins/core/**',
-            'plugins/cli/**'
+            'plugins/*/ui/**'
         ]
     }
 );

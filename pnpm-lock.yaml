@@ -63,6 +63,9 @@ importers:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../core
+      '@crawlith/server':
+        specifier: workspace:*
+        version: link:../server
       chalk:
         specifier: ^5.3.0
         version: 5.6.2

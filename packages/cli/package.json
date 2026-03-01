@@ -17,7 +17,8 @@
     "chalk": "^5.3.0",
     "commander": "^12.0.0",
     "express": "^4.19.2",
-    "open": "^10.1.0"
+    "open": "^10.1.0",
+    "@crawlith/server": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

@@ -1,1 +1,1 @@
-export { exportCrawlData } from '../../../../plugins/core/src/report/crawlExport.js';
+export { exportCrawlData } from '@crawlith/core';

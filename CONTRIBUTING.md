@@ -26,8 +26,8 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 ## Development Workflow
 
 We use a monorepo structure with `plugins`:
-- `plugins/core`: The core crawling and graph analysis logic.
-- `plugins/cli`: The CLI interface and commands.
+- `packages/core`: The core crawling and graph analysis logic.
+- `packages/cli`: The CLI interface and commands.
 - `plugins/server`: The web server/API.
 - `plugins/web`: The UI dashboard.
 
@@ -35,7 +35,7 @@ To test your CLI changes locally, you can run:
 ```bash
 npm run crawlith -- [command] [options]
 # Or link it globally for testing
-cd plugins/cli
+cd packages/cli
 npm link
 ```
 

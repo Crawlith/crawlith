@@ -1,6 +1,6 @@
 {
-  "name": "@crawlith/architecture-server",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module"
+  "name": "@crawlith/server",
+  "version": "0.1.1",
+  "type": "module",
+  "exports": "./src/index.ts"
 }

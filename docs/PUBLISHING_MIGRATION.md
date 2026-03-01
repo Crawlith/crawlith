@@ -9,8 +9,6 @@ This repository now uses `packages/*` as the canonical npm publish roots.
 
 ## Internal implementation packages
 
-- `plugins/core` → `@crawlith/internal-core` (private)
-- `plugins/cli` → `@crawlith/internal-cli` (private)
 
 These internal packages are built/tested through the public packages' scripts so the publish surface stays stable while source migration continues.
 
