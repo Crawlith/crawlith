@@ -31,6 +31,7 @@ export interface CrawlPage {
 
 export interface AnalyzeOptions {
   live?: boolean;
+  snapshotId?: number;
   seo?: boolean;
   content?: boolean;
   accessibility?: boolean;
@@ -136,7 +137,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   } else {
     try {
       const loadStart = Date.now();
-      crawlData = await loadCrawlData(normalizedRoot);
+      crawlData = await loadCrawlData(normalizedRoot, options.snapshotId);
       if (context) context.emit({ type: 'info', message: `[analyze] loadCrawlData took ${Date.now() - loadStart}ms` });
 
       const allPages = Array.from(crawlData.pages);
@@ -308,7 +309,7 @@ function filterPageModules(page: PageAnalysis, modules: { seo: boolean; content:
   };
 }
 
-async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
+async function loadCrawlData(rootUrl: string, snapshotId?: number): Promise<CrawlData> {
   const db = getDb();
   const siteRepo = new SiteRepository(db);
   const snapshotRepo = new SnapshotRepository(db);
@@ -319,9 +320,14 @@ async function loadCrawlData(rootUrl: string): Promise<CrawlData> {
   const site = siteRepo.firstOrCreateSite(domain);
 
   let snapshot = null;
-  const page = pageRepo.getPage(site.id, rootUrl);
-  if (page?.last_seen_snapshot_id) {
-    snapshot = snapshotRepo.getSnapshot(page.last_seen_snapshot_id);
+  if (snapshotId) {
+    snapshot = snapshotRepo.getSnapshot(snapshotId);
+  }
+  if (!snapshot) {
+    const page = pageRepo.getPage(site.id, rootUrl);
+    if (page?.last_seen_snapshot_id) {
+      snapshot = snapshotRepo.getSnapshot(page.last_seen_snapshot_id);
+    }
   }
   if (!snapshot) snapshot = snapshotRepo.getLatestSnapshot(site.id);
   if (!snapshot) throw new Error(`No crawl data found for ${rootUrl}`);

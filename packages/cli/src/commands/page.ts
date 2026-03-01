@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 
-import { analyzeSite, EngineContext } from '@crawlith/core';
+import { PageAnalysisUseCase, EngineContext } from '@crawlith/core';
 import { OutputController } from '../output/controller.js';
 import { resolveCommandPlugins, registerPluginFlags } from '../plugins.js';
 import { exportAnalysisResult } from '../output/export.js';
@@ -58,8 +58,10 @@ analyze.action(async (url: string, options: any) => {
       process.exit(0);
     }
 
-    // 4. Run Analysis
-    const result = await analyzeSite(url as string, {
+    // 4. Run Analysis via Use Case
+    const useCase = new PageAnalysisUseCase(context);
+    const result = await useCase.execute({
+      url,
       live: options.live,
       seo: options.seo,
       content: options.content,
@@ -71,7 +73,7 @@ analyze.action(async (url: string, options: any) => {
       debug: options.logLevel === 'debug',
       clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : 10,
       minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : 3
-    }, context);
+    });
 
     // 5. Render Output
     if (options.format === 'json') {

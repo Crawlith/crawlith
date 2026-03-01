@@ -8,8 +8,7 @@ import {
   SnapshotRepository,
 
   Snapshot,
-  analyzeSite,
-  analyzePages
+  PageAnalysisUseCase
 } from '@crawlith/core';
 
 export interface ServerOptions {
@@ -339,106 +338,99 @@ export function startServer(options: ServerOptions): Promise<void> {
     });
 
     // 5.1 GET /api/page
-    api.get('/page', (req, res) => {
+    api.get('/page', async (req, res) => {
       const url = req.query.url as string;
+      const snapshotParam = req.query.snapshot as string | undefined;
 
       if (!url) {
         return res.status(400).json({ error: 'URL parameter is required' });
       }
 
-      // ALWAYS select the latest snapshot where this URL was analyzed, regardless of dashboard snapshot
-      const latestSnapshotForUrl = db.prepare(`
-        SELECT m.snapshot_id 
-        FROM metrics m
-        JOIN pages p ON m.page_id = p.id
-        WHERE p.site_id = ? AND p.normalized_url = ? AND (m.pagerank_score IS NOT NULL OR (p.html IS NOT NULL AND p.html != ''))
-        ORDER BY m.snapshot_id DESC LIMIT 1
-      `).get(siteId, url) as { snapshot_id: number } | undefined;
+      try {
+        // Use the same PageAnalysisUseCase as the CLI's `page` command
+        const useCase = new PageAnalysisUseCase();
+        const result = await useCase.execute({
+          url,
+          snapshotId: snapshotParam ? parseInt(snapshotParam, 10) : undefined,
+          seo: true,
+          content: true,
+          accessibility: true,
+        });
 
-      if (!latestSnapshotForUrl) {
-        return res.status(404).json({ error: 'Page not found' });
+        const page = result.pages[0];
+        if (!page) {
+          return res.status(404).json({ error: 'Page not found' });
+        }
+
+        const targetSnapshotId = result.snapshotId;
+
+        // Enrich with DB-level graph metrics (pagerank, inlinks, outlinks)
+        // These are graph-level concerns not part of the page analysis use case
+        const dbPage = db.prepare(`
+          SELECT p.id, p.depth,
+            m.pagerank, m.pagerank_score, m.authority_score, m.hub_score
+          FROM pages p
+          LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+          WHERE p.site_id = ? AND p.normalized_url = ?
+        `).get(targetSnapshotId, siteId, url) as any;
+
+        let inlinks = 0, outlinks = 0;
+        if (dbPage) {
+          const inlinksCount = db.prepare(`
+            SELECT COUNT(*) as count FROM edges
+            WHERE snapshot_id = ? AND target_page_id = ? AND rel = 'internal'
+          `).get(targetSnapshotId, dbPage.id) as { count: number };
+          const outlinksCount = db.prepare(`
+            SELECT COUNT(*) as count FROM edges
+            WHERE snapshot_id = ? AND source_page_id = ? AND rel = 'internal'
+          `).get(targetSnapshotId, dbPage.id) as { count: number };
+          inlinks = inlinksCount.count;
+          outlinks = outlinksCount.count;
+        }
+
+        // Health assessment
+        const criticalCount = (page.status >= 400 || page.status === 0 || page.title.status === 'missing' || page.h1.status === 'critical') ? 1 : 0;
+        const warningCount = (page.title.status === 'too_long' || page.title.status === 'too_short' || page.content.wordCount < 300 || page.h1.status === 'warning') ? 1 : 0;
+
+        res.json({
+          identity: {
+            url: page.url,
+            status: page.status,
+            canonical: page.meta.canonical,
+            title: page.title,
+            metaDescription: page.metaDescription,
+            h1: page.h1,
+            crawlError: page.meta.crawlStatus === 'failed' ? 'fetch_error' : null,
+            crawlDate: result.crawledAt
+          },
+          metrics: {
+            pageRank: dbPage?.pagerank_score || 0,
+            rawPageRank: dbPage?.pagerank || 0,
+            authority: dbPage?.authority_score || 0,
+            hub: dbPage?.hub_score || 0,
+            depth: dbPage?.depth || 0,
+            inlinks,
+            outlinks
+          },
+          health: {
+            status: page.seoScore > 80 ? 'Good' : page.seoScore > 50 ? 'Warning' : 'Critical',
+            criticalCount,
+            warningCount,
+            isThinContent: page.thinScore > 70,
+            isDuplicate: page.title.status === 'duplicate',
+            indexabilityRisk: !!page.meta.noindex
+          },
+          content: page.content,
+          images: page.images,
+          links: page.links,
+          structuredData: page.structuredData,
+          snapshotId: targetSnapshotId
+        });
+      } catch (error: any) {
+        return res.status(404).json({ error: error.message || 'Page not found' });
       }
-
-      const targetSnapshotId = latestSnapshotForUrl.snapshot_id;
-
-      const page = db.prepare(`
-        SELECT 
-          p.*,
-          m.authority_score, m.hub_score, m.pagerank, m.pagerank_score,
-          m.link_role, m.word_count, m.thin_content_score,
-          m.external_link_ratio, m.orphan_score,
-          m.duplicate_cluster_id, m.duplicate_type, m.is_cluster_primary
-        FROM pages p
-        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
-        WHERE p.site_id = ? AND p.normalized_url = ?
-      `).get(targetSnapshotId, siteId, url) as any;
-
-      if (!page) {
-        return res.status(404).json({ error: 'Page not found' });
-      }
-
-      // Perform full semantic analysis from stored HTML
-      const analysis = analyzePages(url, [{
-        url: page.normalized_url,
-        status: page.http_status,
-        html: page.html || '',
-        canonical: page.canonical_url,
-        noindex: !!page.noindex,
-        nofollow: !!page.nofollow,
-        crawlStatus: page.security_error ? 'failed' : (page.http_status ? 'fetched' : 'discovered')
-      }])[0];
-
-      // Calculate health issues
-      const criticalCount = (page.http_status >= 400 || page.http_status === 0 || page.security_error || analysis.title.status === 'missing' || analysis.h1.status === 'critical') ? 1 : 0;
-      const warningCount = (analysis.title.status === 'too_long' || analysis.title.status === 'too_short' || analysis.content.wordCount < 300 || analysis.h1.status === 'warning') ? 1 : 0;
-
-      // Inlinks count
-      const inlinksCount = db.prepare(`
-        SELECT COUNT(*) as count FROM edges
-        WHERE snapshot_id = ? AND target_page_id = ? AND rel = 'internal'
-      `).get(targetSnapshotId, page.id) as { count: number };
-
-      // Outlinks count
-      const outlinksCount = db.prepare(`
-        SELECT COUNT(*) as count FROM edges
-        WHERE snapshot_id = ? AND source_page_id = ? AND rel = 'internal'
-      `).get(targetSnapshotId, page.id) as { count: number };
-
-      res.json({
-        identity: {
-          url: page.normalized_url,
-          status: page.http_status,
-          canonical: page.canonical_url,
-          title: analysis.title,
-          metaDescription: analysis.metaDescription,
-          h1: analysis.h1,
-          crawlError: page.security_error,
-          crawlDate: page.updated_at
-        },
-        metrics: {
-          pageRank: page.pagerank_score || 0,
-          rawPageRank: page.pagerank || 0,
-          authority: page.authority_score || 0,
-          hub: page.hub_score || 0,
-          depth: page.depth || 0,
-          inlinks: inlinksCount.count,
-          outlinks: outlinksCount.count
-        },
-        health: {
-          status: analysis.seoScore > 80 ? 'Good' : analysis.seoScore > 50 ? 'Warning' : 'Critical',
-          criticalCount,
-          warningCount,
-          isThinContent: analysis.thinScore > 70,
-          isDuplicate: analysis.title.status === 'duplicate',
-          indexabilityRisk: page.noindex === 1
-        },
-        content: analysis.content,
-        images: analysis.images,
-        links: analysis.links,
-        structuredData: analysis.structuredData,
-        snapshotId: targetSnapshotId
-      });
     });
+
 
     // 5.2 GET /api/page/inlinks
     api.get('/page/inlinks', validateSnapshot, (req, res) => {
@@ -636,22 +628,22 @@ export function startServer(options: ServerOptions): Promise<void> {
         console.log(chalk.cyan(`   Live crawl requested: ${url}`));
         const start = Date.now();
 
-        // Context to pipe events to terminal
-        const context = {
+        // Use the same PageAnalysisUseCase as CLI's `page --live`
+        const useCase = new PageAnalysisUseCase({
           emit: (event: any) => {
             if (event.type === 'info' && event.message.includes('[analyze]')) {
               console.log(chalk.gray(`      ${event.message}`));
             }
           }
-        };
+        });
 
-        // We use analyzeSite with live: true and limit to that specific URL
-        const result = await analyzeSite(url, {
+        const result = await useCase.execute({
+          url,
           live: true,
           seo: true,
           content: true,
-          accessibility: true
-        }, context as any);
+          accessibility: true,
+        });
 
         console.log(chalk.green(`   ✅ Live crawl completed in ${Date.now() - start}ms`));
 

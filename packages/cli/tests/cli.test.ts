@@ -28,6 +28,11 @@ vi.mock('@crawlith/core', async (importOriginal) => {
         const graph = (core.loadGraphFromSnapshot as any)(id);
         return { snapshotId: id, graph };
       }
+    },
+    PageAnalysisUseCase: class {
+      async execute(input: any) {
+        return (core.analyzeSite as any)(input.url, input, undefined);
+      }
     }
   };
 });
@@ -187,7 +192,7 @@ test('analyze command json and html output', async () => {
 
   await analyze.parseAsync(['https://example.com', '--export', 'html'], { from: 'user' });
 
-  expect(core.analyzeSite).toHaveBeenCalledWith('https://example.com', expect.objectContaining({}), expect.anything());
+  expect(core.analyzeSite).toHaveBeenCalledWith('https://example.com', expect.objectContaining({ url: 'https://example.com' }), undefined);
   expect(core.renderAnalysisHtml).toHaveBeenCalled();
   expect(fs.mkdir).toHaveBeenCalled();
   expect(fs.writeFile).toHaveBeenCalledWith(expect.stringContaining('analysis.html'), '<html>analysis</html>', 'utf-8');

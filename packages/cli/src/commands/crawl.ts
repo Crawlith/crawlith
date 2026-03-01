@@ -53,7 +53,7 @@ export const crawlCommand = new Command('crawl')
   .option('--ua <string>', 'custom User-Agent string')
   .option('--force', 'force run (override existing lock)');
 
-// Dynamically register plugin-declared flags (--compute-hits, --cluster-threshold, etc.)
+
 registerPluginFlags(crawlCommand, 'crawl');
 
 crawlCommand

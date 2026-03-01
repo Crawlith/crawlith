@@ -7,6 +7,7 @@ import { PluginManager } from '../plugin/manager.js';
 import type { CrawlPlugin, MetricsContext, PluginContext } from '../plugin/types.js';
 import type { UseCase } from './usecase.js';
 import type { Graph } from '../graph/graph.js';
+import type { EngineContext } from '../events.js';
 
 export interface CrawlSitegraphResult {
   snapshotId: number;
@@ -56,11 +57,45 @@ export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeO
   }
 }
 
-export class PageAnalysisUseCase implements UseCase<{ url: string; options: AnalyzeOptions }, AnalysisResult> {
-  async execute(input: { url: string; options: AnalyzeOptions }): Promise<AnalysisResult> {
-    return analyzeSite(input.url, input.options);
+export interface PageAnalysisInput {
+  url: string;
+  live?: boolean;
+  snapshotId?: number;
+  seo?: boolean;
+  content?: boolean;
+  accessibility?: boolean;
+  rate?: number;
+  proxyUrl?: string;
+  userAgent?: string;
+  maxRedirects?: number;
+  clusterThreshold?: number;
+  minClusterSize?: number;
+  debug?: boolean;
+  allPages?: boolean;
+}
+
+export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisResult> {
+  constructor(private readonly context?: EngineContext) { }
+
+  async execute(input: PageAnalysisInput): Promise<AnalysisResult> {
+    return analyzeSite(input.url, {
+      live: input.live,
+      snapshotId: input.snapshotId,
+      seo: input.seo,
+      content: input.content,
+      accessibility: input.accessibility,
+      rate: input.rate,
+      proxyUrl: input.proxyUrl,
+      userAgent: input.userAgent,
+      maxRedirects: input.maxRedirects,
+      clusterThreshold: input.clusterThreshold,
+      minClusterSize: input.minClusterSize,
+      debug: input.debug,
+      allPages: input.allPages,
+    }, this.context);
   }
 }
+
 
 export class ExportReport implements UseCase<{ snapshotId: number }, string> {
   async execute(input: { snapshotId: number }): Promise<string> {
