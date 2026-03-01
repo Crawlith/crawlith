@@ -1,5 +1,5 @@
 {
-  "name": "@crawlith/cli",
+  "name": "@crawlith/internal-cli",
   "version": "0.1.1",
   "type": "module",
   "bin": {
@@ -26,5 +26,6 @@
     "tsup": "^8.0.0",
     "typescript": "^5.4.5",
     "vitest": "^4.0.18"
-  }
+  },
+  "private": true
 }

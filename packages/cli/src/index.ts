@@ -1,1 +1,1 @@
-export * from '../../../plugins/cli/src/index.js';
+import '../../../plugins/cli/src/index.js';
