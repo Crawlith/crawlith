@@ -20,6 +20,7 @@ export class PluginManager {
     for (const plugin of this.plugins) {
       const fn = plugin[hook];
       if (typeof fn !== 'function') continue;
+      // console.log(`[PluginManager] Running hook ${String(hook)} for plugin ${plugin.name}`);
       const started = performance.now();
       await (fn as (...a: any[]) => Promise<void>)(...args);
       const elapsed = performance.now() - started;

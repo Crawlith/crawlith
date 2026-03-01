@@ -6,7 +6,7 @@
     "crawlith": "packages/cli/dist/index.js"
   },
   "scripts": {
-    "build": "pnpm --filter @crawlith/web build && pnpm --filter @crawlith/core build && pnpm --filter @crawlith/cli build",
+    "build": "pnpm --filter \"./packages/**\" build",
     "test": "pnpm --filter @crawlith/core test && pnpm --filter @crawlith/cli test",
     "lint": "eslint .",
     "crawlith": "node packages/cli/dist/index.js",

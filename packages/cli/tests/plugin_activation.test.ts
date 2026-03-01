@@ -7,8 +7,8 @@ describe('command-aware plugin activation', () => {
     expect(active.some((p) => p.name === 'heading-health')).toBe(true);
   });
 
-  test('heading-health is optional for page', () => {
-    expect(resolveCommandPlugins('page', {}).some((p) => p.name === 'heading-health')).toBe(false);
+  test('heading-health defaults for page', () => {
+    expect(resolveCommandPlugins('page', {}).some((p) => p.name === 'heading-health')).toBe(true);
     expect(resolveCommandPlugins('page', { heading: true }).some((p) => p.name === 'heading-health')).toBe(true);
   });
 

@@ -124,7 +124,6 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
 
       reportWriter.finalizeScore();
 
-      const finalScore = report.summary.healthScore;
       // You could update Snapshot db with finalScore if needed here
     }
 
@@ -139,7 +138,9 @@ export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeO
 
     if (input.plugins && input.plugins.length > 0) {
       const pm = new PluginManager(input.plugins, {
-        debug: (message: string) => input.context?.logger?.info?.(message)
+        debug: (message: string) => {
+          if (input.options.debug) input.context?.logger?.info?.(message);
+        }
       });
       await pm.init(input.context ?? { command: 'analyze' });
       await pm.runHook('onAnalyzeDone', result, input.context ?? { command: 'analyze' });
@@ -190,7 +191,9 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
 
     if (input.plugins && input.plugins.length > 0) {
       const pm = new PluginManager(input.plugins || [], {
-        debug: (message: string) => input.context?.logger?.info?.(message)
+        debug: (message: string) => {
+          if (input.debug) input.context?.logger?.info?.(message);
+        }
       });
       await pm.init(input.context ?? { command: 'page' });
       await pm.runHook('onAnalyzeDone', result, input.context ?? { command: 'page' });

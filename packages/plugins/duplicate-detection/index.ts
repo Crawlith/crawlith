@@ -5,7 +5,7 @@ export const DuplicateDetectionPlugin: CrawlPlugin = {
   cli: {
     flag: 'duplicates',
     description: 'Detects exact and near-duplicate pages and clusters them',
-    defaultFor: ['crawl'],
+    defaultFor: ['crawl', 'page'],
     options: [
       { flags: '--no-collapse', description: 'Do not collapse duplicate clusters before PageRank' },
     ]

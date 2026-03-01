@@ -50,8 +50,7 @@ export const PageAnalyzerPlugin: CrawlPlugin = {
     cli: {
         flag: 'analyzer',
         description: 'Analyzes page structure like SEO, Content depth, and Accessibility',
-        defaultFor: ['crawl'],
-        optionalFor: ['page']
+        defaultFor: ['crawl', 'page'],
     },
 
     storage: {
@@ -156,6 +155,26 @@ export const PageAnalyzerPlugin: CrawlPlugin = {
                     ['Missing Image Alts', summary.totalMissingAlts]
                 ]
             });
+        }
+    },
+    async onAnalyzeDone(result: any, _ctx: PluginContext) {
+        if (!result.pages) return;
+        for (const page of result.pages) {
+            if (!page.html) continue;
+            const title = analyzeTitle(page.html);
+            const meta = analyzeMetaDescription(page.html);
+            const content = analyzeContent(page.html);
+            const images = analyzeImages(page.html);
+
+            page.plugins = page.plugins || {};
+            page.plugins['page-analyzer'] = {
+                titleStatus: title.status,
+                metaStatus: meta.status,
+                wordCount: content.wordCount,
+                textHtmlRatio: (content.textHtmlRatio * 100).toFixed(1) + '%',
+                totalImages: images.total,
+                missingAlts: images.missingAlt
+            };
         }
     }
 };

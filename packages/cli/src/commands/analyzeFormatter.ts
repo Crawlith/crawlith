@@ -163,37 +163,10 @@ export function renderAnalyzeInsightOutput(report: AnalyzeInsightReport, result?
     const isBlocked = page.meta.crawlStatus === 'blocked_by_robots';
     lines.push(`  ${isBlocked ? chalk.red('•') : chalk.green('✓')} [Robots]       ${isBlocked ? chalk.red('Blocked by robots.txt') : 'Access allowed'}`);
 
-    // 2. Title
-    if (!hasFilters || active.seo) {
-      const titleStatus = page.title.status;
-      const titleColor = titleStatus === 'ok' ? chalk.green : (titleStatus === 'missing' ? chalk.red : chalk.yellow);
-      const titleIcon = titleStatus === 'ok' ? chalk.green('✓') : titleColor('•');
-      const titleLabel = titleStatus === 'ok' ? 'Title OK' : titleStatus === 'missing' ? 'Missing title tag' : `Title is ${titleStatus.replace('_', ' ')}`;
-      lines.push(`  ${titleIcon} [Title]        ${titleLabel} ${chalk.dim(`(${page.title.length} chars)`)}`);
-    }
-
-    // 3. Meta
-    if (!hasFilters || active.seo) {
-      const metaStatus = page.metaDescription.status;
-      const metaColor = metaStatus === 'ok' ? chalk.green : (metaStatus === 'missing' ? chalk.red : chalk.yellow);
-      const metaIcon = metaStatus === 'ok' ? chalk.green('✓') : metaColor('•');
-      const metaLabel = metaStatus === 'ok' ? 'Meta found' : metaStatus === 'missing' ? 'Missing meta description' : `Meta is ${metaStatus.replace('_', ' ')}`;
-      lines.push(`  ${metaIcon} [Description]  ${metaLabel} ${chalk.dim(`(${page.metaDescription.length} chars)`)}`);
-    }
-
-    // 4. H1
-    if (!hasFilters || active.seo || active.content) {
-      const h1Status = page.h1.count === 1 ? 'ok' : (page.h1.count === 0 ? 'missing' : 'warning');
-      const h1Icon = h1Status === 'ok' ? chalk.green('✓') : (h1Status === 'missing' ? chalk.red('•') : chalk.yellow('•'));
-      const h1Label = page.h1.count === 0 ? 'Missing H1 tag' : `${page.h1.count} tag${page.h1.count > 1 ? 's' : ''} found`;
-      lines.push(`  ${h1Icon} [H1 Header]    ${h1Label}${page.h1.matchesTitle ? chalk.dim(' (Matches Title)') : ''}`);
-    }
+    // 3. Meta (Moved to Page Analyzer plugin)
 
     // 5. Content
     if (!hasFilters || active.content) {
-      const contentIcon = page.content.wordCount >= 300 ? chalk.green('✓') : chalk.yellow('•');
-      const ratio = (page.content.textHtmlRatio * 100).toFixed(1);
-      lines.push(`  ${contentIcon} [Word Count]   ${page.content.wordCount === 0 ? chalk.red('No content found') : `${page.content.wordCount} words ${chalk.dim(`(${ratio}% Text/HTML)`)}`}`);
 
       const thinIcon = page.thinScore < 70 ? chalk.green('✓') : chalk.yellow('•');
       lines.push(`  ${thinIcon} [Thin Content] ${page.thinScore < 70 ? 'Good content density' : 'Potential thin content'}`);
@@ -206,19 +179,33 @@ export function renderAnalyzeInsightOutput(report: AnalyzeInsightReport, result?
       lines.push(`  ${linksIcon} [Links]        ${page.links.internalLinks} internal / ${page.links.externalLinks} external ${chalk.dim(`(${totalLinks} nodes)`)}`);
     }
 
-    // 7. Images
-    if (!hasFilters || active.accessibility) {
-      const imgIcon = (page.images.totalImages > 0 && page.images.missingAlt === 0) ? chalk.green('✓') : (page.images.totalImages === 0 ? chalk.dim('✓') : chalk.yellow('•'));
-      const imgStatusText = page.images.totalImages === 0 ? 'No images' : (page.images.missingAlt === 0 ? 'All images have alt text' : `${page.images.missingAlt} missing alt text`);
-      lines.push(`  ${imgIcon} [Images]       ${page.images.totalImages} images ${chalk.dim(`(${imgStatusText})`)}`);
-    }
-
     // 8. Structured Data
     if (!hasFilters || active.seo) {
       if (page.structuredData.present) {
         const sdIcon = page.structuredData.valid ? chalk.green('✓') : chalk.red('•');
         const types = page.structuredData.types.length > 0 ? chalk.dim(`(${page.structuredData.types.join(', ')})`) : '';
         lines.push(`  ${sdIcon} [Structured]   ${page.structuredData.valid ? 'Valid JSON-LD' : 'Invalid data found'} ${types}`);
+      }
+    }
+
+    // 9. Plugins
+    const pagePlugins = (page as any).plugins || {};
+    if (Object.keys(pagePlugins).length > 0) {
+      lines.push('');
+      lines.push(chalk.bold('Plugin Data'));
+      for (const [name, data] of Object.entries(pagePlugins)) {
+        const title = name.split(/[-_]/).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        lines.push(`  ${chalk.magenta('■')} ${chalk.bold(title)}`);
+        if (data && typeof data === 'object') {
+          const entries = Object.entries(data);
+          if (entries.length > 0) {
+            const metricsOut = entries.map(([mKey, mVal]) => {
+              const fKey = mKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => (str as string).toUpperCase());
+              return `${chalk.gray(fKey)} ${chalk.yellow(mVal)}`;
+            }).join('  •  ');
+            lines.push(`    ${metricsOut}`);
+          }
+        }
       }
     }
 

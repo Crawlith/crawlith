@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
-    "@crawlith/core": "workspace:*"
+    "@crawlith/core": "workspace:*",
+    "cheerio": "^1.2.0"
   },
   "scripts": {
     "build": "tsc",

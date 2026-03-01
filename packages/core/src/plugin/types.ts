@@ -8,7 +8,7 @@ export interface ParsedPage {
 
 export interface PluginContext {
   command?: string;
-  flags?: Record<string, boolean>;
+  flags?: Record<string, any>;
   terminate?: boolean;
   metadata?: Record<string, unknown>;
   logger?: { info(msg: string): void; warn(msg: string): void; error(msg: string): void };

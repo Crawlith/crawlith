@@ -62,7 +62,9 @@ export interface PageAnalysis {
     noindex?: boolean;
     nofollow?: boolean;
     crawlStatus?: string;
-  }
+  };
+  html?: string;
+  plugins?: Record<string, any>;
 }
 
 export interface AnalysisResult {
@@ -83,6 +85,7 @@ export interface AnalysisResult {
   clusters?: ClusterInfo[];
   snapshotId?: number;
   crawledAt?: string;
+  plugins?: Record<string, any>;
 }
 
 interface CrawlData {
@@ -138,18 +141,18 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     try {
       const loadStart = Date.now();
       crawlData = await loadCrawlData(normalizedRoot, options.snapshotId);
-      if (context) context.emit({ type: 'info', message: `[analyze] loadCrawlData took ${Date.now() - loadStart}ms` });
+      if (context && options.debug) context.emit({ type: 'info', message: `[analyze] loadCrawlData took ${Date.now() - loadStart}ms` });
 
       const allPages = Array.from(crawlData.pages);
       crawlData.pages = allPages;
 
       const exists = allPages.some(p => p.url === normalizedRoot);
       if (!exists) {
-        if (context) context.emit({ type: 'info', message: `URL ${normalizedRoot} not found. Fetching live...` });
+        if (context && options.debug) context.emit({ type: 'info', message: `URL ${normalizedRoot} not found. Fetching live...` });
         crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
       }
     } catch (_error: any) {
-      if (context) context.emit({ type: 'info', message: 'No local crawl data found. Switching to live...' });
+      if (context && options.debug) context.emit({ type: 'info', message: 'No local crawl data found. Switching to live...' });
       crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
     }
   }
@@ -161,14 +164,14 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const clusterStart = Date.now();
   if (options.allPages) {
     detectContentClusters(crawlData.graph, options.clusterThreshold, options.minClusterSize);
-    if (context) context.emit({ type: 'info', message: `[analyze] detectContentClusters took ${Date.now() - clusterStart}ms` });
+    if (context && options.debug) context.emit({ type: 'info', message: `[analyze] detectContentClusters took ${Date.now() - clusterStart}ms` });
   } else {
-    if (context) context.emit({ type: 'info', message: `[analyze] Skipping clustering for single-page view` });
+    if (context && options.debug) context.emit({ type: 'info', message: `[analyze] Skipping clustering for single-page view` });
   }
 
   const pagesStart = Date.now();
   const pages = analyzePages(normalizedRoot, crawlData.pages, robots, options);
-  if (context) context.emit({ type: 'info', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
+  if (context && options.debug) context.emit({ type: 'info', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
 
   const activeModules = {
     seo: !!options.seo,
@@ -192,7 +195,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const thinPages = pages.filter((page) => page.thinScore >= 70).length;
   const siteScores = aggregateSiteScore(crawlData.metrics, resultPages.length === 1 ? resultPages : pages);
 
-  if (context) context.emit({ type: 'info', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
+  if (context && options.debug) context.emit({ type: 'info', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
 
   return {
     site_summary: {
@@ -274,7 +277,8 @@ export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | Crawl
         noindex: page.noindex,
         nofollow: page.nofollow,
         crawlStatus
-      }
+      },
+      html: page.html
     });
   }
 

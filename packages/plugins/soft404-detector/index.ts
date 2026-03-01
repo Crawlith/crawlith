@@ -61,8 +61,7 @@ export const Soft404DetectorPlugin: CrawlPlugin = {
   cli: {
     flag: 'soft404',
     description: 'Detect soft 404 pages (status 200 with error content)',
-    defaultFor: ['crawl'],
-    optionalFor: ['page']
+    defaultFor: ['crawl', 'page'],
   },
 
   storage: {
@@ -130,7 +129,20 @@ export const Soft404DetectorPlugin: CrawlPlugin = {
         });
       }
     }
+  },
+  async onAnalyzeDone(result: any, _ctx: PluginContext) {
+    if (!result.pages) return;
+    for (const page of result.pages) {
+      if (page.status === 200 && page.html) {
+        const soft404 = analyzeSoft404(page.html, page.links?.internalLinks || 0);
+        page.plugins = page.plugins || {};
+        page.plugins['soft404-detector'] = {
+          score: soft404.score,
+          signals: soft404.signals || 'none'
+        };
+      }
+    }
   }
-};
+}
 
 export default Soft404DetectorPlugin;

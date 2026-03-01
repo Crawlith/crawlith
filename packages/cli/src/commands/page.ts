@@ -59,14 +59,22 @@ analyze.action(async (url: string, options: any) => {
       accessibility: options.accessibility,
       debug: options.logLevel === 'debug',
       plugins: activePlugins,
-      context: { command: 'page', flags: options as Record<string, boolean> }
+      context: {
+        command: 'page',
+        flags: options as Record<string, boolean>,
+        logger: {
+          info: (msg) => context.emit({ type: 'info', message: msg }),
+          warn: (msg) => context.emit({ type: 'warn', message: msg }),
+          error: (msg) => context.emit({ type: 'error', message: msg })
+        }
+      }
     });
 
     // Render Output
     if (options.format === 'json') {
       const pages = result.pages.map(p => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { seoScore, thinScore, ...rest } = p as any;
+        const { seoScore, thinScore, html, ...rest } = p as any;
         const active = result.active_modules;
         const hasFilters = active.seo || active.content || active.accessibility;
 

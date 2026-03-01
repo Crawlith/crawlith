@@ -1,5 +1,4 @@
 import type { CrawlPlugin, PluginContext, CLIWriter, ReportWriter, PluginStore } from '@crawlith/core';
-import { load } from 'cheerio';
 
 function analyzeHeadingHealth(html?: string) {
   if (!html) return { score: 0, missing: 1, multiple: 0 };
@@ -8,9 +7,9 @@ function analyzeHeadingHealth(html?: string) {
   const h1Count = (html.match(/<h1\b/gi) || []).length;
   const h2Count = (html.match(/<h2\b/gi) || []).length;
 
-  let score = 0;
-  if (h1Count !== 1) score = Math.max(0, 60 - Math.abs(h1Count - 1) * 20);
-  else score = Math.min(100, 70 + Math.min(h2Count, 3) * 10);
+  const score = h1Count !== 1
+    ? Math.max(0, 60 - Math.abs(h1Count - 1) * 20)
+    : Math.min(100, 70 + Math.min(h2Count, 3) * 10);
 
   return {
     score,
@@ -24,8 +23,7 @@ export const HeadingHealthPlugin: CrawlPlugin = {
   cli: {
     flag: 'heading',
     description: 'Analyze heading structure',
-    defaultFor: ['crawl'],
-    optionalFor: ['page']
+    defaultFor: ['crawl', 'page'],
   },
 
   storage: {
@@ -106,6 +104,18 @@ export const HeadingHealthPlugin: CrawlPlugin = {
           weight: 0.1
         });
       }
+    }
+  },
+  async onAnalyzeDone(result: any, _ctx: PluginContext) {
+    if (!result.pages) return;
+    for (const page of result.pages) {
+      if (!page.html) continue;
+      const health = analyzeHeadingHealth(page.html);
+      page.plugins = page.plugins || {};
+      page.plugins['heading-health'] = {
+        score: health.score,
+        h1Status: health.missing ? 'missing' : (health.multiple ? 'multiple' : 'ok')
+      };
     }
   }
 };

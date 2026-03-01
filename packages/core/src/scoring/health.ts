@@ -169,7 +169,7 @@ export function collectCrawlIssues(graph: Graph, metrics: Metrics): CrawlIssueCo
             accidentalNoindex += 1;
         }
 
-        if (node.inLinks < LOW_INTERNAL_LINK_THRESHOLD && node.depth > 0) {
+        if (node.inLinks === 1 && node.depth > 0) {
             lowInternalLinkCount += 1;
         }
         if (node.outLinks > EXCESSIVE_INTERNAL_LINK_THRESHOLD) {

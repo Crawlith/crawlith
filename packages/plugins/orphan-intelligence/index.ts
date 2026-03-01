@@ -27,7 +27,7 @@ export const OrphanIntelligencePlugin: CrawlPlugin = {
         enabled: true,
         severityEnabled: true,
         includeSoftOrphans: !!flags.includeSoftOrphans,
-        minInbound: parseInt(flags.minInbound as string ?? '1', 10), // Default to 1 for more conservative reporting
+        minInbound: flags.minInbound ? parseInt(String(flags.minInbound), 10) : 1, // Default to 1 for more conservative reporting
       };
 
       const nodes = ctx.graph.getNodes();

@@ -7,7 +7,6 @@ import {
   EngineContext,
   PluginManager
 } from '@crawlith/core';
-import { buildCrawlInsightReport } from './crawlFormatter.js';
 import { OutputController } from '../output/controller.js';
 import { resolveCommandPlugins, registerPluginFlags } from '../plugins.js';
 
@@ -104,7 +103,7 @@ crawlCommand
         }
       });
 
-      const metrics = calculateMetrics(graph, depth);
+      calculateMetrics(graph, depth);
     } catch (error) {
       controller.handle({ type: 'error', message: 'Error', error });
       process.exit(1);
