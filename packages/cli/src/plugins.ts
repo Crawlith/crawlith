@@ -19,11 +19,11 @@ import { PageAnalyzerPlugin } from '@crawlith/plugin-page-analyzer';
 
 
 export const allPlugins: CrawlPlugin[] = [
+  SimhashPlugin,
   PageRankPlugin,
   HitsPlugin,
   DuplicateDetectionPlugin,
   ContentClusteringPlugin,
-  SimhashPlugin,
   HeadingHealthPlugin,
   OrphanIntelligencePlugin,
   Soft404DetectorPlugin,
