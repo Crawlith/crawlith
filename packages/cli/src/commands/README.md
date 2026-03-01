@@ -1,1 +1,1 @@
-Command modules are hosted in `plugins/cli/src/commands` and re-exported by the package entrypoint.
+Command modules are now hosted directly in `packages/cli/src/commands`.

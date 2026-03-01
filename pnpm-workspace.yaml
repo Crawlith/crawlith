@@ -1,7 +1,8 @@
 packages:
-  - plugins/*
   - packages/*
   - packages/plugins/*
+  - plugins/server
+  - plugins/web
 
 onlyBuiltDependencies:
   - better-sqlite3
