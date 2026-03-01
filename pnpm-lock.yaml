@@ -147,7 +147,11 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@20.19.33)(jiti@1.21.7)
 
-  packages/infrastructure: {}
+  packages/infrastructure:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/plugins/content-clustering:
     dependencies:
