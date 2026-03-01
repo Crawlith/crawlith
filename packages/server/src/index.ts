@@ -69,6 +69,51 @@ export function startServer(options: ServerOptions): Promise<void> {
       next();
     };
 
+    // ── Rate Limiting ─────────────────────────────────────────────
+    function createRateLimiter(maxRequests: number, windowMs: number) {
+      const hits = new Map<string, number[]>();
+
+      // Cleanup stale entries every 5 minutes
+      setInterval(() => {
+        const now = Date.now();
+        for (const [key, timestamps] of hits) {
+          const valid = timestamps.filter(t => now - t < windowMs);
+          if (valid.length === 0) hits.delete(key);
+          else hits.set(key, valid);
+        }
+      }, 5 * 60 * 1000).unref();
+
+      return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        const key = req.ip || '127.0.0.1';
+        const now = Date.now();
+        const timestamps = (hits.get(key) || []).filter(t => now - t < windowMs);
+
+        if (timestamps.length >= maxRequests) {
+          const retryAfter = Math.ceil((timestamps[0] + windowMs - now) / 1000);
+          res.set('Retry-After', String(retryAfter));
+          return res.status(429).json({
+            error: 'Too many requests',
+            retryAfter
+          });
+        }
+
+        timestamps.push(now);
+        hits.set(key, timestamps);
+
+        res.set('X-RateLimit-Limit', String(maxRequests));
+        res.set('X-RateLimit-Remaining', String(maxRequests - timestamps.length));
+        next();
+      };
+    }
+
+    // General: 60 requests per minute (read endpoints)
+    const rateLimiter = createRateLimiter(60, 60 * 1000);
+    // Strict: 5 requests per minute (crawl/write endpoints)
+    const strictRateLimiter = createRateLimiter(5, 60 * 1000);
+
+    // Apply general rate limit to all API routes
+    api.use(rateLimiter);
+
     // 4.1 GET /api/context
     api.get('/context', (req, res) => {
       const latestSnapshot = snapshotRepo.getLatestSnapshot(siteId as number, 'completed', true);
@@ -620,7 +665,7 @@ export function startServer(options: ServerOptions): Promise<void> {
     });
 
     // 5.7 POST /api/page/crawl (Live crawl of single page)
-    api.post('/page/crawl', express.json(), async (req, res) => {
+    api.post('/page/crawl', express.json(), strictRateLimiter, async (req, res) => {
       const { url } = req.body;
       if (!url) return res.status(400).json({ error: 'URL is required' });
 
