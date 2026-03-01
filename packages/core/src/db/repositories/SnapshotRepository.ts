@@ -42,6 +42,21 @@ export class SnapshotRepository {
     return this.db.prepare(sql).get(...params) as Snapshot | undefined;
   }
 
+  /**
+   * Get the latest partial snapshot for a site, regardless of ordering
+   * relative to full/incremental snapshots. Used for snapshot reuse in
+   * page --live and POST /api/page/crawl.
+   */
+  getLatestPartialSnapshot(siteId: number): Snapshot | undefined {
+    return this.db.prepare(
+      `SELECT * FROM snapshots WHERE site_id = ? AND type = 'partial' ORDER BY id DESC LIMIT 1`
+    ).get(siteId) as Snapshot | undefined;
+  }
+
+  touchSnapshot(id: number): void {
+    this.db.prepare(`UPDATE snapshots SET created_at = datetime('now') WHERE id = ?`).run(id);
+  }
+
   getSnapshotCount(siteId: number): number {
     const result = this.db.prepare('SELECT COUNT(*) as count FROM snapshots WHERE site_id = ?').get(siteId) as { count: number };
     return result.count;

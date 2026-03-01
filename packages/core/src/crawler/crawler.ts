@@ -83,6 +83,7 @@ export class Crawler {
   // Site/Snapshot info
   private siteId: number | null = null;
   private snapshotId: number | null = null;
+  private reusingSnapshot: boolean = false;
   private rootOrigin: string = '';
 
   // Discovery tracking
@@ -131,8 +132,23 @@ export class Crawler {
     const domain = urlObj.hostname.replace('www.', '');
     const site = this.siteRepo.firstOrCreateSite(domain);
     this.siteId = site.id;
-    const type = this.options.snapshotType || (this.options.previousGraph ? 'incremental' : 'full');
-    this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, type);
+
+    // For partial snapshots (page --live), reuse the latest partial snapshot
+    // instead of creating a new one each time
+    if (this.options.snapshotType === 'partial') {
+      const existing = this.snapshotRepo.getLatestPartialSnapshot(this.siteId);
+      if (existing) {
+        this.snapshotId = existing.id;
+        this.reusingSnapshot = true;
+        this.context.emit({ type: 'debug', message: `Reusing partial snapshot #${existing.id}` });
+      } else {
+        this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, 'partial');
+      }
+    } else {
+      const type = this.options.snapshotType || (this.options.previousGraph ? 'incremental' : 'full');
+      this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, type);
+    }
+
     this.rootOrigin = urlObj.origin;
     this.startUrl = rootUrl;
 
@@ -286,6 +302,16 @@ export class Crawler {
 
     const identities = this.pageRepo!.getPagesIdentityBySnapshot(this.snapshotId!);
     const urlToId = new Map(identities.map(p => [p.normalized_url, p.id]));
+
+    // When reusing a snapshot, clean up stale edges for pages being re-crawled
+    if (this.reusingSnapshot) {
+      const sourcePageIds = new Set(
+        this.edgeBuffer.map(e => urlToId.get(e.sourceUrl)).filter((id): id is number => id !== undefined)
+      );
+      for (const pageId of sourcePageIds) {
+        this.edgeRepo!.deleteEdgesForPage(this.snapshotId!, pageId);
+      }
+    }
 
     const edgesToInsert = this.edgeBuffer
       .map(e => ({
@@ -537,6 +563,9 @@ export class Crawler {
           this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
             limit_reached: this.reachedLimit ? 1 : 0
           });
+          if (this.reusingSnapshot) {
+            this.snapshotRepo!.touchSnapshot(this.snapshotId!);
+          }
           resolve(this.snapshotId!);
           return true;
         }
@@ -553,6 +582,9 @@ export class Crawler {
             this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
               limit_reached: 1
             });
+            if (this.reusingSnapshot) {
+              this.snapshotRepo!.touchSnapshot(this.snapshotId!);
+            }
             this.context.emit({ type: 'crawl:limit-reached', limit: this.options.limit });
             resolve(this.snapshotId!);
           }

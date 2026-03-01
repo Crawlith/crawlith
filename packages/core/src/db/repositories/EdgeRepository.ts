@@ -33,6 +33,14 @@ export class EdgeRepository {
     tx(edges);
   }
 
+  /**
+   * Remove all edges originating from a specific page within a snapshot.
+   * Used when re-crawling a page into a reused partial snapshot to avoid duplicates.
+   */
+  deleteEdgesForPage(snapshotId: number, sourcePageId: number): void {
+    this.db.prepare('DELETE FROM edges WHERE snapshot_id = ? AND source_page_id = ?').run(snapshotId, sourcePageId);
+  }
+
   getEdgesBySnapshot(snapshotId: number): Edge[] {
     return this.db.prepare('SELECT * FROM edges WHERE snapshot_id = ?').all(snapshotId) as Edge[];
   }
