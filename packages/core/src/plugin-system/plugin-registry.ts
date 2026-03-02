@@ -8,12 +8,25 @@ export class PluginRegistry {
         this.plugins = plugins;
     }
 
-    registerPlugins(program: Command) {
-        for (const plugin of this.plugins) {
-            if (typeof plugin.register === 'function') {
-                plugin.register(program);
+    private registeredCommands = new WeakSet<Command>();
+
+    registerPlugins(program: any) {
+        if (!(program instanceof Command)) return;
+
+        const traverse = (cmd: Command) => {
+            if (this.registeredCommands.has(cmd)) return;
+            this.registeredCommands.add(cmd);
+
+            for (const plugin of this.plugins) {
+                if (typeof plugin.register === 'function') {
+                    plugin.register(cmd);
+                }
             }
-        }
+            for (const sub of cmd.commands) {
+                traverse(sub);
+            }
+        };
+        traverse(program);
     }
 
     async runHook(hookName: string, context: PluginContext, payload?: any) {

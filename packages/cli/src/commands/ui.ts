@@ -18,6 +18,7 @@ export const getUiCommand = (registry: PluginRegistry) => {
     .option('--port [number]', 'Port to run server on', '23484')
     .option('--host [address]', 'Host to bind server to', '127.0.0.1');
 
+  // Let plugins register their flags on this command
   registry.registerPlugins(ui);
 
   ui.action(async (siteUrl, options) => {

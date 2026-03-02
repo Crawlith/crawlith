@@ -155,6 +155,9 @@ export class Crawler {
     this.rootOrigin = urlObj.origin;
     this.startUrl = rootUrl;
 
+    // Expose snapshot context for plugins that persist per-snapshot data.
+    (this.context as any).snapshotId = this.snapshotId;
+
     // Seed discovery depth for root
     this.discoveryDepths.set(this.startUrl, 0);
   }
@@ -472,6 +475,7 @@ export class Crawler {
         url: finalUrl,
         status: res.status,
         depth: depth,
+        headers: res.headers,
         ...parseResult
       });
     }

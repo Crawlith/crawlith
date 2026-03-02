@@ -1,5 +1,6 @@
 import { request } from 'undici';
 import * as cheerio from 'cheerio';
+import pLimit from 'p-limit';
 import { normalizeUrl } from './normalize.js';
 import { EngineContext } from '../events.js';
 
@@ -50,10 +51,11 @@ export class Sitemap {
             if (loc) childSitemaps.push(loc);
           });
 
-          // Process children sequentially to avoid massive concurrency spike
-          for (const childUrl of childSitemaps) {
-            await this.processSitemap(childUrl, visited, urls);
-          }
+          // Process children concurrently but with a limit to avoid massive concurrency spike
+          const limit = pLimit(10);
+          await Promise.all(
+            childSitemaps.map(childUrl => limit(() => this.processSitemap(childUrl, visited, urls)))
+          );
         } else {
           // It's a URL Set
           $('url > loc').each((_: number, el: any) => {

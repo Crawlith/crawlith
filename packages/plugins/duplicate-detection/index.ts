@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { detectDuplicates, CrawlithPlugin, PluginContext } from '@crawlith/core';
 import { Command } from '@crawlith/core';
@@ -10,10 +7,7 @@ import { Command } from '@crawlith/core';
  * Crawlith plugin for duplicate detection
  */
 export const DuplicateDetectionPlugin: CrawlithPlugin = {
-  name: 'duplicate-detection',
-  version: pkg.version,
-  description: pkg.description,
-  register: (cli: Command) => {
+  name: 'duplicate-detection',  register: (cli: Command) => {
     if (cli.name() === 'crawl') {
       cli.option('--no-collapse', 'Do not collapse duplicate clusters before PageRank');
     }

@@ -84,4 +84,46 @@ describe('analyze formatter report', () => {
     const report = buildAnalyzeInsightReport(base);
     expect(hasAnalyzeCriticalIssues(report)).toBe(true);
   });
+
+  test('renders single page branch when report.pages === 1', () => {
+    const singlePageBase = {
+      site_summary: {
+        pages_analyzed: 1,
+        avg_seo_score: 82,
+        thin_pages: 0,
+        duplicate_titles: 0,
+        site_score: 82
+      },
+      pages: [
+        {
+          url: 'https://example.com/single',
+          status: 200,
+          seoScore: 82,
+          thinScore: 40,
+          title: { value: 'Title', length: 5, status: 'ok' },
+          metaDescription: { value: 'Desc', length: 4, status: 'ok' },
+          h1: { count: 1, status: 'ok', matchesTitle: true },
+          content: { wordCount: 500, textHtmlRatio: 0.15, uniqueSentenceCount: 10 },
+          images: { totalImages: 2, missingAlt: 0, emptyAlt: 0 },
+          links: { internalLinks: 1, externalLinks: 1, nofollowCount: 0, externalRatio: 0.5 },
+          structuredData: { present: true, valid: true, types: ['Article'] },
+          meta: { crawlStatus: 'ok' },
+          plugins: {}
+        }
+      ]
+    } as any; // Cast as any to avoid needing to deeply mock the full type in a focused test
+
+    const report = buildAnalyzeInsightReport(singlePageBase);
+    expect(report.pages).toBe(1);
+
+    const output = renderAnalyzeInsightOutput(report, singlePageBase);
+
+    expect(output).toContain('CRAWLITH — Analyze');
+    expect(output).toContain('URL:');
+    expect(output).toContain('[H1 Header]');
+    expect(output).toContain('[Word Count]');
+    expect(output).toContain('[Thin Content]');
+    expect(output).toContain('[Links]');
+    expect(output).toContain('[Images]');
+  });
 });

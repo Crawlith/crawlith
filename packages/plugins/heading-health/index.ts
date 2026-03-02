@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { createHash } from 'node:crypto';
 import type { CrawlithPlugin, PluginContext } from '@crawlith/core';
@@ -96,7 +93,12 @@ function analyzePage(html: string, fallbackTitle?: string): LocalPageAnalysis {
   const segments = extractHeadingSegments(html);
   const headingNodes = computeHeadingNodes(segments);
   const sections = computeSectionsFromSegments(html, headingNodes, segments);
-  const levelCounts = [1, 2, 3, 4, 5, 6].map((level) => headingNodes.filter((n) => n.level === level).length);
+
+  const levelCounts = [0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < headingNodes.length; i++) {
+    levelCounts[headingNodes[i].level - 1]++;
+  }
+
   const entropyScore = Number(entropy(levelCounts).toFixed(3));
   const missingH1 = levelCounts[0] === 0 ? 1 : 0;
   const multipleH1 = levelCounts[0] > 1 ? 1 : 0;
@@ -179,9 +181,6 @@ function enrichDuplicateRisk(pages: LocalPageAnalysis[]): void {
  */
 export const HeadingHealthPlugin: CrawlithPlugin = {
   name: 'heading-health',
-  version: pkg.version,
-  description: pkg.description,
-
   register: (cli: Command) => {
     if (cli.name() === 'crawl' || cli.name() === 'page') {
       cli.option('--heading', 'Analyze heading structure');

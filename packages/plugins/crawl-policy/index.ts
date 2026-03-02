@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
 import { Command } from '@crawlith/core';
@@ -11,9 +8,6 @@ import { Command } from '@crawlith/core';
  */
 export const CrawlPolicyPlugin: CrawlithPlugin = {
   name: 'crawl-policy',
-  version: pkg.version,
-  description: pkg.description,
-
   register: (cli: Command) => {
     if (cli.name() === 'crawl' || cli.name() === 'page') {
       cli

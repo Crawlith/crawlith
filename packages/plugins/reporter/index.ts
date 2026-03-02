@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import {
     CrawlithPlugin,
@@ -18,9 +15,6 @@ import { Command } from '@crawlith/core';
  */
 export const ReporterPlugin: CrawlithPlugin = {
     name: 'reporter',
-  version: pkg.version,
-  description: pkg.description,
-
     register: (_cli: Command) => {
         // Default for crawl in original, no new flags added.
     },
