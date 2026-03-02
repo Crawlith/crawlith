@@ -1,92 +1,115 @@
-# Crawlith
+<div align="center">
+  <img src="./verification/sitegraph.png" alt="Crawlith Logo" width="200" height="200" />
+  <h1>Crawlith</h1>
+  <p><b>Professional-grade SEO crawling and graph intelligence suite.</b></p>
 
-Crawlith is a high-performance Node.js + TypeScript CLI tool and Web Dashboard for crawling websites, auditing infrastructure, and generating internal link graphs.
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
+  [![Coverage](https://img.shields.io/badge/coverage-78%25-blue.svg)]()
+  [![TypeScript](https://img.shields.io/badge/language-TypeScript-blue.svg)]()
+</div>
 
-## Features
+---
 
-- Crawls websites using BFS algorithm
-- Respects `robots.txt` and rate limits
-- Generates interactive D3.js visualization and HTML reports
-- Unified export system (JSON, CSV, Markdown)
-- Detects critical issues (orphans, broken links, redirect chains, crawl traps, soft 404s)
-- Production-grade SQLite persistent storage for crawls (`~/.crawlith/crawlith.db`)
-- Snapshot-based metrics and history tracking
-- **NEW**: Interactive Web Dashboard for visualizing snapshots (`crawlith ui`)
-- **NEW**: Deep infrastructure auditing (TLS, DNS, Security) (`crawlith audit`)
-- **NEW**: Monorepo Architecture with core library and decoupled clients
+## 🚀 Overview
 
-## Installation
+**Crawlith** is a high-performance, deterministic SEO intelligence engine built for serious structural analysis. Unlike traditional "flat" crawlers, Crawlith treats your website as a **weighted directed graph**, allowing you to identify not just broken links, but deep architectural flaws in authority distribution, content health, and technical infrastructure.
 
-As this is an npm workspaces monorepo:
+Whether you are performing a quick on-page audit or mapping a 100k-page spider-graph, Crawlith provides the precision and depth required for modern SEO professionals.
+
+---
+
+## ✨ Key Features
+
+- **🧠 Graph Intelligence**: Built-in algorithms for **PageRank**, **HITS** (Hubs/Authorities), and link-equity flow analysis.
+- **🕸️ High-Performance Crawler**: BFS-based discovery engine with `robots.txt` compliance, rate limiting, and multi-threaded execution.
+- **🧩 Extensible Plugin System**: A modular architecture with 15+ specialized plugins for Soft 404 detection, content clustering, orphan intelligence, and more.
+- **🖥️ Premium Dashboard**: Launch a local React-based UI (`crawlith ui`) to explore your link graphs and metrics interactively.
+- **🛡️ Secure & Compliant**: Enterprise-grade safety features including DNS-validated SSRF protection (`IPGuard`), redirect loop detection, and scope enforcement.
+- **📊 Unified Data Layer**: Production-grade SQLite persistence enabling snapshot history, trend tracking, and incremental crawling.
+
+---
+
+## 🏗 Monorepo Architecture
+
+Crawlith is organized as a pnpm-powered monorepo for maximum modularity:
+
+| Package | Purpose |
+| :--- | :--- |
+| [**`@crawlith/core`**](./packages/core) | Headless engine handles crawling, graph math, and SQLite data layer. |
+| [**`@crawlith/cli`**](./packages/cli) | Premium terminal interface with color-coded reports and interactive commands. |
+| [**`@crawlith/web`**](./packages/web) | React + Vite dashboard for visual site-graph exploration. |
+| [**`@crawlith/server`**](./packages/server) | REST API bridge connecting the headless core to visual consumers. |
+| [**`@crawlith/plugins`**](./packages/plugins) | Specialized intelligence modules (PageRank, Soft404, etc). |
+
+---
+
+## 🚦 Quick Start
+
+### 1. Installation
+Crawlith is designed to be run globally or from your project root.
 
 ```bash
-npm install
-npm run build
+# Clone and build
+git clone https://github.com/Crawlith/crawlith.git
+cd crawlith
+pnpm install
+pnpm build
 ```
 
-To use the CLI globally or link it:
+### 2. Basic Usage
+Run a full link graph and SEO metrics audit:
 ```bash
-npm link ./packages/cli
+crawlith crawl https://example.com --limit 1000 --depth 10
 ```
 
-*(Note: In development, you can use `npm run crawlith -- <command>` to run the CLI directly from the root).*
-
-## Usage
-
-### Crawl Crawl
-Crawl a site and run analysis:
+Analyze a specific page for on-page SEO health:
 ```bash
-crawlith crawl https://example.com [options]
+crawlith page https://example.com/blog/seo-guide
 ```
 
-### Web UI Dashboard
-Launch the interactive web dashboard to review your recent crawls:
+Launch the interactive dashboard:
 ```bash
 crawlith ui
 ```
 
-### Infrastructure Audit
-Run transport, TLS, and DNS checks against a target:
-```bash
-crawlith audit https://example.com
-```
+---
 
-### Export Data
-To export the latest completed crawl data for a domain using the unified exporter:
-```bash
-crawlith export https://example.com --export json,html,visualize,csv
-```
+## 🔌 Intelligence Plugins
 
-### Key Options
+Crawlith ships with a suite of professional plugins:
+- **`pagerank`**: Measures the relative importance of every page in the link graph.
+- **`hits`**: Identifies "Hubs" (navigation) vs "Authorities" (content).
+- **`soft404-detector`**: Heuristic analysis to find 200 OK pages that are actually errors.
+- **`orphan-intelligence`**: Detects pages with zero internal inbound links.
+- **`snapshot-diff`**: Compare two crawl snapshots to see how metrics have evolved.
 
-- `--limit <number>`: Max pages (default: 500)
-- `--depth <number>`: Max click depth (default: 5)
-- `--output <path>`: Output directory
-- `--incremental`: Re-crawl efficiently using ETag/Last-Modified caching from the last snapshot
-- `--detect-soft404`: Detect soft 404 pages using heuristics
-- `--detect-traps`: Identify limitless dynamic parameter spaces
-- `--export [formats]`: Comma-separated list for export generation
-- `--fail-on-critical`: Exit with code 1 if critical issues are found
-- `--format <type>`: Output format (`pretty` or `json`). Default: `pretty`
-- `--log-level <level>`: Logging level (`normal`, `verbose`, `debug`). Default: `normal`
+---
 
-## Architecture
+## 🛠 Development
 
-Crawlith is divided into workspaces:
-- `packages/core`: The heavy-lifting engine (Database, Graph algorithms, Crawler, Security boundaries).
-- `packages/cli`: The terminal user interface.
-- `packages/web`: The React-based dashboard frontend.
-
-All data is stored locally in an SQLite database at `~/.crawlith/crawlith.db`.
-
-## Development
+We use `pnpm` for workspace management and `vitest` for testing.
 
 ```bash
-npm install
-npm run build
-npm run test
+# Run all tests with coverage
+pnpm run test --coverage
+
+# Clean and rebuild everything
+pnpm run rebuild
+
+# Lint the codebase
+pnpm run lint
 ```
 
-## License
+---
 
-MIT
+## 🛡 License & Safety
+
+Crawlith is released under the **MIT License**.
+
+**IMPORTANT**: Please ensure you have permission to crawl target domains. Crawlith respects `robots.txt` and rate limits by default. Do not use this tool for unauthorized scraping or density-testing.
+
+---
+<div align="center">
+  <sub>Built with ❤️ by the Crawlith Team. Deterministic Crawl Intelligence.</sub>
+</div>
