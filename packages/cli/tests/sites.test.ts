@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { sites } from '../src/commands/sites.js';
+import { getSitesCommand } from '../src/commands/sites.js';
 import chalk from 'chalk';
 
 // Use doMock to avoid hoisting if that was causing issues, or standard vi.mock
@@ -34,15 +34,17 @@ describe('sites command', () => {
   let consoleLogSpy: any;
   let consoleErrorSpy: any;
   let processExitSpy: any;
+  const mockRegistry = { registerPlugins: vi.fn() } as any;
+  const sites = getSitesCommand(mockRegistry);
 
   // Access the mocks
   const { mockGetAllSites, mockGetSnapshotCount, mockGetLatestSnapshot } = (core as any).__mocks;
 
   beforeEach(() => {
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: number) => {
-        throw new Error(`process.exit called with ${code}`);
+      throw new Error(`process.exit called with ${code}`);
     });
     vi.clearAllMocks();
   });
@@ -116,23 +118,23 @@ describe('sites command', () => {
 
   it('should output JSON when requested', async () => {
     mockGetAllSites.mockReturnValue([
-        { id: 1, domain: 'json.com' }
+      { id: 1, domain: 'json.com' }
     ]);
     mockGetSnapshotCount.mockReturnValue(1);
     mockGetLatestSnapshot.mockReturnValue({
-        created_at: '2025-01-01T00:00:00.000Z',
-        node_count: 100,
-        health_score: 90
+      created_at: '2025-01-01T00:00:00.000Z',
+      node_count: 100,
+      health_score: 90
     });
 
     await sites.parseAsync(['node', 'test', '--format', 'json']);
 
     expect(consoleLogSpy).toHaveBeenCalledWith(JSON.stringify([{
-        domain: 'json.com',
-        snapshots: 1,
-        lastCrawl: '2025-01-01T00:00:00.000Z',
-        pages: 100,
-        health: 90
+      domain: 'json.com',
+      snapshots: 1,
+      lastCrawl: '2025-01-01T00:00:00.000Z',
+      pages: 100,
+      health: 90
     }], null, 2));
   });
 });

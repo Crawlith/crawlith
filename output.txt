@@ -1,0 +1,188 @@
+[PluginLoader] Final entry point for @crawlith/plugin-content-clustering: /Users/saurabh/Sites/crawlith/packages/plugins/content-clustering/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/content-clustering: file:///Users/saurabh/Sites/crawlith/packages/plugins/content-clustering/index.ts:1
+import { detectContentClusters, CrawlithPlugin, PluginContext, Command, Graph } from '@crawlith/core';
+                                ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-crawl-policy: /Users/saurabh/Sites/crawlith/packages/plugins/crawl-policy/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/crawl-policy: file:///Users/saurabh/Sites/crawlith/packages/plugins/crawl-policy/index.ts:1
+import { CrawlithPlugin, PluginContext } from '@crawlith/core';
+         ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-crawl-trap-analyzer: /Users/saurabh/Sites/crawlith/packages/plugins/crawl-trap-analyzer/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/crawl-trap-analyzer: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/saurabh/Sites/crawlith/packages/plugins/crawl-trap-analyzer/src/trap.js' imported from /Users/saurabh/Sites/crawlith/packages/plugins/crawl-trap-analyzer/index.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:274:11)
+    at moduleResolve (node:internal/modules/esm/resolve:864:10)
+    at defaultResolve (node:internal/modules/esm/resolve:990:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:749:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:726:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:312:38)
+    at #link (node:internal/modules/esm/module_job:208:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///Users/saurabh/Sites/crawlith/packages/plugins/crawl-trap-analyzer/src/trap.js'
+}
+[PluginLoader] Final entry point for @crawlith/plugin-duplicate-detection: /Users/saurabh/Sites/crawlith/packages/plugins/duplicate-detection/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/duplicate-detection: file:///Users/saurabh/Sites/crawlith/packages/plugins/duplicate-detection/index.ts:1
+import { detectDuplicates, CrawlithPlugin, PluginContext } from '@crawlith/core';
+                           ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-exporter: /Users/saurabh/Sites/crawlith/packages/plugins/exporter/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/exporter: file:///Users/saurabh/Sites/crawlith/packages/plugins/exporter/index.ts:2
+  CrawlithPlugin,
+  ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-heading-health: /Users/saurabh/Sites/crawlith/packages/plugins/heading-health/index.ts
+[PluginLoader] Final entry point for @crawlith/plugin-health-score-engine: /Users/saurabh/Sites/crawlith/packages/plugins/health-score-engine/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/health-score-engine: file:///Users/saurabh/Sites/crawlith/packages/plugins/health-score-engine/index.ts:2
+  CrawlithPlugin,
+  ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-hits: /Users/saurabh/Sites/crawlith/packages/plugins/hits/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/hits: file:///Users/saurabh/Sites/crawlith/packages/plugins/hits/index.ts:1
+import { computeHITS, CrawlithPlugin, PluginContext } from '@crawlith/core';
+                      ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-orphan-intelligence: /Users/saurabh/Sites/crawlith/packages/plugins/orphan-intelligence/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/orphan-intelligence: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/saurabh/Sites/crawlith/packages/plugins/orphan-intelligence/src/orphanSeverity.js' imported from /Users/saurabh/Sites/crawlith/packages/plugins/orphan-intelligence/index.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:274:11)
+    at moduleResolve (node:internal/modules/esm/resolve:864:10)
+    at defaultResolve (node:internal/modules/esm/resolve:990:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:749:20)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:726:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:312:38)
+    at #link (node:internal/modules/esm/module_job:208:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///Users/saurabh/Sites/crawlith/packages/plugins/orphan-intelligence/src/orphanSeverity.js'
+}
+[PluginLoader] Final entry point for @crawlith/plugin-pagerank: /Users/saurabh/Sites/crawlith/packages/plugins/pagerank/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/pagerank: file:///Users/saurabh/Sites/crawlith/packages/plugins/pagerank/index.ts:1
+import { computePageRank, CrawlithPlugin, PluginContext } from '@crawlith/core';
+                          ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-reporter: /Users/saurabh/Sites/crawlith/packages/plugins/reporter/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/reporter: file:///Users/saurabh/Sites/crawlith/packages/plugins/reporter/index.ts:2
+    CrawlithPlugin,
+    ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-simhash: /Users/saurabh/Sites/crawlith/packages/plugins/simhash/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/simhash: file:///Users/saurabh/Sites/crawlith/packages/plugins/simhash/index.ts:1
+import { SimHash, CrawlithPlugin, PluginContext } from '@crawlith/core';
+                  ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-snapshot-diff: /Users/saurabh/Sites/crawlith/packages/plugins/snapshot-diff/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/snapshot-diff: file:///Users/saurabh/Sites/crawlith/packages/plugins/snapshot-diff/index.ts:1
+import { CrawlithPlugin, PluginContext, compareGraphs, Graph, SiteRepository, SnapshotRepository, getDb, loadGraphFromSnapshot } from '@crawlith/core';
+         ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+[PluginLoader] Final entry point for @crawlith/plugin-soft404-detector: /Users/saurabh/Sites/crawlith/packages/plugins/soft404-detector/index.ts
+[PluginLoader] Error loading /Users/saurabh/Sites/crawlith/packages/plugins/soft404-detector: file:///Users/saurabh/Sites/crawlith/packages/plugins/soft404-detector/index.ts:1
+import { CrawlithPlugin, PluginContext } from '@crawlith/core';
+         ^^^^^^^^^^^^^^
+SyntaxError: The requested module '@crawlith/core' does not provide an export named 'CrawlithPlugin'
+    at #_instantiate (node:internal/modules/esm/module_job:254:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:363:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:683:26)
+    at async PluginLoader.tryLoadPlugin (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:86:30)
+    at async PluginLoader.loadFromDir (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:30:17)
+    at async PluginLoader.discover (file:///Users/saurabh/Sites/crawlith/packages/core/dist/plugin-system/plugin-loader.js:15:13)
+    at async bootstrap (file:///Users/saurabh/Sites/crawlith/packages/cli/dist/index.js:10600:19)
+
+
+  ██████╗██████╗  █████╗ ██╗    ██╗██╗     ██╗████████╗██╗  ██╗ 0.1.1
+ ██╔════╝██╔══██╗██╔══██╗██║    ██║██║     ██║╚══██╔══╝██║  ██║
+ ██║     ██████╔╝███████║██║ █╗ ██║██║     ██║   ██║   ███████║
+ ██║     ██╔══██╗██╔══██║██║███╗██║██║     ██║   ██║   ██╔══██║
+ ╚██████╗██║  ██║██║  ██║╚███╔███╔╝███████╗██║   ██║   ██║  ██║
+  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝╚═╝   ╚═╝   ╚═╝  ╚═╝
+
+Crawlith — Deterministic crawl intelligence.
+
+Usage: crawlith crawl [options] [url]
+
+Crawl an entire website and build its internal link graph, metrics, and SEO
+structure.
+
+Arguments:
+  url                         URL to crawl
+
+Options:
+  -l, --limit <number>        max pages (default: "500")
+  -d, --depth <number>        max click depth (default: "5")
+  -c, --concurrency <number>  max concurrent requests (default: "2")
+  --no-query                  strip query params
+  --sitemap [url]             sitemap URL (defaults to /sitemap.xml if not
+                              specified)
+  --log-level <level>         Log level (normal, verbose, debug) (default:
+                              "normal")
+  --force                     force run (override existing lock)
+  --heading                   Analyze heading structure
+  -h, --help                  display help for command

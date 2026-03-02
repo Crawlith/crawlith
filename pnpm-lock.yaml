@@ -151,6 +151,9 @@ importers:
       cheerio:
         specifier: ^1.0.0-rc.12
         version: 1.2.0
+      commander:
+        specifier: ^12.1.0
+        version: 12.1.0
       p-limit:
         specifier: ^7.3.0
         version: 7.3.0

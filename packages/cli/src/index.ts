@@ -2,51 +2,63 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import updateNotifier from 'update-notifier';
-import { crawlCommand } from './commands/crawl.js';
-import { analyze } from './commands/page.js';
-import { ui } from './commands/ui.js';
-import { probe } from './commands/probe.js';
-import { sites } from './commands/sites.js';
-import { clean } from './commands/clean.js';
+import { getCrawlCommand } from './commands/crawl.js';
+import { getPageCommand } from './commands/page.js';
+import { getUiCommand } from './commands/ui.js';
+import { getProbeCommand } from './commands/probe.js';
+import { getSitesCommand } from './commands/sites.js';
+import { getCleanCommand } from './commands/clean.js';
+import { getExportCommand } from './commands/export.js';
 import { version, pkg } from './utils/version.js';
 
-const program = new Command();
+import { PluginLoader } from '@crawlith/core';
+import { PluginRegistry } from '@crawlith/core';
 
-// Initialize update notifier
-const notifier = updateNotifier({
-  pkg,
-  updateCheckInterval: 1000 * 60 * 60 * 12 // 12 hours
-});
+async function bootstrap() {
+  const loader = new PluginLoader();
+  const plugins = await loader.discover(process.cwd());
+  const registry = new PluginRegistry(plugins);
 
-// Check if we should notify
-// We need to be careful not to trigger on JSON output commands
-const isJson = process.argv.includes('--json') ||
-  process.argv.includes('--format=json') ||
-  (process.argv.indexOf('--format') !== -1 && process.argv[process.argv.indexOf('--format') + 1] === 'json');
+  const program = new Command();
 
-if (process.stdout.isTTY && !isJson) {
-  notifier.notify();
-}
+  // Initialize update notifier
+  const notifier = updateNotifier({
+    pkg,
+    updateCheckInterval: 1000 * 60 * 60 * 12 // 12 hours
+  });
 
-program
-  .name('crawlith')
-  .description('Modular crawl intelligence engine for serious SEO analysis.')
-  .version(version)
-  .addCommand(crawlCommand)
-  .addCommand(analyze)
-  .addCommand(ui)
-  .addCommand(probe)
-  .addCommand(sites)
-  .addCommand(clean);
+  const isJson = process.argv.includes('--json') ||
+    process.argv.includes('--format=json') ||
+    (process.argv.indexOf('--format') !== -1 && process.argv[process.argv.indexOf('--format') + 1] === 'json');
 
-program.configureHelp({
-  padWidth() {
-    return 28;
-  },
-});
+  if (process.stdout.isTTY && !isJson) {
+    notifier.notify();
+  }
 
+  program
+    .name('crawlith')
+    .description('Modular crawl intelligence engine for serious SEO analysis.')
+    .version(version);
 
-const banner = `
+  // Register internal commands
+  program.addCommand(getCrawlCommand(registry));
+  program.addCommand(getPageCommand(registry));
+  program.addCommand(getUiCommand(registry));
+  program.addCommand(getProbeCommand(registry));
+  program.addCommand(getSitesCommand(registry));
+  program.addCommand(getCleanCommand(registry));
+  program.addCommand(getExportCommand(registry));
+
+  // Auto-register plugin flags
+  registry.registerPlugins(program);
+
+  program.configureHelp({
+    padWidth() {
+      return 28;
+    },
+  });
+
+  const banner = `
   ██████╗██████╗  █████╗ ██╗    ██╗██╗     ██╗████████╗██╗  ██╗ ${version}
  ██╔════╝██╔══██╗██╔══██╗██║    ██║██║     ██║╚══██╔══╝██║  ██║
  ██║     ██████╔╝███████║██║ █╗ ██║██║     ██║   ██║   ███████║
@@ -54,14 +66,19 @@ const banner = `
  ╚██████╗██║  ██║██║  ██║╚███╔███╔╝███████╗██║   ██║   ██║  ██║
   ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝╚═╝   ╚═╝   ╚═╝  ╚═╝
 `;
-// show a nice title on help or when no arguments
-if (process.argv.length <= 2) {
-  console.log(chalk.cyanBright('\n' + banner));
-  console.log(chalk.gray('Crawlith — Deterministic crawl intelligence.\n'));
-  program.help();
-} else if (process.argv.includes('--help') || process.argv.includes('-h')) {
-  console.log(chalk.cyanBright('\n' + banner));
-  console.log(chalk.gray('Crawlith — Deterministic crawl intelligence.\n'));
+  if (process.argv.length <= 2) {
+    console.log(chalk.cyanBright('\n' + banner));
+    console.log(chalk.gray('Crawlith — Deterministic crawl intelligence.\n'));
+    program.help();
+  } else if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(chalk.cyanBright('\n' + banner));
+    console.log(chalk.gray('Crawlith — Deterministic crawl intelligence.\n'));
+  }
+
+  program.parse(process.argv);
 }
 
-program.parse(process.argv);
+bootstrap().catch(err => {
+  console.error(chalk.red('Fatal error during bootstrap:'), err);
+  process.exit(1);
+});

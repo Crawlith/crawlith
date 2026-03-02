@@ -1,22 +1,27 @@
 import { test, expect, vi, beforeEach } from 'vitest';
-import { crawlCommand } from '../src/commands/crawl.js';
-import { analyze } from '../src/commands/page.js';
+import { getCrawlCommand } from '../src/commands/crawl.js';
+import { getPageCommand } from '../src/commands/page.js';
 import * as core from '@crawlith/core';
 import fs from 'node:fs/promises';
-import { resolveCommandPlugins } from '../src/plugins.js';
 
-vi.mock('node:fs/promises');
-vi.mock('../src/plugins.js', () => ({
-  resolveCommandPlugins: vi.fn().mockReturnValue([]),
-  registerPluginFlags: vi.fn((command) => {
+const mockRegistry = {
+  registerPlugins: vi.fn((command) => {
     // Add flags needed for tests to avoid "unknown option" errors
     command.option('--export <formats>', 'Export formats');
     command.option('--output <path>', 'Output path');
     command.option('--format <type>', 'Format type');
     command.option('--orphan-severity', 'Orphan severity');
-    command.option('--compare <files...>', 'Compare snapshots');
+    command.option('--compare [files...]', 'Compare snapshots');
   }),
-}));
+  getPlugins: vi.fn().mockReturnValue([]),
+  runHook: vi.fn(),
+  runSyncBailHook: vi.fn()
+} as unknown as core.PluginRegistry;
+
+const crawlCommand = getCrawlCommand(mockRegistry);
+const analyze = getPageCommand(mockRegistry);
+
+vi.mock('node:fs/promises');
 
 vi.mock('@crawlith/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@crawlith/core')>();
@@ -24,20 +29,10 @@ vi.mock('@crawlith/core', async (importOriginal) => {
     ...actual,
     crawl: vi.fn(),
     calculateMetrics: vi.fn().mockReturnValue({
-      totalPages: 0,
-      totalEdges: 0,
-      topPageRankPages: [],
-      nearInvariants: [],
-      orphanPages: [],
-      nearOrphans: [],
-      deepPages: [],
-      averageOutDegree: 0,
-      maxDepthFound: 0,
-      crawlEfficiencyScore: 0,
-      averageDepth: 0,
-      structuralEntropy: 0,
-      limitReached: false,
-      sessionStats: { pagesFetched: 0, pagesCached: 0, pagesSkipped: 0, totalFound: 0 }
+      totalPages: 0, totalEdges: 0, topPageRankPages: [], nearInvariants: [],
+      orphanPages: [], nearOrphans: [], deepPages: [], averageOutDegree: 0,
+      maxDepthFound: 0, crawlEfficiencyScore: 0, averageDepth: 0, structuralEntropy: 0,
+      limitReached: false, sessionStats: { pagesFetched: 0, pagesCached: 0, pagesSkipped: 0, totalFound: 0 }
     }),
     generateHtml: vi.fn(),
     compareGraphs: vi.fn(),
@@ -53,33 +48,40 @@ vi.mock('@crawlith/core', async (importOriginal) => {
       releaseLock: vi.fn()
     },
     CrawlSitegraph: class {
-      async execute(input: any) {
-        const id = await (core.crawl as any)(input.url, input, input.context);
-        const graph = (core.loadGraphFromSnapshot as any)(id);
+      execute = vi.fn().mockImplementation(async (input: any) => {
+        // Call the mocked crawl function so expectations pass
+        await (core.crawl as any)(input.url, input, input.context);
+
         if (input.plugins) {
           for (const p of input.plugins) {
-            if (p.onAfterCrawl) await p.onAfterCrawl({ ...input.context, snapshotId: id, graph });
+            if (p.hooks?.onInit) await p.hooks.onInit(input.context);
+            if (input.context?.terminate) return { snapshotId: 1, graph: new actual.Graph() };
+            if (p.hooks?.onMetrics) await p.hooks.onMetrics(input.context, new actual.Graph());
+            if (p.hooks?.onReport) await p.hooks.onReport(input.context, { snapshotId: 1, graph: new actual.Graph() });
           }
         }
-        return { snapshotId: id, graph };
-      }
+        return { snapshotId: 1, graph: new actual.Graph() };
+      });
     },
     PageAnalysisUseCase: class {
-      async execute(input: any) {
+      execute = vi.fn().mockImplementation(async (input: any) => {
+        // Call the mocked analyzeSite function so expectations pass
         const result = await (core.analyzeSite as any)(input.url, input, undefined);
-        if (input.plugins) {
+
+        if (input.plugins && result) {
           for (const p of input.plugins) {
-            if (p.onAnalyzeDone) await p.onAnalyzeDone(result, input.context);
+            if (p.hooks?.onReport) await p.hooks.onReport(input.context, result);
           }
         }
-        return result;
-      }
+        return result || { url: input.url, pages: [], site_summary: { pages_analyzed: 0, site_score: 0, avg_seo_score: 0, thin_pages: 0, duplicate_titles: 0 }, active_modules: { seo: true, content: true, accessibility: true } };
+      });
     }
   };
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  (mockRegistry.getPlugins as any).mockReturnValue([]);
 });
 
 test('crawl command execution (DB-only, no file writes)', async () => {
@@ -89,20 +91,10 @@ test('crawl command execution (DB-only, no file writes)', async () => {
   vi.mocked(core.crawl).mockResolvedValue(123);
   vi.mocked(core.loadGraphFromSnapshot).mockReturnValue(mockGraph);
   vi.mocked(core.calculateMetrics).mockReturnValue({
-    totalPages: 1,
-    totalEdges: 0,
-    topPageRankPages: [],
-    nearInvariants: [],
-    orphanPages: [],
-    nearOrphans: [],
-    deepPages: [],
-    averageOutDegree: 0,
-    maxDepthFound: 0,
-    crawlEfficiencyScore: 0,
-    averageDepth: 0,
-    structuralEntropy: 0,
-    limitReached: false,
-    sessionStats: { pagesFetched: 1, pagesCached: 0, pagesSkipped: 0, totalFound: 1 }
+    totalPages: 1, totalEdges: 0, topPageRankPages: [], nearInvariants: [],
+    orphanPages: [], nearOrphans: [], deepPages: [], averageOutDegree: 0,
+    maxDepthFound: 0, crawlEfficiencyScore: 0, averageDepth: 0, structuralEntropy: 0,
+    limitReached: false, sessionStats: { pagesFetched: 1, pagesCached: 0, pagesSkipped: 0, totalFound: 1 }
   } as any);
 
   await crawlCommand.parseAsync(['node', 'crawl', 'https://example.com']);
@@ -117,27 +109,19 @@ test('crawl command with exports', async () => {
   vi.mocked(core.crawl).mockResolvedValue(456);
   vi.mocked(core.loadGraphFromSnapshot).mockReturnValue(mockGraph);
   vi.mocked(core.calculateMetrics).mockReturnValue({
-    totalPages: 1,
-    totalEdges: 0,
-    topPageRankPages: [],
-    nearInvariants: [],
-    orphanPages: [],
-    nearOrphans: [],
-    deepPages: [],
-    averageOutDegree: 0,
-    maxDepthFound: 0,
-    crawlEfficiencyScore: 1,
-    averageDepth: 1,
-    structuralEntropy: 0,
-    limitReached: false,
-    sessionStats: { pagesFetched: 1, pagesCached: 0, pagesSkipped: 0, totalFound: 1 }
+    totalPages: 1, totalEdges: 0, topPageRankPages: [], nearInvariants: [],
+    orphanPages: [], nearOrphans: [], deepPages: [], averageOutDegree: 0,
+    maxDepthFound: 0, crawlEfficiencyScore: 1, averageDepth: 1, structuralEntropy: 1,
+    limitReached: false, sessionStats: { pagesFetched: 1, pagesCached: 0, pagesSkipped: 0, totalFound: 1 }
   } as any);
 
   vi.mocked(core.generateHtml).mockReturnValue('<html></html>');
-  vi.mocked(resolveCommandPlugins).mockReturnValue([{
+  (mockRegistry.getPlugins as any).mockReturnValue([{
     name: 'ExporterPlugin',
-    onAfterCrawl: async () => { await core.runCrawlExports([], '', '', {}, {}, {}); }
-  } as any]);
+    hooks: {
+      onReport: async () => { await core.runCrawlExports([], '', '', {}, {}, {}); }
+    }
+  }]);
 
   await crawlCommand.parseAsync(['node', 'crawl', 'https://example.com', '--export', 'html', '--output', 'test-output']);
 
@@ -147,18 +131,19 @@ test('crawl command with exports', async () => {
 
 test('crawl validates orphan severity flag dependency', async () => {
   const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
-  // We don't want to throw for process.exit(1) here because commander will call it when we fail validation
   const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('exit:1') }) as any);
 
-  vi.mocked(resolveCommandPlugins).mockReturnValue([{
+  (mockRegistry.getPlugins as any).mockReturnValue([{
     name: 'OrphanIntelligencePlugin',
-    onInit: async (ctx: any) => {
-      const flags = ctx.flags || {};
-      if (flags.orphanSeverity && !flags.orphans && !flags.minInbound && !flags.includeSoftOrphans) {
-        process.exit(1);
+    hooks: {
+      onInit: async (ctx: any) => {
+        const flags = ctx.flags || {};
+        if (flags.orphanSeverity && !flags.orphans && !flags.minInbound && !flags.includeSoftOrphans) {
+          process.exit(1);
+        }
       }
     }
-  } as any]);
+  }]);
 
   await expect(
     crawlCommand.parseAsync(['node', 'crawl', 'https://example.com', '--orphan-severity'])
@@ -190,10 +175,12 @@ test('analyze command json and html output', async () => {
   };
 
   vi.mocked(core.analyzeSite).mockResolvedValue(mockResult as any);
-  vi.mocked(resolveCommandPlugins).mockReturnValue([{
+  (mockRegistry.getPlugins as any).mockReturnValue([{
     name: 'ExporterPlugin',
-    onAnalyzeDone: async () => { await core.runAnalysisExports([], '', {}, true); }
-  } as any]);
+    hooks: {
+      onReport: async () => { await core.runAnalysisExports([], '', {}, true); }
+    }
+  }]);
 
   await analyze.parseAsync(['https://example.com', '--export', 'html'], { from: 'user' });
 
@@ -209,21 +196,23 @@ test('crawl diff execution via --compare', async () => {
     .mockResolvedValueOnce(JSON.stringify(oldGraph))
     .mockResolvedValueOnce(JSON.stringify(newGraph));
 
-  vi.mocked(resolveCommandPlugins).mockReturnValue([{
+  (mockRegistry.getPlugins as any).mockReturnValue([{
     name: 'SnapshotDiffPlugin',
-    onInit: async (ctx: any) => {
-      const flags = ctx.flags || {};
-      if (flags.compare) {
-        const files = flags.compare as unknown as string[];
-        const [oldFile, newFile] = files;
-        await fs.readFile(oldFile, 'utf-8');
-        await fs.readFile(newFile, 'utf-8');
-        core.compareGraphs({} as any, {} as any);
-        console.log('Metric Deltas');
-        ctx.terminate = true;
+    hooks: {
+      onInit: async (ctx: any) => {
+        const flags = ctx.flags || {};
+        if (flags.compare) {
+          const files = flags.compare as unknown as string[];
+          const [oldFile, newFile] = files;
+          await fs.readFile(oldFile, 'utf-8');
+          await fs.readFile(newFile, 'utf-8');
+          core.compareGraphs({} as any, {} as any);
+          console.log('Metric Deltas');
+          ctx.terminate = true;
+        }
       }
     }
-  } as any]);
+  }]);
 
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
   const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });

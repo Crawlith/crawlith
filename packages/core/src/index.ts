@@ -35,11 +35,11 @@ export * from './utils/version.js';
 export * from './events.js';
 
 
-export * from './plugin/types.js';
-export * from './plugin/resolve.js';
-export * from './plugin/manager.js';
-export * from './plugin/loader.js';
+export * from './plugin-system/plugin-types.js';
+export * from './plugin-system/plugin-loader.js';
+export * from './plugin-system/plugin-registry.js';
 export * from './ports/index.js';
 export * from './application/usecase.js';
 export * from './application/usecases.js';
-export * from './plugin/builtin.js';
+
+export { Command } from 'commander';

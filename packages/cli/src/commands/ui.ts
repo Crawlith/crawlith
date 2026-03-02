@@ -5,18 +5,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startServer } from '@crawlith/server';
-import { getDb, SiteRepository, SnapshotRepository } from '@crawlith/core';
+import { getDb, SiteRepository, SnapshotRepository, PluginRegistry } from '@crawlith/core';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.join(__dirname, 'ui');
 
-export const ui = new Command('ui')
-  .description('Start the Crawlith UI Dashboard')
-  .argument('<url>', 'Site URL or domain to visualize')
-  .option('--port <number>', 'Port to run server on', '23484')
-  .option('--host <address>', 'Host to bind server to', '127.0.0.1')
-  .action(async (siteUrl, options) => {
+export const getUiCommand = (registry: PluginRegistry) => {
+  const ui = new Command('ui')
+    .description('Start the Crawlith UI Dashboard')
+    .argument('<url>', 'Site URL or domain to visualize')
+    .option('--port <number>', 'Port to run server on', '23484')
+    .option('--host <address>', 'Host to bind server to', '127.0.0.1');
+
+  registry.registerPlugins(ui);
+
+  ui.action(async (siteUrl, options) => {
     if (!siteUrl) {
       console.error(chalk.red('❌ ssquired argument: url'));
       ui.outputHelp();
@@ -84,3 +88,6 @@ export const ui = new Command('ui')
       process.exit(1);
     }
   });
+
+  return ui;
+};

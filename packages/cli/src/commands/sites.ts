@@ -1,11 +1,15 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { getDb, SiteRepository, SnapshotRepository } from '@crawlith/core';
+import { getDb, SiteRepository, SnapshotRepository, PluginRegistry } from '@crawlith/core';
 
-export const sites = new Command('sites')
-  .description('List all tracked sites and their latest snapshot summary.')
-  .option('--format <type>', 'Output format (pretty, json)', 'pretty')
-  .action(async (options: any) => {
+export const getSitesCommand = (registry: PluginRegistry) => {
+  const sites = new Command('sites')
+    .description('List all tracked sites and their latest snapshot summary.')
+    .option('--format <type>', 'Output format (pretty, json)', 'pretty');
+
+  registry.registerPlugins(sites);
+
+  sites.action(async (options: any) => {
     try {
       const db = getDb();
       const siteRepo = new SiteRepository(db);
@@ -41,8 +45,8 @@ export const sites = new Command('sites')
 
           let dateStr = 'Never';
           if (site.lastCrawl) {
-             // Basic ISO date cleaning if needed, or just print as stored
-             dateStr = site.lastCrawl.split('T')[0];
+            // Basic ISO date cleaning if needed, or just print as stored
+            dateStr = site.lastCrawl.split('T')[0];
           }
           console.log(`  ${chalk.gray('Last Crawl:')} ${dateStr}`);
 
@@ -65,3 +69,6 @@ export const sites = new Command('sites')
       process.exit(1);
     }
   });
+
+  return sites;
+};

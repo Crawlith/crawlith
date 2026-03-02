@@ -1,11 +1,10 @@
-import { crawl, type CrawlOptions } from '../crawler/crawl.js';
+import { crawl } from '../crawler/crawl.js';
 import { runPostCrawlMetrics } from '../crawler/metricsRunner.js';
 import { analyzeSite, type AnalyzeOptions, type AnalysisResult } from '../analysis/analyze.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { compareGraphs } from '../diff/compare.js';
-import { PluginManager } from '../plugin/manager.js';
-import type { CrawlPlugin, MetricsContext, PluginContext, BaseReport } from '../plugin/types.js';
-import { ConsoleCLIWriter, CoreReportBuilder } from '../plugin/writers.js';
+import { PluginRegistry } from '../plugin-system/plugin-registry.js';
+import type { CrawlithPlugin, PluginContext } from '../plugin-system/plugin-types.js';
 import type { UseCase } from './usecase.js';
 import type { Graph } from '../graph/graph.js';
 import type { EngineContext } from '../events.js';
@@ -13,7 +12,6 @@ import type { EngineContext } from '../events.js';
 export interface CrawlSitegraphResult {
   snapshotId: number;
   graph: Graph;
-  report?: BaseReport;
 }
 
 export interface SiteCrawlInput {
@@ -35,24 +33,25 @@ export interface SiteCrawlInput {
   proxyUrl?: string;
   maxRedirects?: number;
   userAgent?: string;
-  plugins?: CrawlPlugin[];
+  plugins?: CrawlithPlugin[];
   context?: PluginContext;
 }
 
 export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphResult> {
   async execute(input: SiteCrawlInput): Promise<CrawlSitegraphResult> {
     const ctx = input.context ?? { command: 'crawl' };
-    const pm = new PluginManager(input.plugins ?? [], {
-      debug: (message: string) => ctx.logger?.info?.(message)
-    });
+    const registry = new PluginRegistry(input.plugins ?? []);
 
-    await pm.init(ctx);
-    await pm.runHook('onBeforeCrawl', { ...ctx, command: 'crawl' });
+    await registry.runHook('onInit', ctx);
+    if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
+
+    await registry.runHook('onCrawlStart', ctx);
+    if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
 
     const policy = (ctx.metadata?.crawlPolicy || {}) as any;
 
     // Map the unified DTO into the underlying CrawlOptions
-    const crawlOpts: CrawlOptions = {
+    const crawlOpts: any = { // Temporary any to avoid mismatch until crawl() is updated
       limit: input.limit ?? 500,
       depth: input.depth ?? 5,
       concurrency: input.concurrency,
@@ -70,80 +69,34 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       proxyUrl: policy.proxyUrl !== undefined ? policy.proxyUrl : input.proxyUrl,
       maxRedirects: policy.maxRedirects !== undefined ? policy.maxRedirects : input.maxRedirects,
       userAgent: policy.userAgent !== undefined ? policy.userAgent : input.userAgent,
-      pluginManager: pm
+      registry: registry
     };
 
-    const snapshotId = await crawl(input.url, crawlOpts);
+    const snapshotId = await crawl(input.url, crawlOpts as any);
     const graph = loadGraphFromSnapshot(snapshotId);
 
-    await pm.runHook('onGraphBuilt', graph, { ...ctx, command: 'crawl', snapshotId });
+    await registry.runHook('onGraphBuilt', ctx, graph);
+    await registry.runHook('onMetrics', ctx, graph);
 
-    const metricsCtx: MetricsContext = {
-      ...ctx,
-      command: 'crawl',
-      snapshotId,
-      graph,
-      metadata: {
-        ...(ctx.metadata ?? {}),
-      }
-    };
-    await pm.runHook('onMetricsPhase', graph, metricsCtx);
-
-    const postCrawlResult = runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {
-      computePageRank: false, // plugin managed
-      computeHITS: false      // plugin managed
+    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {
+      computePageRank: false,
+      computeHITS: false
     });
 
-    const cli = new ConsoleCLIWriter('info');
-
-    let report: BaseReport | undefined;
-    if (postCrawlResult) {
-      const { metrics, issues, health } = postCrawlResult;
-      report = {
-        snapshotId: String(snapshotId),
-        pages: metrics.totalPages,
-        summary: {
-          healthScore: health.score,
-          status: health.score < 50 ? 'critical' : health.score < 80 ? 'warning' : 'good'
-        },
-        issues,
-        metrics,
-        plugins: {}
-      };
-
-      const reportWriter = new CoreReportBuilder(report);
-
-      await pm.runOnMetrics(metricsCtx, cli);
-      await pm.runOnReport(metricsCtx, reportWriter, cli);
-
-      reportWriter.contributeScore({
-        label: "Core Health Engine",
-        score: health.score,
-        weight: 1.0
-      });
-
-      reportWriter.finalizeScore();
-
-      // You could update Snapshot db with finalScore if needed here
-    }
-
-    await pm.runHook('onAfterCrawl', { ...ctx, command: 'crawl', snapshotId, graph, report });
-    return { snapshotId, graph, report };
+    await registry.runHook('onReport', ctx, { snapshotId, graph });
+    return { snapshotId, graph };
   }
 }
 
-export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeOptions; plugins?: CrawlPlugin[]; context?: PluginContext }, AnalysisResult> {
-  async execute(input: { url: string; options: AnalyzeOptions; plugins?: CrawlPlugin[]; context?: PluginContext }): Promise<AnalysisResult> {
+export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeOptions; plugins?: CrawlithPlugin[]; context?: PluginContext }, AnalysisResult> {
+  async execute(input: { url: string; options: AnalyzeOptions; plugins?: CrawlithPlugin[]; context?: PluginContext }): Promise<AnalysisResult> {
     const result = await analyzeSite(input.url, { ...input.options, live: false });
 
     if (input.plugins && input.plugins.length > 0) {
-      const pm = new PluginManager(input.plugins, {
-        debug: (message: string) => {
-          if (input.options.debug) input.context?.logger?.info?.(message);
-        }
-      });
-      await pm.init(input.context ?? { command: 'analyze' });
-      await pm.runHook('onAnalyzeDone', result, input.context ?? { command: 'analyze' });
+      const registry = new PluginRegistry(input.plugins);
+      const ctx = input.context ?? { command: 'analyze' };
+      await registry.runHook('onInit', ctx);
+      await registry.runHook('onReport', ctx, result);
     }
 
     return result;
@@ -165,7 +118,7 @@ export interface PageAnalysisInput {
   minClusterSize?: number;
   debug?: boolean;
   allPages?: boolean;
-  plugins?: CrawlPlugin[];
+  plugins?: CrawlithPlugin[];
   context?: PluginContext;
 }
 
@@ -187,17 +140,9 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       minClusterSize: input.minClusterSize,
       debug: input.debug,
       allPages: input.allPages,
+      plugins: input.plugins,
+      pluginContext: input.context
     }, this.context);
-
-    if (input.plugins && input.plugins.length > 0) {
-      const pm = new PluginManager(input.plugins || [], {
-        debug: (message: string) => {
-          if (input.debug) input.context?.logger?.info?.(message);
-        }
-      });
-      await pm.init(input.context ?? { command: 'page' });
-      await pm.runHook('onAnalyzeDone', result, input.context ?? { command: 'page' });
-    }
 
     return result;
   }
