@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { PageAnalysisUseCase, EngineContext, PluginRegistry } from '@crawlith/core';
 import { OutputController } from '../output/controller.js';
@@ -12,7 +12,7 @@ export const getPageCommand = (registry: PluginRegistry) => {
     .description('Analyze a single URL for on-page SEO signals and content structure.')
     .argument('[url]', 'URL to analyze')
     .option('--live', 'Perform a live crawl before analysis')
-    .option('--log-level <level>', 'Log level (normal, verbose, debug)', 'normal')
+    .addOption(new Option('--log-level <level>', 'Log level (normal, verbose, debug)').choices(['normal', 'verbose', 'debug']).default('normal'))
     .option('--seo', 'Show only SEO module output')
     .option('--content', 'Show only content module output')
     .option('--accessibility', 'Show only accessibility module output');

@@ -1,11 +1,11 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { getDb, SiteRepository, SnapshotRepository, PluginRegistry } from '@crawlith/core';
 
 export const getSitesCommand = (registry: PluginRegistry) => {
   const sites = new Command('sites')
     .description('List all tracked sites and their latest snapshot summary.')
-    .option('--format [type]', 'Output format (pretty, json)', 'pretty');
+    .addOption(new Option('--format [type]', 'Output format (pretty, json)').choices(['pretty', 'json']).default('pretty'));
 
   registry.registerPlugins(sites);
 
