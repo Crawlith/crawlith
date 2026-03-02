@@ -1,9 +1,6 @@
-import { createRequire } from 'node:module';
 import { Command, CrawlithPlugin, PluginContext, getDb } from '@crawlith/core';
 import { clusterBySchemaHash, detectOgMismatches, parseSignalsFromHtml } from './src/signals.js';
 
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 type BufferedSignal = ReturnType<typeof parseSignalsFromHtml>;
 
@@ -146,8 +143,6 @@ function computeSignalsReport(snapshotId: number) {
  */
 const SignalsPlugin: CrawlithPlugin = {
   name: 'signals',
-  version: pkg.version,
-  description: pkg.description,
   register: (cli: Command) => {
     if (cli.name() === 'crawl' || cli.name() === 'page') {
       cli.option('--signals', 'Enable structured signals intelligence analysis');

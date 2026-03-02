@@ -3,6 +3,7 @@ import { Command } from 'commander';
 export interface PluginContext {
     command?: string;
     flags?: Record<string, any>;
+    snapshotId?: number;
     logger?: {
         info(msg: string): void;
         warn(msg: string): void;
@@ -14,7 +15,7 @@ export interface PluginContext {
 
 export interface CrawlithPlugin {
     name: string;
-    version: string;
+    version?: string;
     description?: string;
 
     register?: (cli: Command) => void;

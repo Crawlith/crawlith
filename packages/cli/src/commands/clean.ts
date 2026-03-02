@@ -18,7 +18,7 @@ export const getCleanCommand = (registry: PluginRegistry) => {
         .option('--db', 'Clean database entries only (site, snapshots, pages)')
         .option('--snapshot <id>', 'Clean a specific snapshot by ID')
         .option('-y, --yes', 'Skip confirmation prompt');
-
+    // Let plugins register their flags on this command
     registry.registerPlugins(clean);
 
     clean.action(async (url: string, options: any) => {

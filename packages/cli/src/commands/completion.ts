@@ -55,7 +55,6 @@ export function getCompletionContextFromEnv(): { words: string[]; cword: number 
 export function getInternalCompleteCommand(registry: CommandRegistry): Command {
   return new Command('__complete')
     .description('Internal completion entrypoint')
-    .hideHelp()
     .action(() => {
       if (!process.env.COMP_WORDS || !process.env.COMP_CWORD) {
         return;

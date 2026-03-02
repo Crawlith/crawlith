@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
 import { Command } from '@crawlith/core';
@@ -14,9 +11,6 @@ export * from './src/orphanSeverity.js';
  */
 export const OrphanIntelligencePlugin: CrawlithPlugin = {
   name: 'orphan-intelligence',
-  version: pkg.version,
-  description: pkg.description,
-
   register: (cli: Command) => {
     if (cli.name() === 'crawl') {
       cli

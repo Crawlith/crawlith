@@ -10,6 +10,7 @@ export const getProbeCommand = (registry: PluginRegistry) => {
     .argument('[url]', 'URL to audit')
     .option('--timeout <ms>', 'request timeout', '10000');
 
+  // Let plugins register their flags on this command
   registry.registerPlugins(probe);
 
   probe.action(async (url: string, options: any) => {

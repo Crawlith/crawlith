@@ -138,6 +138,9 @@ export class PluginLoader {
         if (!plugin.version) {
             plugin.version = pkg.version || '0.0.0';
         }
+        if (!plugin.description) {
+            plugin.description = pkg.description || '';
+        }
         return true;
     }
 }

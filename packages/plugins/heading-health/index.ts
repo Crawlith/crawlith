@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { createHash } from 'node:crypto';
 import type { CrawlithPlugin, PluginContext } from '@crawlith/core';
@@ -184,9 +181,6 @@ function enrichDuplicateRisk(pages: LocalPageAnalysis[]): void {
  */
 export const HeadingHealthPlugin: CrawlithPlugin = {
   name: 'heading-health',
-  version: pkg.version,
-  description: pkg.description,
-
   register: (cli: Command) => {
     if (cli.name() === 'crawl' || cli.name() === 'page') {
       cli.option('--heading', 'Analyze heading structure');

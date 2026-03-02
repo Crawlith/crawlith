@@ -49,7 +49,7 @@ export function parseSignalsFromHtml(html: string, url: string, contentLanguageH
   const canonicalUrl = clean(canonicalMatch?.[1]);
 
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  const pageTitle = clean(titleMatch?.[1]);
+  const _pageTitle = clean(titleMatch?.[1]);
 
   const metaRegex = /<meta\s+[^>]*>/gi;
   const metaTags = html.match(metaRegex) ?? [];

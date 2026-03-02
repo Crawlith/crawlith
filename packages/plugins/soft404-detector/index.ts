@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
 import * as cheerio from 'cheerio';
@@ -12,9 +9,6 @@ import { Command } from '@crawlith/core';
  */
 export const Soft404DetectorPlugin: CrawlithPlugin = {
   name: 'soft404-detector',
-  version: pkg.version,
-  description: pkg.description,
-
   register: (cli: Command) => {
     if (cli.name() === 'crawl' || cli.name() === 'page') {
       cli.option('--detect-soft404', 'Detect soft 404 pages');
