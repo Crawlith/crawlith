@@ -8,7 +8,7 @@ import {
 export const getResetCommand = (registry: PluginRegistry) => {
     const reset = new Command('reset')
         .description('Completely reset Crawlith state (DB, reports, and locks).');
-
+    // Let plugins register their flags on this command
     registry.registerPlugins(reset);
 
     reset.action(async () => {

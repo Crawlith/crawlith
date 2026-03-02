@@ -41,7 +41,7 @@ export async function buildProgram(): Promise<{ program: Command; commandRegistr
   program.addCommand(getResetCommand(pluginRegistry));
   program.addCommand(getExportCommand(pluginRegistry));
   program.addCommand(getCompletionCommand());
-  program.addCommand(getInternalCompleteCommand(commandRegistry));
+  program.addCommand(getInternalCompleteCommand(commandRegistry), { hidden: true });
 
   pluginRegistry.registerPlugins(program);
 

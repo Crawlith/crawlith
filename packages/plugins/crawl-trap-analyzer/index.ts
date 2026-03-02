@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
 import { Command } from '@crawlith/core';
@@ -15,9 +12,6 @@ const trapResults = new Map<string, TrapResult>();
  */
 export const CrawlTrapAnalyzerPlugin: CrawlithPlugin = {
     name: 'crawl-trap-analyzer',
-  version: pkg.version,
-  description: pkg.description,
-
     register: (cli: Command) => {
         if (cli.name() === 'crawl') {
             cli.option("--detect-traps", "Detect and cluster crawl traps");

@@ -7,6 +7,7 @@ export const getSitesCommand = (registry: PluginRegistry) => {
     .description('List all tracked sites and their latest snapshot summary.')
     .addOption(new Option('--format [type]', 'Output format (pretty, json)').choices(['pretty', 'json']).default('pretty'));
 
+  // Let plugins register their flags on this command
   registry.registerPlugins(sites);
 
   sites.action(async (options: any) => {

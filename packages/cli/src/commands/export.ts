@@ -16,7 +16,7 @@ export const getExportCommand = (registry: PluginRegistry) => {
     const exportCmd = new Command('export')
         .description('Export latest snapshot data for a site')
         .argument('[url]', 'URL or domain of the site');
-
+    // Let plugins register their flags on this command
     registry.registerPlugins(exportCmd);
 
     exportCmd.action(async (url, options) => {

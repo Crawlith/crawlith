@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { computeHITS, CrawlithPlugin, PluginContext } from '@crawlith/core';
 import { Command } from '@crawlith/core';
@@ -10,10 +7,7 @@ import { Command } from '@crawlith/core';
  * Crawlith plugin for hits
  */
 export const HitsPlugin: CrawlithPlugin = {
-  name: 'hits',
-  version: pkg.version,
-  description: pkg.description,
-  register: (cli: Command) => {
+  name: 'hits',  register: (cli: Command) => {
     if (cli.name() === 'crawl') {
       cli.option('--compute-hits', 'Compute Hub and Authority scores (HITS)');
     }

@@ -75,6 +75,22 @@ const WORD_COUNT_WARNING = 300;
 const HIGH_EXTERNAL_RATIO = 0.6;
 const LOW_INTERNAL_LINKS = 2;
 
+
+function renderSignalsSection(signals: any): string[] {
+  const lines: string[] = [];
+  lines.push(chalk.bold('Structured Signals Overview'));
+  lines.push(`  Signals Score: ${chalk.cyan(`${signals.signalsScore}/100`)}`);
+  lines.push(`  OG Coverage: ${signals.coverage?.og ?? 0}%`);
+  lines.push(`  JSON-LD Coverage: ${signals.coverage?.jsonld ?? 0}%`);
+  lines.push(`  Lang Coverage: ${signals.coverage?.lang ?? 0}%`);
+  lines.push(`  Broken JSON-LD Blocks: ${signals.brokenJsonLdCount ?? 0}`);
+  const topTypes = (signals.schemaTypesTop || []).slice(0, 5).map((entry: any) => `${entry.type} (${entry.count})`).join(', ');
+  if (topTypes) lines.push(`  Top Schema Types: ${topTypes}`);
+  const high = (signals.highAuthorityMissingSchema || []).slice(0, 5).map((entry: any) => entry.url).join(', ');
+  if (high) lines.push(`  High-Authority Pages Missing Schema: ${high}`);
+  return lines;
+}
+
 export function statusLabel(score: number): string {
   if (score >= 90) return 'Excellent';
   if (score >= 75) return 'Good';
@@ -237,6 +253,12 @@ export function renderAnalyzeInsightOutput(report: AnalyzeInsightReport, result?
       lines.push('');
     }
 
+    const signals = result?.plugins?.signals;
+    if (signals) {
+      lines.push('');
+      lines.push(...renderSignalsSection(signals));
+    }
+
     lines.push('');
     const scoreColor = report.score >= 75 ? chalk.green : (report.score >= 50 ? chalk.yellow : chalk.red);
     lines.push(`${chalk.bold('Health')}      ${scoreColor(`${report.score}/100`)}   ${chalk.bold(report.status)}`);
@@ -271,6 +293,12 @@ export function renderAnalyzeInsightOutput(report: AnalyzeInsightReport, result?
     if (warningItems.length > 0) {
       lines.push(`Warnings`);
       for (const w of warningItems) lines.push(`  • ${w}`);
+      lines.push('');
+    }
+
+    const signals = result?.plugins?.signals;
+    if (signals) {
+      lines.push(...renderSignalsSection(signals));
       lines.push('');
     }
 

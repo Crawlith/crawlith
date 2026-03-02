@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import { SimHash, CrawlithPlugin, PluginContext } from '@crawlith/core';
 import { Command } from '@crawlith/core';
@@ -10,10 +7,7 @@ import { Command } from '@crawlith/core';
  * Crawlith plugin for simhash
  */
 export const SimhashPlugin: CrawlithPlugin = {
-  name: 'simhash',
-  version: pkg.version,
-  description: pkg.description,
-  register: (_cli: Command) => {
+  name: 'simhash',  register: (_cli: Command) => {
     // Default for crawl in original, no new flags added.
   },
   hooks: {

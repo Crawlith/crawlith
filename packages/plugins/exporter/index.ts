@@ -1,6 +1,3 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
 
 import {
   CrawlithPlugin,
@@ -20,9 +17,6 @@ import { Command } from '@crawlith/core';
  */
 export const ExporterPlugin: CrawlithPlugin = {
   name: 'exporter',
-  version: pkg.version,
-  description: pkg.description,
-
   register: (cli: Command) => {
     if (['crawl', 'page', 'probe', 'export'].includes(cli.name())) {
       cli
