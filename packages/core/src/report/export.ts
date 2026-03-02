@@ -15,8 +15,6 @@ import {
     renderAnalysisCsv
 } from '../analysis/analyze.js';
 
-import type { BaseReport } from '../plugin/types.js';
-
 export function parseExportFormats(exportOption: string | boolean | undefined): string[] {
     if (exportOption === undefined || exportOption === false) return [];
     if (exportOption === true) return ['json'];
@@ -30,7 +28,7 @@ export async function runCrawlExports(
     graphData: any,
     metrics: any,
     graphObj: any,
-    report?: BaseReport
+    report?: any
 ) {
     if (formats.length === 0) return;
 
