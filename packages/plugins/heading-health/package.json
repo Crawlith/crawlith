@@ -2,16 +2,18 @@
   "name": "@crawlith/plugin-heading-health",
   "license": "Apache-2.0",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.1",
   "type": "module",
   "dependencies": {
-    "@crawlith/core": "workspace:*",
-    "cheerio": "^1.2.0"
+    "@crawlith/core": "workspace:*"
   },
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
   },
-  "exports": "./index.ts",
-  "description": "Crawlith plugin for heading health"
+  "exports": {
+    ".": "./index.ts",
+    "./package.json": "./package.json"
+  },
+  "description": "Analyzes heading structure, hierarchy health, and content distribution"
 }
