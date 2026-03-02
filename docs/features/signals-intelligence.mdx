@@ -1,0 +1,23 @@
+# Structured Signals Intelligence
+
+`@crawlith/plugin-signals` extends Crawlith with search-engine signal analytics across Open Graph, language attributes, hreflang, and JSON-LD schema.
+
+## Enable
+
+```bash
+crawlith crawl https://example.com --signals
+```
+
+## What it extracts
+
+- Open Graph + Twitter card core fields
+- `<html lang>`, `hreflang`, canonical context, `content-language`
+- JSON-LD blocks (`application/ld+json`) with type discovery and hash clustering
+
+## What it reports
+
+- Signals Score (0–100)
+- Coverage rates for OG, language, hreflang, JSON-LD
+- Broken JSON-LD count
+- High-authority pages missing schema
+- OG and schema duplication clusters
