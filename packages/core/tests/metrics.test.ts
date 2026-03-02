@@ -194,3 +194,33 @@ test('metrics v2 calculations', () => {
   const metrics2 = calculateMetrics(g, 10);
   expect(metrics2.limitReached).toBe(true);
 });
+
+test('calculateMetrics on large graphs (Performance Test)', { timeout: 15000 }, () => {
+  const g = new Graph();
+  const numNodes = 5000;
+
+  // Create nodes
+  for (let i = 0; i < numNodes; i++) {
+    // 10% of nodes are broken (status 404)
+    const status = i % 10 === 0 ? 404 : 200;
+    g.addNode(`node_${i}`, 1, status);
+  }
+
+  // Create edges: each node points to 10 other random nodes
+  for (let i = 0; i < numNodes; i++) {
+    for (let j = 0; j < 10; j++) {
+      const targetIndex = Math.floor(Math.random() * numNodes);
+      g.addEdge(`node_${i}`, `node_${targetIndex}`);
+    }
+  }
+
+  const start = performance.now();
+  calculateMetrics(g, 5);
+  const end = performance.now();
+
+  const duration = end - start;
+  console.log(`calculateMetrics on ${numNodes} nodes took ${duration.toFixed(2)}ms`);
+
+  // We just want to ensure it finishes without errors
+  expect(duration).toBeGreaterThan(0);
+});
