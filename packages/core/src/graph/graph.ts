@@ -85,17 +85,22 @@ export class Graph {
 
   /**
    * Generates a unique key for an edge.
+   * Optimization: string concatenation is significantly faster than JSON.stringify
    */
   static getEdgeKey(source: string, target: string): string {
-    return JSON.stringify([source, target]);
+    return source + '\x00' + target;
   }
 
   /**
    * Parses an edge key back into source and target.
+   * Optimization: string split is significantly faster than JSON.parse
    */
   static parseEdgeKey(key: string): { source: string; target: string } {
-    const [source, target] = JSON.parse(key);
-    return { source, target };
+    const splitIndex = key.indexOf('\x00');
+    return {
+      source: key.slice(0, splitIndex),
+      target: key.slice(splitIndex + 1)
+    };
   }
 
   /**
