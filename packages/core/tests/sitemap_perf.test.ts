@@ -1,7 +1,6 @@
-import { test, expect, beforeEach, vi } from 'vitest';
+import { test, expect, beforeEach } from 'vitest';
 import { Sitemap } from '../src/crawler/sitemap.js';
 import { MockAgent, setGlobalDispatcher } from 'undici';
-import { EngineContext } from '../src/events.js';
 
 let mockAgent: MockAgent;
 
