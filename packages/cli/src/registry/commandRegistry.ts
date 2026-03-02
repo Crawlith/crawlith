@@ -159,7 +159,7 @@ export class CommandRegistry {
     return command.subcommands.flatMap(sub => [sub.name, ...sub.aliases]);
   }
 
-  private suggestOptionValues(command: Command, option: Option, consumedTokens: string[]): string[] {
+  private suggestOptionValues(command: Command, option: Option, _consumedTokens: string[]): string[] {
     if (option.argChoices && option.argChoices.length > 0) {
       return option.argChoices;
     }

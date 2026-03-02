@@ -13,7 +13,7 @@ function buildCompletionScript(shell: 'bash' | 'zsh'): string {
 _crawlith_completion() {
   local -a completions
   local completion
-  completions=("\${(@f)\$(COMP_WORDS="\${(j: :)words}" COMP_CWORD=$((CURRENT-1)) crawlith __complete 2>/dev/null)}")
+  completions=("\${(@f)$(COMP_WORDS="\${(j: :)words}" COMP_CWORD=$((CURRENT-1)) crawlith __complete 2>/dev/null)}")
   for completion in $completions; do
     compadd -- "$completion"
   done
@@ -25,8 +25,8 @@ compdef _crawlith_completion crawlith
   return `_crawlith_completion() {
   local IFS=$'\n'
   local completions
-  completions=\$(COMP_WORDS="\${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD crawlith __complete 2>/dev/null)
-  COMPREPLY=(\$(compgen -W "$completions" -- "\${COMP_WORDS[COMP_CWORD]}"))
+  completions=$(COMP_WORDS="\${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD crawlith __complete 2>/dev/null)
+  COMPREPLY=($(compgen -W "$completions" -- "\${COMP_WORDS[COMP_CWORD]}"))
 }
 complete -F _crawlith_completion crawlith
 `;

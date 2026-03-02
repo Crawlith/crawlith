@@ -28,17 +28,18 @@ describe('dynamic completion', () => {
   const mockRegistry = {
     registerPlugins: vi.fn((command: Command) => {
       command.addOption(new Option('--plugin-mode <mode>', 'Plugin mode').choices(['safe', 'aggressive']));
-
-      const pluginCommand = new Command('plugin-audit')
-        .description('Plugin-provided command')
-        .option('--plugin-flag <value>', 'Plugin command flag');
-      command.parent?.addCommand(pluginCommand);
     })
   } as any;
 
   const root = new Command('crawlith');
   root.addCommand(getCrawlCommand(mockRegistry));
   root.addCommand(getCleanCommand(mockRegistry));
+
+  // Simulate registering plugins on the root program directly
+  const pluginCommand = new Command('plugin-audit')
+    .description('Plugin-provided command')
+    .option('--plugin-flag <value>', 'Plugin command flag');
+  root.addCommand(pluginCommand);
 
   const completionRegistry = new CommandRegistry(root, mockRegistry);
 
