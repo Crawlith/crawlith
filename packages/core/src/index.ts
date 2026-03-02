@@ -44,3 +44,5 @@ export * from './application/usecase.js';
 export * from './application/usecases.js';
 
 export { Command } from 'commander';
+
+export * from './core/security/ipGuard.js';

@@ -1,0 +1,38 @@
+{
+  "name": "@crawlith/opencode-plugin",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Production-ready OpenCode plugin for Crawlith crawling, analysis, and snapshot intelligence.",
+  "keywords": [
+    "opencode",
+    "crawl",
+    "seo",
+    "ai",
+    "plugin"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"No tests specified\""
+  },
+  "dependencies": {
+    "@crawlith/core": "workspace:*",
+    "zod": "^3.24.1"
+  }
+}
