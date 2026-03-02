@@ -155,6 +155,37 @@ export function initSchema(db: Database) {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_plugin_reports_snapshot ON plugin_reports(snapshot_id);`);
 
+  // Signals Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS signals (
+      snapshot_id INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      has_og INTEGER DEFAULT 0,
+      og_hash TEXT,
+      og_title TEXT,
+      og_image TEXT,
+      og_url TEXT,
+      has_lang INTEGER DEFAULT 0,
+      lang TEXT,
+      has_hreflang INTEGER DEFAULT 0,
+      hreflang_count INTEGER DEFAULT 0,
+      has_jsonld INTEGER DEFAULT 0,
+      jsonld_count INTEGER DEFAULT 0,
+      schema_types TEXT,
+      primary_schema_type TEXT,
+      schema_hash TEXT,
+      broken_jsonld INTEGER DEFAULT 0,
+      PRIMARY KEY(snapshot_id, url),
+      FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_signals_snapshot ON signals(snapshot_id);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_signals_url ON signals(url);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_signals_primary_schema_type ON signals(primary_schema_type);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_signals_lang ON signals(lang);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_signals_has_jsonld ON signals(has_jsonld);`);
+
   // Migration: add columns to existing DBs that were created before this update
   migrateSchema(db);
 }

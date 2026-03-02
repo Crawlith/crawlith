@@ -472,6 +472,7 @@ export class Crawler {
         url: finalUrl,
         status: res.status,
         depth: depth,
+        headers: res.headers,
         ...parseResult
       });
     }

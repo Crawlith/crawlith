@@ -1,0 +1,37 @@
+# Structured Signals Plugin (`@crawlith/plugin-signals`)
+
+The `signals` plugin upgrades Crawlith into a structured SEO signal intelligence engine by collecting lightweight extraction data during crawl parsing and running heavier analysis in the post-crawl metrics phase.
+
+## Enable
+
+```bash
+crawlith crawl https://example.com --signals
+```
+
+## What it extracts
+
+- Open Graph and Twitter Card fields (`og:*`, `twitter:*`)
+- Language signals (`<html lang>`, `hreflang`, `content-language` header)
+- JSON-LD coverage and schema type inventory
+
+## What it stores
+
+The plugin persists compact records in the `signals` table (snapshot-scoped, URL-keyed) and avoids storing raw JSON-LD blobs.
+
+Stored fields include:
+
+- `has_og`, `og_hash`, `og_title`, `og_image`
+- `has_lang`, `lang`, `has_hreflang`, `hreflang_count`
+- `has_jsonld`, `jsonld_count`, `schema_types`, `primary_schema_type`, `schema_hash`, `broken_jsonld`
+
+## Analysis output
+
+When enabled, Crawlith appends a `plugins.signals` section that includes:
+
+- Composite Signals Score (0-100)
+- Coverage metrics (OG / language / hreflang / JSON-LD)
+- High-authority pages missing schema/OG/lang
+- OG mismatch and duplication intelligence
+- Language integrity findings
+- Schema concentration and clustering
+

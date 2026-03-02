@@ -75,6 +75,10 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     const snapshotId = await crawl(input.url, crawlOpts as any);
     const graph = loadGraphFromSnapshot(snapshotId);
 
+    ctx.snapshotId = snapshotId;
+    ctx.metadata = ctx.metadata || {};
+    ctx.metadata.snapshotId = snapshotId;
+
     await registry.runHook('onGraphBuilt', ctx, graph);
     await registry.runHook('onMetrics', ctx, graph);
 

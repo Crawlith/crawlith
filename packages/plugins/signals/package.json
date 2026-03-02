@@ -1,0 +1,16 @@
+{
+  "name": "@crawlith/plugin-signals",
+  "license": "Apache-2.0",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "dependencies": {
+    "@crawlith/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "exports": "./index.ts",
+  "description": "Crawlith plugin for structured signal intelligence"
+}
