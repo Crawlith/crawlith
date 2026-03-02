@@ -31,7 +31,7 @@ export const HealthScoreEnginePlugin: CrawlithPlugin = {
       }
 
       if (isCrawl) {
-        const { graph, snapshotId } = result;
+        const { graph, snapshotId: _snapshotId } = result;
         const metrics = calculateMetrics(graph, 10);
         const insightReport = buildCrawlInsightReport(graph, metrics);
 

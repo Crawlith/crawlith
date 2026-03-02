@@ -198,7 +198,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const siteScores = aggregateSiteScore(crawlData.metrics, resultPages.length === 1 ? resultPages : pages);
   if (context) context.emit({ type: 'debug', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
 
-  let result: AnalysisResult = {
+  const result: AnalysisResult = {
     site_summary: {
       pages_analyzed: resultPages.length,
       avg_seo_score: siteScores.seoHealthScore,

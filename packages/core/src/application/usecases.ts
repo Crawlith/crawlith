@@ -1,4 +1,4 @@
-import { crawl, type CrawlOptions } from '../crawler/crawl.js';
+import { crawl } from '../crawler/crawl.js';
 import { runPostCrawlMetrics } from '../crawler/metricsRunner.js';
 import { analyzeSite, type AnalyzeOptions, type AnalysisResult } from '../analysis/analyze.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
@@ -43,7 +43,10 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     const registry = new PluginRegistry(input.plugins ?? []);
 
     await registry.runHook('onInit', ctx);
+    if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
+
     await registry.runHook('onCrawlStart', ctx);
+    if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
 
     const policy = (ctx.metadata?.crawlPolicy || {}) as any;
 

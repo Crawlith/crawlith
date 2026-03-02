@@ -4,7 +4,7 @@ import { Command } from 'commander';
 export const SimhashPlugin: CrawlithPlugin = {
   name: 'simhash',
   version: '1.0.0',
-  register: (cli: Command) => {
+  register: (_cli: Command) => {
     // Default for crawl in original, no new flags added.
   },
   hooks: {

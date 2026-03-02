@@ -2,6 +2,7 @@ import {
   CrawlithPlugin,
   PluginContext,
   parseExportFormats,
+  calculateMetrics,
   runCrawlExports,
   runAnalysisExports
 } from '@crawlith/core';
@@ -48,7 +49,7 @@ export const ExporterPlugin: CrawlithPlugin = {
       }
 
       if (isCrawl) {
-        const { snapshotId, graph } = result;
+        const { snapshotId: _snapshotId, graph } = result;
         const metrics = calculateMetrics(graph, 10);
         await runCrawlExports(
           formats,

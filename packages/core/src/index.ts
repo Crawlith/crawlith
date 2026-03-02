@@ -41,4 +41,3 @@ export * from './plugin-system/plugin-registry.js';
 export * from './ports/index.js';
 export * from './application/usecase.js';
 export * from './application/usecases.js';
-export * from './plugin/builtin.js';

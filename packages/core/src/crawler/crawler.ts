@@ -39,6 +39,7 @@ export interface CrawlOptions {
   userAgent?: string;
   snapshotType?: 'full' | 'partial' | 'incremental';
   registry?: PluginRegistry;
+  plugins?: any[];
   robots?: any;
 }
 
@@ -468,7 +469,6 @@ export class Crawler {
       this.registry.runHook('onPageParsed', this.context as any, {
         url: finalUrl,
         status: res.status,
-        html: parseResult.html,
         depth: depth,
         ...parseResult
       });

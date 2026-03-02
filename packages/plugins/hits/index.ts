@@ -10,7 +10,7 @@ export const HitsPlugin: CrawlithPlugin = {
     }
   },
   hooks: {
-    onInit: async (ctx: PluginContext) => {
+    onInit: async (_ctx: PluginContext) => {
       // Logic if we want to toggle it based on flag
     },
     onMetrics: async (ctx: PluginContext, graph: any) => {

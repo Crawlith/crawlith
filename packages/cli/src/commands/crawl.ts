@@ -1,13 +1,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import {
-  calculateMetrics,
   CrawlSitegraph,
   LockManager,
-  EngineContext
+  EngineContext,
+  PluginRegistry
 } from '@crawlith/core';
+
 import { OutputController } from '../output/controller.js';
-import { PluginRegistry } from '@crawlith/core';
 
 export const getCrawlCommand = (registry: PluginRegistry) => {
   const crawlCommand = new Command('crawl')
@@ -62,7 +62,7 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
       }
 
       const crawlSitegraph = new CrawlSitegraph();
-      const { graph } = await crawlSitegraph.execute({
+      const { graph: _graph } = await crawlSitegraph.execute({
         url,
         limit,
         depth,
