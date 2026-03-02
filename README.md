@@ -3,7 +3,7 @@
   <p><b>Professional-grade SEO crawling and graph intelligence suite.</b></p>
 
   [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
+  [![Crawlith CI](https://github.com/Crawlith/crawlith/actions/workflows/ci.yml/badge.svg)]()
   [![Coverage](https://img.shields.io/badge/coverage-78%25-blue.svg)]()
   [![TypeScript](https://img.shields.io/badge/language-TypeScript-blue.svg)]()
 </div>
