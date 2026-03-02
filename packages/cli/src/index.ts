@@ -4,10 +4,11 @@ import chalk from 'chalk';
 import updateNotifier from 'update-notifier';
 import { getCrawlCommand } from './commands/crawl.js';
 import { getPageCommand } from './commands/page.js';
-import { ui } from './commands/ui.js';
-import { probe } from './commands/probe.js';
-import { sites } from './commands/sites.js';
-import { clean } from './commands/clean.js';
+import { getUiCommand } from './commands/ui.js';
+import { getProbeCommand } from './commands/probe.js';
+import { getSitesCommand } from './commands/sites.js';
+import { getCleanCommand } from './commands/clean.js';
+import { getExportCommand } from './commands/export.js';
 import { version, pkg } from './utils/version.js';
 
 import { PluginLoader } from '@crawlith/core';
@@ -42,10 +43,11 @@ async function bootstrap() {
   // Register internal commands
   program.addCommand(getCrawlCommand(registry));
   program.addCommand(getPageCommand(registry));
-  program.addCommand(ui);
-  program.addCommand(probe);
-  program.addCommand(sites);
-  program.addCommand(clean);
+  program.addCommand(getUiCommand(registry));
+  program.addCommand(getProbeCommand(registry));
+  program.addCommand(getSitesCommand(registry));
+  program.addCommand(getCleanCommand(registry));
+  program.addCommand(getExportCommand(registry));
 
   // Auto-register plugin flags
   registry.registerPlugins(program);

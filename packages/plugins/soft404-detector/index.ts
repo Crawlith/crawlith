@@ -7,7 +7,7 @@ export const Soft404DetectorPlugin: CrawlithPlugin = {
   version: '1.0.0',
 
   register: (cli: Command) => {
-    if (cli.name() === 'crawl') {
+    if (cli.name() === 'crawl' || cli.name() === 'page') {
       cli.option('--detect-soft404', 'Detect soft 404 pages');
     }
   },
@@ -26,8 +26,8 @@ export const Soft404DetectorPlugin: CrawlithPlugin = {
 
       for (const node of nodes) {
         if (node.status === 200 && node.html) {
-          let soft404Score = 0;
-          const soft404Signals: string[] = [];
+          let score = 0;
+          const signals: string[] = [];
 
           const $ = cheerio.load(node.html);
           $('script, style, noscript, iframe').remove();
@@ -41,43 +41,47 @@ export const Soft404DetectorPlugin: CrawlithPlugin = {
 
           for (const pattern of errorPatterns) {
             if (title.includes(pattern)) {
-              soft404Score += 0.4;
-              soft404Signals.push(`title_pattern_${pattern.replace(/\s+/g, '_')}`);
+              score += 0.4;
+              signals.push(`title_contains_${pattern}`);
               break;
             }
           }
 
           for (const pattern of errorPatterns) {
             if (h1Text.includes(pattern)) {
-              soft404Score += 0.3;
-              soft404Signals.push(`h1_pattern_${pattern.replace(/\s+/g, '_')}`);
+              score += 0.3;
+              signals.push(`h1_contains_${pattern}`);
               break;
             }
           }
 
           if (bodyText.includes('page not found') || bodyText.includes('404 error')) {
-            soft404Score += 0.2;
-            soft404Signals.push('body_error_phrase');
+            score += 0.2;
+            signals.push('body_error_phrase');
           }
 
           const words = cleanText.split(/\s+/).filter(w => w.length > 0);
           if (words.length < 50) {
-            soft404Score += 0.3;
-            soft404Signals.push('very_low_word_count');
+            score += 0.3;
+            signals.push('very_low_word_count');
           } else if (words.length < 150) {
-            soft404Score += 0.1;
-            soft404Signals.push('low_word_count');
+            score += 0.1;
+            signals.push('low_word_count');
           }
 
           if (node.outLinks === 0) {
-            soft404Score += 0.2;
-            soft404Signals.push('no_outbound_links');
+            score += 0.2;
+            signals.push('no_outbound_links');
           }
 
-          soft404Score = Math.min(1.0, soft404Score);
+          score = Math.min(1.0, score);
 
-          node.soft404Score = soft404Score;
-          node.soft404Signals = soft404Signals;
+          if (score > 0) {
+            (node as any).soft404 = {
+              score: Number(score.toFixed(2)),
+              reason: signals.join(', ')
+            };
+          }
         }
       }
 
