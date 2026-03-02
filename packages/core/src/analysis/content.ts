@@ -1,4 +1,4 @@
-import { CheerioAPI, load } from 'cheerio';
+import { load } from 'cheerio';
 
 export interface ContentAnalysis {
   wordCount: number;
@@ -18,7 +18,7 @@ const DEFAULT_WEIGHTS: ThinScoreWeights = {
   dupWeight: 0.25
 };
 
-export function analyzeContent($: CheerioAPI | string): ContentAnalysis {
+export function analyzeContent($: any): ContentAnalysis {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
 
@@ -41,7 +41,7 @@ export function analyzeContent($: CheerioAPI | string): ContentAnalysis {
   const sentenceSet = new Set(
     cleanText
       .split(/[.!?]+/)
-      .map((item) => item.trim().toLowerCase())
+      .map((item: string) => item.trim().toLowerCase())
       .filter(Boolean)
   );
 

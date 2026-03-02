@@ -1,4 +1,4 @@
-import { CheerioAPI, load } from 'cheerio';
+import { load } from 'cheerio';
 
 export interface StructuredDataResult {
   present: boolean;
@@ -6,7 +6,7 @@ export interface StructuredDataResult {
   valid: boolean;
 }
 
-export function analyzeStructuredData($: CheerioAPI | string): StructuredDataResult {
+export function analyzeStructuredData($: any): StructuredDataResult {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
 
@@ -42,7 +42,7 @@ export function analyzeStructuredData($: CheerioAPI | string): StructuredDataRes
 
 function extractTypes(input: unknown, types: Set<string>): void {
   if (Array.isArray(input)) {
-    input.forEach((item) => extractTypes(item, types));
+    input.forEach((item: any) => extractTypes(item, types));
     return;
   }
 
@@ -59,6 +59,6 @@ function extractTypes(input: unknown, types: Set<string>): void {
 
   const graph = (input as Record<string, unknown>)['@graph'];
   if (Array.isArray(graph)) {
-    graph.forEach((item) => extractTypes(item, types));
+    graph.forEach((item: any) => extractTypes(item, types));
   }
 }

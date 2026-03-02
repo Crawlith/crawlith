@@ -4,7 +4,7 @@ import { normalizeUrl } from './normalize.js';
 import { EngineContext } from '../events.js';
 
 export class Sitemap {
-  constructor(private context?: EngineContext) {}
+  constructor(private context?: EngineContext) { }
 
   /**
    * Fetches and parses a sitemap (or sitemap index) to extract URLs.
@@ -45,7 +45,7 @@ export class Sitemap {
         const sitemaps = $('sitemap > loc');
         if (sitemaps.length > 0) {
           const childSitemaps: string[] = [];
-          sitemaps.each((_, el) => {
+          sitemaps.each((_: number, el: any) => {
             const loc = $(el).text().trim();
             if (loc) childSitemaps.push(loc);
           });
@@ -56,7 +56,7 @@ export class Sitemap {
           }
         } else {
           // It's a URL Set
-          $('url > loc').each((_, el) => {
+          $('url > loc').each((_: number, el: any) => {
             const loc = $(el).text().trim();
             if (loc) {
               const normalized = normalizeUrl(loc, '');

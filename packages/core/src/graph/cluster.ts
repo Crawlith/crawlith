@@ -165,7 +165,7 @@ function calculateClusterRisk(nodes: GraphNode[]): 'low' | 'medium' | 'high' {
         if (!node.html) continue;
 
         try {
-            const $ = load(node.html);
+            const $: any = load(node.html);
             const title = $('title').text().trim().toLowerCase();
             const h1 = $('h1').first().text().trim().toLowerCase();
 

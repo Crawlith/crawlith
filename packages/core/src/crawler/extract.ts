@@ -12,7 +12,7 @@ export function extractLinks(html: string, baseUrl: string, onError?: (error: un
     const $ = cheerio.load(html);
     const links = new Set<string>();
 
-    $('a').each((_, element) => {
+    $('a').each((_: number, element: any) => {
       const href = $(element).attr('href');
       if (href) {
         try {

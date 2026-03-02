@@ -11,9 +11,6 @@ importers:
       update-notifier:
         specifier: ^7.3.1
         version: 7.3.1
-      uuid:
-        specifier: ^13.0.0
-        version: 13.0.0
       vite:
         specifier: 7.3.1
         version: 7.3.1(@types/node@20.19.33)(jiti@1.21.7)
@@ -167,6 +164,9 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+      '@types/cheerio':
+        specifier: 0.22.35
+        version: 0.22.35
       '@types/node':
         specifier: ^20.12.7
         version: 20.19.33
@@ -306,8 +306,6 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.9.3
-
-  packages/shared: {}
 
   packages/web:
     dependencies:
@@ -958,6 +956,9 @@ packages:
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
+
+  '@types/cheerio@0.22.35':
+    resolution: {integrity: sha512-yD57BchKRvTV+JD53UZ6PD8KWY5g5rvvMLRnZR3EQBCZXiDT/HR+pKpMzFGlWNhFrXlo7VPZXtKvIEwZkAWOIA==}
 
   '@types/configstore@6.0.2':
     resolution: {integrity: sha512-OS//b51j9uyR3zvwD04Kfs5kHpve2qalQ18JhY/ho3voGYUTPLEG90/ocfKPI48hyHH8T04f7KEEbK6Ue60oZQ==}
@@ -2813,10 +2814,6 @@ packages:
     resolution: {integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==}
     engines: {node: '>= 0.4.0'}
 
-  uuid@13.0.0:
-    resolution: {integrity: sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==}
-    hasBin: true
-
   v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
 
@@ -3565,6 +3562,10 @@ snapshots:
     dependencies:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
+
+  '@types/cheerio@0.22.35':
+    dependencies:
+      '@types/node': 20.19.33
 
   '@types/configstore@6.0.2': {}
 
@@ -5516,8 +5517,6 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
-
-  uuid@13.0.0: {}
 
   v8-compile-cache-lib@3.0.1: {}
 

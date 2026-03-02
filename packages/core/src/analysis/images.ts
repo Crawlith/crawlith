@@ -1,4 +1,4 @@
-import { CheerioAPI, load } from 'cheerio';
+import { load } from 'cheerio';
 
 export interface ImageAltAnalysis {
   totalImages: number;
@@ -6,14 +6,14 @@ export interface ImageAltAnalysis {
   emptyAlt: number;
 }
 
-export function analyzeImageAlts($: CheerioAPI | string): ImageAltAnalysis {
+export function analyzeImageAlts($: any): ImageAltAnalysis {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
 
   let missingAlt = 0;
   let emptyAlt = 0;
 
-  cheerioObj('img').each((_idx, el) => {
+  cheerioObj('img').each((_idx: number, el: any) => {
     const alt = cheerioObj(el).attr('alt');
     if (alt === undefined) {
       missingAlt += 1;

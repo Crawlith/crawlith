@@ -2,6 +2,7 @@
   "name": "@crawlith/architecture-infrastructure",
   "private": true,
   "version": "0.0.1",
+  "description": "Shared infrastructure components and common utilities used across the Crawlith workspace.",
   "type": "module",
   "dependencies": {
     "@crawlith/core": "workspace:*"

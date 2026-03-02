@@ -1,4 +1,4 @@
-import { load, CheerioAPI } from 'cheerio';
+import { load } from 'cheerio';
 import { normalizeUrl } from '../crawler/normalize.js';
 
 export interface LinkRatioAnalysis {
@@ -8,7 +8,7 @@ export interface LinkRatioAnalysis {
   externalRatio: number;
 }
 
-export function analyzeLinks($: CheerioAPI | string, pageUrl: string, rootUrl: string): LinkRatioAnalysis {
+export function analyzeLinks($: any, pageUrl: string, rootUrl: string): LinkRatioAnalysis {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
   const rootOrigin = new URL(rootUrl).origin;
@@ -17,7 +17,7 @@ export function analyzeLinks($: CheerioAPI | string, pageUrl: string, rootUrl: s
   let externalLinks = 0;
   let nofollowCount = 0;
 
-  cheerioObj('a[href]').each((_idx, el) => {
+  cheerioObj('a[href]').each((_idx: number, el: any) => {
     const href = cheerioObj(el).attr('href');
     if (!href) return;
     const normalized = normalizeUrl(href, pageUrl, { stripQuery: false });

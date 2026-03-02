@@ -56,7 +56,7 @@ export class Parser {
     // 3. Links
     const links = new Map<string, number>();
     if (!nofollow) { // Don't extract links if nofollow is set
-      $('a').each((_, element) => {
+      $('a').each((_: number, element: any) => {
         const href = $(element).attr('href');
         const rel = $(element).attr('rel');
         const isNofollow = rel && rel.toLowerCase().includes('nofollow');

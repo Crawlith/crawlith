@@ -1,4 +1,4 @@
-import { CheerioAPI, load } from 'cheerio';
+import { load } from 'cheerio';
 
 export type SeoStatus = 'ok' | 'missing' | 'too_short' | 'too_long' | 'duplicate';
 
@@ -18,7 +18,7 @@ function normalizedText(value: string | null): string {
   return (value ?? '').trim().toLowerCase();
 }
 
-export function analyzeTitle($: CheerioAPI | string): TextFieldAnalysis {
+export function analyzeTitle($: any): TextFieldAnalysis {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
 
@@ -32,7 +32,7 @@ export function analyzeTitle($: CheerioAPI | string): TextFieldAnalysis {
   return { value: title, length: title.length, status: 'ok' };
 }
 
-export function analyzeMetaDescription($: CheerioAPI | string): TextFieldAnalysis {
+export function analyzeMetaDescription($: any): TextFieldAnalysis {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
 
@@ -51,11 +51,11 @@ export function analyzeMetaDescription($: CheerioAPI | string): TextFieldAnalysi
   return { value: description, length: description.length, status: 'ok' };
 }
 
-export function analyzeH1($: CheerioAPI | string, titleValue: string | null): H1Analysis {
+export function analyzeH1($: any, titleValue: string | null): H1Analysis {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
 
-  const h1Values = cheerioObj('h1').toArray().map((el) => cheerioObj(el).text().trim()).filter(Boolean);
+  const h1Values = cheerioObj('h1').toArray().map((el: any) => cheerioObj(el).text().trim()).filter(Boolean);
   const count = h1Values.length;
   const first = h1Values[0] || null;
   const matchesTitle = Boolean(first && titleValue && normalizedText(first) === normalizedText(titleValue));

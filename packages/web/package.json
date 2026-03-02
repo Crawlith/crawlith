@@ -1,6 +1,7 @@
 {
   "name": "@crawlith/web",
   "version": "0.1.1",
+  "description": "React-based visual dashboard for Crawlith. Provides interactive visualizations, search, and deep-dives into crawl data.",
   "private": true,
   "type": "module",
   "main": "index.js",
