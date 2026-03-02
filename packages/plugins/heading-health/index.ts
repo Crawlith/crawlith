@@ -13,10 +13,10 @@ interface LocalPageAnalysis {
 
 const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'your', 'about', 'into', 'over', 'under', 'are', 'was', 'were', 'can', 'has', 'have', 'had', 'you', 'our', 'out', 'all']);
 const THIN_SECTION_WORDS = 80;
-const HEADING_PATTERN = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
-const TITLE_PATTERN = /<title\b[^>]*>([\s\S]*?)<\/title>/i;
+const HEADING_PATTERN = /<h([1-6])\b[^<>]*>([\s\S]*?)<\/h\1>/gi;
+const TITLE_PATTERN = /<title\b[^<>]*>([\s\S]*?)<\/title>/i;
 
-const normalizeText = (input: string) => input.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const normalizeText = (input: string) => input.replace(/<[^<>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 const normalizeComparable = (input: string) => normalizeText(input).toLowerCase();
 const tokenize = (input: string) => normalizeComparable(input).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((t) => t.length > 2 && !STOPWORDS.has(t));
 const stableHash = (input: string) => createHash('sha1').update(input).digest('hex').slice(0, 16);
