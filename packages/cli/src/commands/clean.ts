@@ -13,7 +13,7 @@ import {
 export const getCleanCommand = (registry: PluginRegistry) => {
     const clean = new Command('clean')
         .description('Clean crawl data, exports, or snapshots for a site')
-        .argument('<url>', 'URL or domain of the site to clean')
+        .argument('[url]', 'URL or domain of the site to clean')
         .option('--exports', 'Clean exported files only')
         .option('--db', 'Clean database entries only (site, snapshots, pages)')
         .option('--snapshot <id>', 'Clean a specific snapshot by ID')

@@ -18,7 +18,7 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
     .option('-c, --concurrency <number>', 'max concurrent requests', '2')
     .option('--no-query', 'strip query params')
     .option('--sitemap [url]', 'sitemap URL (defaults to /sitemap.xml if not specified)')
-    .option('--log-level <level>', 'Log level (normal, verbose, debug)', 'normal')
+    .option('--log-level [level]', 'Log level (normal, verbose, debug)', 'normal')
     .option('--force', 'force run (override existing lock)');
 
   // Let plugins register their flags on this command

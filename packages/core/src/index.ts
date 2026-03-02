@@ -23,6 +23,7 @@ export * from './analysis/links.js';
 export * from './audit/index.js';
 export * from './audit/types.js';
 export * from './db/index.js';
+export * from './db/reset.js';
 export * from './db/graphLoader.js';
 export * from './db/repositories/SiteRepository.js';
 export * from './db/repositories/SnapshotRepository.js';

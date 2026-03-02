@@ -14,15 +14,15 @@ const distPath = path.join(__dirname, 'ui');
 export const getUiCommand = (registry: PluginRegistry) => {
   const ui = new Command('ui')
     .description('Start the Crawlith UI Dashboard')
-    .argument('<url>', 'Site URL or domain to visualize')
-    .option('--port <number>', 'Port to run server on', '23484')
-    .option('--host <address>', 'Host to bind server to', '127.0.0.1');
+    .argument('[url]', 'Site URL or domain to visualize')
+    .option('--port [number]', 'Port to run server on', '23484')
+    .option('--host [address]', 'Host to bind server to', '127.0.0.1');
 
   registry.registerPlugins(ui);
 
   ui.action(async (siteUrl, options) => {
     if (!siteUrl) {
-      console.error(chalk.red('❌ ssquired argument: url'));
+      console.error(chalk.red('❌ Missing required argument: url'));
       ui.outputHelp();
       process.exit(0);
     }

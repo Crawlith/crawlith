@@ -8,6 +8,7 @@ import { getUiCommand } from './commands/ui.js';
 import { getProbeCommand } from './commands/probe.js';
 import { getSitesCommand } from './commands/sites.js';
 import { getCleanCommand } from './commands/clean.js';
+import { getResetCommand } from './commands/reset.js';
 import { getExportCommand } from './commands/export.js';
 import { version, pkg } from './utils/version.js';
 
@@ -47,6 +48,7 @@ async function bootstrap() {
   program.addCommand(getProbeCommand(registry));
   program.addCommand(getSitesCommand(registry));
   program.addCommand(getCleanCommand(registry));
+  program.addCommand(getResetCommand(registry));
   program.addCommand(getExportCommand(registry));
 
   // Auto-register plugin flags

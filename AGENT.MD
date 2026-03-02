@@ -59,6 +59,10 @@ pnpm run test --coverage
 pnpm run lint
 ```
 
+### Documentation Standards
+- **Doc Blocks Required**: You MUST write comprehensive JSDoc/TSDoc blocks for every `namespace`, `function`, `interface`, and `class` you create or significantly modify.
+- **Content**: Include descriptions, `@param` for arguments, `@returns` for return types, and clear explanations of the code's purpose.
+
 ---
 
 ## 📁 5. Navigation Hotspots

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "pnpm --filter \"./packages/**\" build",
-    "test": "pnpm --filter @crawlith/core test && pnpm --filter @crawlith/cli test",
+    "test": "pnpm --filter \"./packages/**\" test",
     "lint": "eslint .",
     "crawlith": "node packages/cli/dist/index.js",
     "rebuild": "find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && pnpm install && pnpm build",

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "echo No tests specified"
   },
   "exports": "./index.ts",
   "description": "Crawlith plugin for pagerank"

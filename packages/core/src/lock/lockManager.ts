@@ -96,6 +96,20 @@ export class LockManager {
     }
   }
 
+  static async clearAllLocks(): Promise<number> {
+    if (!existsSync(this.lockDir)) return 0;
+    const files = await fs.readdir(this.lockDir);
+    const lockFiles = files.filter(f => f.endsWith('.lock'));
+    let count = 0;
+    for (const file of lockFiles) {
+      try {
+        await fs.unlink(path.join(this.lockDir, file));
+        count++;
+      } catch { /* ignore */ }
+    }
+    return count;
+  }
+
   private static log(type: 'info' | 'warn' | 'error', message: string, error?: unknown) {
     if (this.context) {
       this.context.emit({ type, message, error });

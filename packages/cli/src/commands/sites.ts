@@ -5,7 +5,7 @@ import { getDb, SiteRepository, SnapshotRepository, PluginRegistry } from '@craw
 export const getSitesCommand = (registry: PluginRegistry) => {
   const sites = new Command('sites')
     .description('List all tracked sites and their latest snapshot summary.')
-    .option('--format <type>', 'Output format (pretty, json)', 'pretty');
+    .option('--format [type]', 'Output format (pretty, json)', 'pretty');
 
   registry.registerPlugins(sites);
 
