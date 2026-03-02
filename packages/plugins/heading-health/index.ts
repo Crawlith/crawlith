@@ -1,120 +1,272 @@
+import { createHash } from 'node:crypto';
 import type { CrawlPlugin, PluginContext, CLIWriter, ReportWriter, PluginStore } from '@crawlith/core';
 
-function analyzeHeadingHealth(html?: string) {
-  if (!html) return { score: 0, missing: 1, multiple: 0 };
+type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+interface HeadingNode { level: HeadingLevel; text: string; index: number; parentIndex?: number; }
+interface SectionMetrics { headingIndex: number; headingText: string; words: number; keywordConcentration: number; thin: boolean; duplicateRisk: number; }
+interface HeadingHealth { score: number; status: 'Healthy' | 'Moderate' | 'Poor'; issues: string[]; }
+interface LocalPageAnalysis {
+  url: string; headingNodes: HeadingNode[]; sections: SectionMetrics[]; h1Norm: string; h2SetHash: string; patternHash: string; issues: string[];
+  metrics: { entropy: number; maxDepth: number; avgDepth: number; headingDensity: number; fragmentation: number; levelVolatility: number; hierarchySkips: number; reverseJumps: number; missingH1: number; multipleH1: number; };
+}
 
-  // Note: doing a regex is fast contextually, but cheerio parses are more standard if already using cheerio elsewhere.
-  const h1Count = (html.match(/<h1\b/gi) || []).length;
-  const h2Count = (html.match(/<h2\b/gi) || []).length;
+const STOPWORDS = new Set(['the','and','for','with','from','that','this','your','about','into','over','under','are','was','were','can','has','have','had','you','our','out','all']);
+const THIN_SECTION_WORDS = 80;
+const HEADING_PATTERN = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+const TITLE_PATTERN = /<title\b[^>]*>([\s\S]*?)<\/title>/i;
 
-  const score = h1Count !== 1
-    ? Math.max(0, 60 - Math.abs(h1Count - 1) * 20)
-    : Math.min(100, 70 + Math.min(h2Count, 3) * 10);
+const normalizeText = (input: string) => input.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const normalizeComparable = (input: string) => normalizeText(input).toLowerCase();
+const tokenize = (input: string) => normalizeComparable(input).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((t) => t.length > 2 && !STOPWORDS.has(t));
+const stableHash = (input: string) => createHash('sha1').update(input).digest('hex').slice(0, 16);
 
-  return {
-    score,
-    missing: h1Count === 0 ? 1 : 0,
-    multiple: h1Count > 1 ? 1 : 0
-  };
+function jaccardSimilarity(a: string, b: string): number {
+  const aSet = new Set(tokenize(a));
+  const bSet = new Set(tokenize(b));
+  if (!aSet.size || !bSet.size) return 0;
+  let intersection = 0;
+  for (const token of aSet) if (bSet.has(token)) intersection++;
+  return intersection / (aSet.size + bSet.size - intersection);
+}
+
+function entropy(values: number[]): number {
+  const total = values.reduce((a, b) => a + b, 0);
+  if (!total) return 0;
+  return values.reduce((sum, value) => value === 0 ? sum : sum - (value / total) * Math.log2(value / total), 0);
+}
+
+function getTitleFromHtml(html: string): string {
+  const match = html.match(TITLE_PATTERN);
+  return match ? normalizeText(match[1]) : '';
+}
+
+function extractHeadingSegments(html: string): Array<{ level: HeadingLevel; text: string; start: number; end: number }> {
+  const segments: Array<{ level: HeadingLevel; text: string; start: number; end: number }> = [];
+  for (const match of html.matchAll(HEADING_PATTERN)) {
+    const level = Number(match[1]) as HeadingLevel;
+    segments.push({ level, text: normalizeText(match[2] || ''), start: match.index || 0, end: (match.index || 0) + match[0].length });
+  }
+  return segments;
+}
+
+function computeHeadingNodes(segments: Array<{ level: HeadingLevel; text: string }>): HeadingNode[] {
+  const nodes: HeadingNode[] = [];
+  const stack: HeadingNode[] = [];
+  segments.forEach((segment, index) => {
+    const node: HeadingNode = { level: segment.level, text: segment.text, index };
+    while (stack.length > 0 && stack[stack.length - 1].level >= node.level) stack.pop();
+    if (stack.length > 0) node.parentIndex = stack[stack.length - 1].index;
+    stack.push(node);
+    nodes.push(node);
+  });
+  return nodes;
+}
+
+function computeSectionsFromSegments(html: string, headingNodes: HeadingNode[], segments: Array<{ text: string; start: number; end: number }>): SectionMetrics[] {
+  const sections: SectionMetrics[] = [];
+  const allWords = tokenize(normalizeText(html));
+  const frequency = new Map<string, number>();
+  for (const word of allWords) frequency.set(word, (frequency.get(word) || 0) + 1);
+
+  for (let i = 0; i < segments.length; i++) {
+    const current = segments[i];
+    const next = segments[i + 1];
+    const textChunk = html.slice(current.end, next ? next.start : html.length);
+    const words = tokenize(textChunk);
+    const headingTokens = tokenize(current.text);
+    const concentration = headingTokens.reduce((sum, token) => sum + (frequency.get(token) || 0), 0);
+    sections.push({
+      headingIndex: headingNodes[i]?.index ?? i,
+      headingText: current.text,
+      words: words.length,
+      keywordConcentration: words.length > 0 ? Number((concentration / words.length).toFixed(3)) : 0,
+      thin: words.length > 0 && words.length < THIN_SECTION_WORDS,
+      duplicateRisk: 0
+    });
+  }
+  return sections;
+}
+
+function analyzePage(html: string, fallbackTitle?: string): LocalPageAnalysis {
+  const segments = extractHeadingSegments(html);
+  const headingNodes = computeHeadingNodes(segments);
+  const sections = computeSectionsFromSegments(html, headingNodes, segments);
+  const levelCounts = [1,2,3,4,5,6].map((level) => headingNodes.filter((n) => n.level === level).length);
+  const entropyScore = Number(entropy(levelCounts).toFixed(3));
+  const missingH1 = levelCounts[0] === 0 ? 1 : 0;
+  const multipleH1 = levelCounts[0] > 1 ? 1 : 0;
+
+  let hierarchySkips = 0; let reverseJumps = 0; let volatilitySum = 0;
+  for (let i = 1; i < headingNodes.length; i++) {
+    const delta = headingNodes[i].level - headingNodes[i - 1].level;
+    volatilitySum += Math.abs(delta);
+    if (delta > 1) hierarchySkips++;
+    if (delta < -1) reverseJumps++;
+  }
+
+  const maxDepth = headingNodes.length ? Math.max(...headingNodes.map((n) => n.level)) : 0;
+  const avgDepth = headingNodes.length ? Number((headingNodes.reduce((sum, node) => sum + node.level, 0) / headingNodes.length).toFixed(2)) : 0;
+  const pageWords = tokenize(html).length;
+  const headingDensity = pageWords ? Number((headingNodes.length / pageWords).toFixed(4)) : 0;
+  const fragmentation = headingNodes.length ? Number((headingNodes.filter((n) => n.level <= 2).length / headingNodes.length).toFixed(3)) : 0;
+  const levelVolatility = headingNodes.length > 1 ? Number((volatilitySum / (headingNodes.length - 1)).toFixed(3)) : 0;
+
+  const issues: string[] = [];
+  const h1Nodes = headingNodes.filter((node) => node.level === 1);
+  if (missingH1) issues.push('Missing H1');
+  if (multipleH1) issues.push('Multiple H1 found');
+  if (h1Nodes.some((node) => node.text.length < 6)) issues.push('Empty or near-empty H1');
+  const title = fallbackTitle || getTitleFromHtml(html);
+  if (title && h1Nodes[0] && jaccardSimilarity(title, h1Nodes[0].text) < 0.3) issues.push('H1 diverges from <title>');
+  if (hierarchySkips > 0) issues.push(`${hierarchySkips} hierarchy skips detected`);
+  if (reverseJumps > 0) issues.push(`${reverseJumps} reverse hierarchy jumps detected`);
+  for (const thin of sections.filter((s) => s.thin).slice(0, 2)) issues.push(`Thin section under "${thin.headingText || 'Untitled heading'}"`);
+  if (entropyScore > 2.1) issues.push('High structural entropy');
+  if (fragmentation > 0.65) issues.push('Section fragmentation is high');
+
+  const h1Norm = normalizeComparable(h1Nodes[0]?.text || '');
+  const h2SetHash = stableHash(headingNodes.filter((n) => n.level === 2).map((n) => normalizeComparable(n.text)).filter(Boolean).sort().join('|'));
+  const patternHash = stableHash(headingNodes.map((n) => n.level).join('>'));
+
+  return { url: '', headingNodes, sections, h1Norm, h2SetHash, patternHash, issues, metrics: { entropy: entropyScore, maxDepth, avgDepth, headingDensity, fragmentation, levelVolatility, hierarchySkips, reverseJumps, missingH1, multipleH1 } };
+}
+
+function scoreHealth(input: { metrics: LocalPageAnalysis['metrics']; thinSectionCount: number; duplicateH1GroupSize: number; similarH1GroupSize: number; identicalH2SetGroupSize: number; duplicatePatternGroupSize: number; templateRisk: number; issues: string[]; }): HeadingHealth {
+  let score = 100;
+  const m = input.metrics;
+  if (m.missingH1) score -= 20;
+  if (m.multipleH1) score -= 6;
+  score -= m.hierarchySkips * 8;
+  score -= m.reverseJumps * 6;
+  score -= Math.round(m.entropy * 7);
+  score -= Math.round(m.fragmentation * 20);
+  score -= Math.round(m.levelVolatility * 6);
+  score -= input.thinSectionCount * 4;
+  if (input.duplicateH1GroupSize > 1) score -= Math.min(16, (input.duplicateH1GroupSize - 1) * 3);
+  if (input.similarH1GroupSize > 1) score -= Math.min(8, (input.similarH1GroupSize - 1) * 2);
+  if (input.identicalH2SetGroupSize > 1) score -= Math.min(10, (input.identicalH2SetGroupSize - 1) * 2);
+  if (input.duplicatePatternGroupSize > 1) score -= Math.min(12, (input.duplicatePatternGroupSize - 1) * 2);
+  score -= Math.round(input.templateRisk * 12);
+  score = Math.max(0, Math.min(100, score));
+  return { score, status: score >= 80 ? 'Healthy' : score >= 55 ? 'Moderate' : 'Poor', issues: input.issues };
+}
+
+const computeTemplateRisk = (similar: number, h2set: number, pattern: number) => Number(Math.max(0, Math.min(1, ((similar - 1) * 0.15) + ((h2set - 1) * 0.2) + ((pattern - 1) * 0.2))).toFixed(3));
+
+function enrichDuplicateRisk(pages: LocalPageAnalysis[]): void {
+  const buckets = new Map<string, string[]>();
+  for (const page of pages) for (const section of page.sections) {
+    const key = stableHash(`${normalizeComparable(section.headingText)}:${section.words}`);
+    const bucket = buckets.get(key) || [];
+    bucket.push(page.url);
+    buckets.set(key, bucket);
+  }
+  for (const page of pages) for (const section of page.sections) {
+    const key = stableHash(`${normalizeComparable(section.headingText)}:${section.words}`);
+    const size = (buckets.get(key) || []).length;
+    section.duplicateRisk = Number(Math.min(1, (size - 1) / 5).toFixed(3));
+  }
 }
 
 export const HeadingHealthPlugin: CrawlPlugin = {
   name: 'heading-health',
-  cli: {
-    flag: 'heading',
-    description: 'Analyze heading structure',
-    defaultFor: ['crawl', 'page'],
-  },
-
-  storage: {
-    perPage: {
-      columns: {
-        score: 'INTEGER',
-        missing_h1: 'INTEGER',
-        multiple_h1: 'INTEGER'
-      }
-    }
-  },
-
+  cli: { flag: 'heading', description: 'Analyze heading structural intelligence', defaultFor: ['crawl', 'page'] },
+  storage: { perPage: { columns: {
+    score: 'INTEGER', status: 'TEXT', issues: 'TEXT', map: 'TEXT', missing_h1: 'INTEGER', multiple_h1: 'INTEGER', entropy: 'REAL', max_depth: 'INTEGER', avg_depth: 'REAL',
+    heading_density: 'REAL', fragmentation: 'REAL', volatility: 'REAL', hierarchy_skips: 'INTEGER', reverse_jumps: 'INTEGER', thin_sections: 'INTEGER', duplicate_h1_group: 'INTEGER',
+    similar_h1_group: 'INTEGER', identical_h2_set_group: 'INTEGER', duplicate_pattern_group: 'INTEGER', template_risk: 'REAL'
+  } } },
   hooks: {
     async onMetrics(ctx: PluginContext & { cli: CLIWriter; store: PluginStore; graph?: any }) {
       if (!ctx.graph) return;
-
-      let totalScore = 0;
-      let evaluatedPages = 0;
-      let totalMissing = 0;
-      let totalMultiple = 0;
-
+      const analyzedPages: LocalPageAnalysis[] = [];
       for (const node of ctx.graph.getNodes()) {
         if (node.status < 200 || node.status >= 300 || !node.html) continue;
+        const analysis = analyzePage(node.html, node.title);
+        analysis.url = node.url;
+        analyzedPages.push(analysis);
+      }
+      enrichDuplicateRisk(analyzedPages);
 
-        const health = analyzeHeadingHealth(node.html);
-
-        ctx.store.upsertPageData(node.url, {
-          score: health.score,
-          missing_h1: health.missing,
-          multiple_h1: health.multiple
-        });
-
-        totalScore += health.score;
-        evaluatedPages++;
-        totalMissing += health.missing;
-        totalMultiple += health.multiple;
+      const exactH1Buckets = new Map<string, string[]>();
+      const h2SetBuckets = new Map<string, string[]>();
+      const patternBuckets = new Map<string, string[]>();
+      for (const page of analyzedPages) {
+        if (page.h1Norm) {
+          const bucket = exactH1Buckets.get(page.h1Norm) || [];
+          bucket.push(page.url);
+          exactH1Buckets.set(page.h1Norm, bucket);
+        }
+        h2SetBuckets.set(page.h2SetHash, [...(h2SetBuckets.get(page.h2SetHash) || []), page.url]);
+        patternBuckets.set(page.patternHash, [...(patternBuckets.get(page.patternHash) || []), page.url]);
       }
 
-      const avgScore = evaluatedPages > 0 ? Math.round(totalScore / evaluatedPages) : 0;
+      const similarH1GroupSizes = new Map<string, number>();
+      const uniqueH1 = Array.from(new Set(analyzedPages.map((p) => p.h1Norm).filter(Boolean)));
+      const similarBuckets = new Map<string, Set<string>>();
+      for (const h1 of uniqueH1) similarBuckets.set(h1, new Set([h1]));
+      for (let i = 0; i < uniqueH1.length; i++) for (let j = i + 1; j < uniqueH1.length; j++) {
+        const a = uniqueH1[i]; const b = uniqueH1[j];
+        if (jaccardSimilarity(a, b) >= 0.7) { similarBuckets.get(a)?.add(b); similarBuckets.get(b)?.add(a); }
+      }
+      for (const page of analyzedPages) similarH1GroupSizes.set(page.url, similarBuckets.get(page.h1Norm)?.size || (page.h1Norm ? 1 : 0));
 
+      let totalScore = 0, totalMissing = 0, totalMultiple = 0, totalSkips = 0, totalReverseJumps = 0, totalThinSections = 0, totalEntropy = 0, poorPages = 0;
+      for (const page of analyzedPages) {
+        const duplicateH1GroupSize = page.h1Norm ? (exactH1Buckets.get(page.h1Norm)?.length || 1) : 0;
+        const similarH1GroupSize = similarH1GroupSizes.get(page.url) || 0;
+        const identicalH2SetGroupSize = h2SetBuckets.get(page.h2SetHash)?.length || 1;
+        const duplicatePatternGroupSize = patternBuckets.get(page.patternHash)?.length || 1;
+        const templateRisk = computeTemplateRisk(similarH1GroupSize, identicalH2SetGroupSize, duplicatePatternGroupSize);
+        const thinSectionCount = page.sections.filter((s) => s.thin).length;
+        const health = scoreHealth({ metrics: page.metrics, thinSectionCount, duplicateH1GroupSize, similarH1GroupSize, identicalH2SetGroupSize, duplicatePatternGroupSize, templateRisk, issues: page.issues });
+
+        if (health.status === 'Poor') poorPages++;
+        totalScore += health.score; totalMissing += page.metrics.missingH1; totalMultiple += page.metrics.multipleH1; totalSkips += page.metrics.hierarchySkips; totalReverseJumps += page.metrics.reverseJumps; totalThinSections += thinSectionCount; totalEntropy += page.metrics.entropy;
+
+        ctx.store.upsertPageData(page.url, {
+          score: health.score, status: health.status, issues: JSON.stringify(health.issues), map: JSON.stringify(page.headingNodes), missing_h1: page.metrics.missingH1, multiple_h1: page.metrics.multipleH1,
+          entropy: page.metrics.entropy, max_depth: page.metrics.maxDepth, avg_depth: page.metrics.avgDepth, heading_density: page.metrics.headingDensity, fragmentation: page.metrics.fragmentation,
+          volatility: page.metrics.levelVolatility, hierarchy_skips: page.metrics.hierarchySkips, reverse_jumps: page.metrics.reverseJumps, thin_sections: thinSectionCount,
+          duplicate_h1_group: duplicateH1GroupSize, similar_h1_group: similarH1GroupSize, identical_h2_set_group: identicalH2SetGroupSize, duplicate_pattern_group: duplicatePatternGroupSize, template_risk: templateRisk
+        });
+      }
+
+      const evaluatedPages = analyzedPages.length;
       ctx.store.saveSummary({
-        avgScore,
-        evaluatedPages,
-        totalMissing,
-        totalMultiple
+        avgScore: evaluatedPages ? Math.round(totalScore / evaluatedPages) : 0, evaluatedPages, totalMissing, totalMultiple, totalSkips, totalReverseJumps, totalThinSections,
+        avgEntropy: evaluatedPages ? Number((totalEntropy / evaluatedPages).toFixed(3)) : 0, poorPages
       });
     },
-
     async onReport(ctx: PluginContext & { report: ReportWriter; store: PluginStore; cli?: CLIWriter }) {
-      const summary = ctx.store.loadSummary<{
-        avgScore: number;
-        evaluatedPages: number;
-        totalMissing: number;
-        totalMultiple: number;
-      }>();
-
+      const summary = ctx.store.loadSummary<any>();
       if (!summary) return;
-
       ctx.report.addSection('Heading Health', {
-        metrics: {
-          'Missing H1': summary.totalMissing,
-          'Multiple H1': summary.totalMultiple,
-          'Avg Score': summary.avgScore
-        },
+        metrics: { 'Missing H1': summary.totalMissing, 'Multiple H1': summary.totalMultiple, 'Hierarchy Skips': summary.totalSkips, 'Reverse Jumps': summary.totalReverseJumps, 'Thin Sections': summary.totalThinSections, 'Avg Entropy': summary.avgEntropy, 'Poor Pages': summary.poorPages, 'Avg Score': summary.avgScore },
         headers: ['Metric', 'Value'],
-        rows: [
-          ['Average Score', `${summary.avgScore}/100`],
-          ['Pages Evaluated', summary.evaluatedPages],
-          ['Missing H1s', summary.totalMissing],
-          ['Multiple H1s', summary.totalMultiple]
-        ]
+        rows: [['Average Score', `${summary.avgScore}/100`], ['Pages Evaluated', summary.evaluatedPages], ['Missing H1', summary.totalMissing], ['Multiple H1', summary.totalMultiple], ['Hierarchy Skips', summary.totalSkips], ['Reverse Jumps', summary.totalReverseJumps], ['Thin Sections', summary.totalThinSections], ['Average Entropy', summary.avgEntropy], ['Poor Pages', summary.poorPages]]
       });
-
-      if (ctx.report.contributeScore) {
-        ctx.report.contributeScore({
-          label: 'Heading Structure',
-          score: summary.avgScore,
-          weight: 0.1
-        });
-      }
+      ctx.report.contributeScore?.({ label: 'Heading Structure', score: summary.avgScore, weight: 0.15 });
     }
   },
   async onAnalyzeDone(result: any, _ctx: PluginContext) {
     if (!result.pages) return;
+    const pages: LocalPageAnalysis[] = [];
+    for (const page of result.pages) if (page.html) { const analysis = analyzePage(page.html, page.title); analysis.url = page.url; pages.push(analysis); }
+    enrichDuplicateRisk(pages);
+    const h1Counts = new Map<string, number>();
+    for (const p of pages) if (p.h1Norm) h1Counts.set(p.h1Norm, (h1Counts.get(p.h1Norm) || 0) + 1);
+
     for (const page of result.pages) {
       if (!page.html) continue;
-      const health = analyzeHeadingHealth(page.html);
+      const analysis = pages.find((p) => p.url === page.url);
+      if (!analysis) continue;
+      const duplicateH1GroupSize = analysis.h1Norm ? (h1Counts.get(analysis.h1Norm) || 1) : 0;
+      const health = scoreHealth({ metrics: analysis.metrics, thinSectionCount: analysis.sections.filter((s) => s.thin).length, duplicateH1GroupSize, similarH1GroupSize: duplicateH1GroupSize, identicalH2SetGroupSize: 1, duplicatePatternGroupSize: 1, templateRisk: 0, issues: analysis.issues });
       page.plugins = page.plugins || {};
       page.plugins['heading-health'] = {
-        score: health.score,
-        h1Status: health.missing ? 'missing' : (health.multiple ? 'multiple' : 'ok')
+        score: health.score, status: health.status, issues: health.issues, map: analysis.headingNodes,
+        metrics: { entropy: analysis.metrics.entropy, maxDepth: analysis.metrics.maxDepth, avgDepth: analysis.metrics.avgDepth, headingDensity: analysis.metrics.headingDensity, sectionFragmentation: analysis.metrics.fragmentation, hierarchySkips: analysis.metrics.hierarchySkips, reverseJumps: analysis.metrics.reverseJumps, thinSections: analysis.sections.filter((s) => s.thin).length, duplicateH1GroupSize }
       };
     }
   }
