@@ -2,10 +2,15 @@ import { createHash } from 'node:crypto';
 
 export interface ParsedSignalRecord {
   url: string;
+  pageTitle: string | null;
   ogTitle: string | null;
   ogDescription: string | null;
   ogImage: string | null;
   ogUrl: string | null;
+  twitterTitle: string | null;
+  twitterDescription: string | null;
+  twitterImage: string | null;
+  twitterCard: string | null;
   hasOg: number;
   ogHash: string | null;
   lang: string | null;
@@ -37,6 +42,32 @@ export function stableHash(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
+function extractSchemaTypesRecursive(input: any, out: Set<string>): void {
+  if (Array.isArray(input)) {
+    input.forEach(item => extractSchemaTypesRecursive(item, out));
+    return;
+  }
+  if (!input || typeof input !== 'object') return;
+
+  const t = input['@type'];
+  if (Array.isArray(t)) {
+    t.forEach(entry => {
+      const c = clean(String(entry));
+      if (c) out.add(c);
+    });
+  } else if (t) {
+    const c = clean(String(t));
+    if (c) out.add(c);
+  }
+
+  // Descend into properties that might contain nested types (Graph pattern)
+  for (const key in input) {
+    if (key !== '@type' && typeof input[key] === 'object') {
+      extractSchemaTypesRecursive(input[key], out);
+    }
+  }
+}
+
 /**
  * Parse and normalize structured search signals from raw HTML.
  */
@@ -49,25 +80,36 @@ export function parseSignalsFromHtml(html: string, url: string, contentLanguageH
   const canonicalUrl = clean(canonicalMatch?.[1]);
 
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  const _pageTitle = clean(titleMatch?.[1]);
+  const pageTitle = clean(titleMatch?.[1]);
 
-  const metaRegex = /<meta\s+[^>]*>/gi;
-  const metaTags = html.match(metaRegex) ?? [];
+  // Enhanced Meta Extraction
   const meta: Record<string, string> = {};
-  for (const tag of metaTags) {
-    const key = tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
-    const value = clean(tag.match(/content\s*=\s*["']([\s\S]*?)["']/i)?.[1]);
-    if (key && value && meta[key] === undefined) meta[key] = value;
+  const metaRegex = /<meta\s+([^>]+)>/gi;
+  let m;
+  while ((m = metaRegex.exec(html)) !== null) {
+    const tagContent = m[1];
+    const property = tagContent.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
+    const content = clean(tagContent.match(/content\s*=\s*["']([\s\S]*?)["']/i)?.[1]);
+    if (property && content && meta[property] === undefined) {
+      meta[property] = content;
+    }
   }
 
   const ogTitle = clean(meta['og:title']);
   const ogDescription = clean(meta['og:description']);
   const ogImage = clean(meta['og:image']);
   const ogUrl = clean(meta['og:url']);
-  const hasOg = Number(Boolean(ogTitle || ogDescription || ogImage || ogUrl));
+
+  const twitterTitle = clean(meta['twitter:title']);
+  const twitterDescription = clean(meta['twitter:description']);
+  const twitterImage = clean(meta['twitter:image']);
+  const twitterCard = clean(meta['twitter:card']);
+
+  const hasOg = Number(Boolean(ogTitle || ogDescription || ogImage || ogUrl || twitterTitle || twitterDescription || twitterImage));
   const ogHash = hasOg ? stableHash(`${ogTitle ?? ''}|${ogDescription ?? ''}|${ogImage ?? ''}`) : null;
 
-  const hreflangRegex = /<link[^>]*rel=["'][^"']*alternate[^"']*["'][^>]*hreflang=["']([^"']+)["'][^>]*>/gi;
+  // Robust Hreflang extraction
+  const hreflangRegex = /<link[^>]*rel=["']alternate["'][^>]*hreflang=["']([^"']+)["'][^>]*>/gi;
   let hreflangCount = 0;
   while (hreflangRegex.exec(html)) hreflangCount++;
 
@@ -84,13 +126,7 @@ export function parseSignalsFromHtml(html: string, url: string, contentLanguageH
     jsonldCount += 1;
     try {
       const parsed = JSON.parse(raw);
-      const list = Array.isArray(parsed) ? parsed : [parsed];
-      for (const item of list) {
-        if (!item || typeof item !== 'object') continue;
-        const t = (item as Record<string, any>)['@type'];
-        if (Array.isArray(t)) t.forEach((entry) => clean(String(entry)) && schemaTypes.add(String(entry)));
-        else if (t) schemaTypes.add(String(t));
-      }
+      extractSchemaTypesRecursive(parsed, schemaTypes);
       schemaHashes.push(stableHash(raw));
     } catch {
       brokenJsonld = 1;
@@ -99,10 +135,15 @@ export function parseSignalsFromHtml(html: string, url: string, contentLanguageH
 
   return {
     url,
+    pageTitle,
     ogTitle,
     ogDescription,
     ogImage,
     ogUrl,
+    twitterTitle,
+    twitterDescription,
+    twitterImage,
+    twitterCard,
     hasOg,
     ogHash,
     lang,

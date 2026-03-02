@@ -41,4 +41,50 @@ describe('signals parsing', () => {
     expect(clusters.get('abc')).toEqual(['https://a.com/1', 'https://a.com/2']);
     expect(clusters.get('xyz')).toEqual(['https://a.com/3']);
   });
+
+  it('extracts nested schema types recursively', () => {
+    const html = `
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "breadcrumb": {
+          "@type": "BreadcrumbList",
+          "itemListElement": [{
+            "@type": "ListItem",
+            "item": { "@type": "Thing", "name": "Item 1" }
+          }]
+        },
+        "mainEntity": {
+          "@type": "Article",
+          "author": { "@type": "Person", "name": "Author Name" }
+        }
+      }
+      </script>
+    `;
+    const parsed = parseSignalsFromHtml(html, 'https://example.com');
+    expect(parsed.schemaTypes).toContain('WebPage');
+    expect(parsed.schemaTypes).toContain('BreadcrumbList');
+    expect(parsed.schemaTypes).toContain('ListItem');
+    expect(parsed.schemaTypes).toContain('Thing');
+    expect(parsed.schemaTypes).toContain('Article');
+    expect(parsed.schemaTypes).toContain('Person');
+  });
+
+  it('extracts twitter and og social tags correctly', () => {
+    const html = `
+      <title>Page Title</title>
+      <meta name="twitter:card" content="summary_large_image">
+      <meta name="twitter:title" content="Twitter Title">
+      <meta property="og:title" content="OG Title">
+      <meta property="og:description" content="OG Desc">
+    `;
+    const parsed = parseSignalsFromHtml(html, 'https://example.com');
+    expect(parsed.twitterCard).toBe('summary_large_image');
+    expect(parsed.twitterTitle).toBe('Twitter Title');
+    expect(parsed.ogTitle).toBe('OG Title');
+    expect(parsed.ogDescription).toBe('OG Desc');
+    expect(parsed.pageTitle).toBe('Page Title');
+    expect(parsed.hasOg).toBe(1);
+  });
 });

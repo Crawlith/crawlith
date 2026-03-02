@@ -190,7 +190,7 @@ const SignalsPlugin: CrawlithPlugin = {
             og_title: row.ogTitle,
             og_image: row.ogImage,
             og_url: row.ogUrl,
-            page_title: null,
+            page_title: row.pageTitle,
             canonical_url: row.canonicalUrl,
             has_lang: row.hasLang,
             lang: row.lang,
@@ -214,7 +214,35 @@ const SignalsPlugin: CrawlithPlugin = {
     onReport: async (ctx: PluginContext, report: any) => {
       if (!ctx.flags?.signals) return;
       const snapshotId = report?.snapshotId || ctx.snapshotId;
-      const signalsReport = ctx.metadata?.signalsReport || (typeof snapshotId === 'number' ? computeSignalsReport(snapshotId) : null);
+      let signalsReport = ctx.metadata?.signalsReport;
+
+      if (!signalsReport && ctx.metadata?.signalsBuffer?.length > 0) {
+        const buffer = ctx.metadata.signalsBuffer as BufferedSignal[];
+        const coverage = {
+          og: buffer.every(s => s.hasOg) ? 100 : (buffer.some(s => s.hasOg) ? 50 : 0),
+          jsonld: buffer.every(s => s.hasJsonld) ? 100 : (buffer.some(s => s.hasJsonld) ? 50 : 0),
+          lang: buffer.every(s => s.hasLang) ? 100 : (buffer.some(s => s.hasLang) ? 50 : 0),
+          twitter: buffer.some(s => s.twitterTitle || s.twitterCard) ? 100 : 0
+        };
+        const brokenJsonLdCount = buffer.reduce((sum, s) => sum + s.brokenJsonld, 0);
+        const schemaDistribution = new Map<string, number>();
+        for (const s of buffer) {
+          for (const type of s.schemaTypes) schemaDistribution.set(type, (schemaDistribution.get(type) || 0) + 1);
+        }
+        const schemaTypesTop = Array.from(schemaDistribution.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([type, count]) => ({ type, count }));
+
+        signalsReport = {
+          signalsScore: 100,
+          coverage,
+          brokenJsonLdCount,
+          schemaTypesTop,
+        };
+      }
+
+      if (!signalsReport && typeof snapshotId === 'number') {
+        signalsReport = computeSignalsReport(snapshotId);
+      }
+
       if (!signalsReport) return;
       report.plugins = report.plugins || {};
       report.plugins.signals = signalsReport;
