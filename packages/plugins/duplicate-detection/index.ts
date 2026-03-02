@@ -1,12 +1,20 @@
-import { detectDuplicates, type CrawlPlugin, type SiteGraph } from '@crawlith/core';
-export const DuplicateDetectionPlugin: CrawlPlugin = {
+import { detectDuplicates, CrawlithPlugin, PluginContext } from '@crawlith/core';
+import { Command } from 'commander';
+
+export const DuplicateDetectionPlugin: CrawlithPlugin = {
   name: 'duplicate-detection',
-  cli: {
-    defaultFor: ['crawl'],
-    options: [
-      { flags: '--no-collapse', description: 'Do not collapse duplicate clusters before PageRank' },
-    ]
+  version: '1.0.0',
+  register: (cli: Command) => {
+    if (cli.name() === 'crawl') {
+      cli.option('--no-collapse', 'Do not collapse duplicate clusters before PageRank');
+    }
   },
-  async onMetricsPhase(graph: SiteGraph) { detectDuplicates(graph, { collapse: true }); }
+  hooks: {
+    onMetrics: async (ctx: PluginContext, graph: any) => {
+      const collapse = ctx.flags?.collapse !== false;
+      detectDuplicates(graph, { collapse });
+    }
+  }
 };
+
 export default DuplicateDetectionPlugin;

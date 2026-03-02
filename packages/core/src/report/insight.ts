@@ -103,10 +103,6 @@ export function renderInsightOutput(report: CrawlInsightReport, snapshotId: numb
         lines.push(`${report.pages} pages crawled`);
     }
     lines.push('');
-    lines.push(
-        `Health      ${report.health.score}/100   ${report.health.status}`
-    );
-    lines.push('');
 
     // ===== Critical =====
     const critical: string[] = [];

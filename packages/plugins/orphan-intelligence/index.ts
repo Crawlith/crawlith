@@ -1,51 +1,74 @@
-import { CrawlPlugin } from '@crawlith/core';
+import { CrawlithPlugin, PluginContext } from '@crawlith/core';
+import { Command } from 'commander';
 import { annotateOrphans, OrphanScoringOptions } from './src/orphanSeverity.js';
 
 export * from './src/orphanSeverity.js';
 
-export const OrphanIntelligencePlugin: CrawlPlugin = {
-  name: 'OrphanIntelligencePlugin',
-  cli: {
-    defaultFor: ['crawl'],
-    options: [
-      { flags: "--orphans", description: "Detect orphaned pages" },
-      { flags: "--orphan-severity", description: "Severity for orphans (low/medium/high)" },
-      { flags: "--include-soft-orphans", description: "Include soft orphans" },
-      { flags: "--min-inbound <value>", description: "Minimum inbound links to not be an orphan", defaultValue: "2" }
-    ]
-  },
-  onMetricsPhase: async (graph: any, context: any) => {
-    const flags = context.flags || {};
+export const OrphanIntelligencePlugin: CrawlithPlugin = {
+  name: 'orphan-intelligence',
+  version: '1.0.0',
 
-    if (!flags.orphans) {
-      return;
+  register: (cli: Command) => {
+    if (cli.name() === 'crawl') {
+      cli
+        .option("--orphans", "Detect orphaned pages")
+        .option("--orphan-severity", "Severity for orphans (low/medium/high)")
+        .option("--include-soft-orphans", "Include soft orphans")
+        .option("--min-inbound <value>", "Minimum inbound links to not be an orphan", "2");
     }
+  },
 
-    context.logger?.info?.('🔍 Detecting orphaned pages...');
+  hooks: {
+    onMetrics: async (ctx: PluginContext, graph: any) => {
+      const flags = ctx.flags || {};
 
-    const options: OrphanScoringOptions = {
-      enabled: true,
-      severityEnabled: !!flags.orphanSeverity,
-      includeSoftOrphans: !!flags.includeSoftOrphans,
-      minInbound: parseInt(flags.minInbound as string ?? '2', 10),
-      rootUrl: undefined // can't reliably get rootUrl from graph without a startUrl property, but depth 0 does exactly the same check normally.
-    };
+      if (!flags.orphans) {
+        return;
+      }
 
-    const nodes = graph.getNodes();
-    const edges = graph.getEdges();
+      ctx.logger?.info('🔍 Detecting orphaned pages...');
 
-    const annotatedNodes = annotateOrphans(nodes, edges, options);
+      const options: OrphanScoringOptions = {
+        enabled: true,
+        severityEnabled: !!flags.orphanSeverity,
+        includeSoftOrphans: !!flags.includeSoftOrphans,
+        minInbound: parseInt(flags.minInbound as string ?? '2', 10),
+        rootUrl: undefined
+      };
 
-    // Mutate the graph nodes in place as expected by @crawlith/core graph plugin pattern
-    for (const annotated of annotatedNodes) {
-      if (annotated.orphan) {
-        const graphNode = graph.getNode(annotated.url);
-        if (graphNode) {
-          graphNode.orphanScore = annotated.orphanSeverity;
+      const nodes = graph.getNodes();
+      const edges = graph.getEdges();
+
+      const annotatedNodes = annotateOrphans(nodes, edges, options);
+
+      // Mutate the graph nodes in place
+      for (const annotated of annotatedNodes) {
+        if (annotated.orphan) {
+          const graphNode = graph.getNode(annotated.url);
+          if (graphNode) {
+            graphNode.orphanScore = annotated.orphanSeverity;
+            graphNode.orphanType = annotated.softOrphan ? 'soft' : 'hard';
+          }
+        }
+      }
+
+      ctx.logger?.info(`🔍 Orphan detection complete.`);
+    },
+    onReport: async (ctx: PluginContext, result: any) => {
+      const isCrawl = !!result.snapshotId && !!result.graph;
+      if (isCrawl && result.graph) {
+        const nodes = result.graph.getNodes();
+        const orphans = nodes.filter((n: any) => n.orphanScore && n.orphanScore !== 'low');
+        if (orphans.length > 0) {
+          if (!result.plugins) result.plugins = {};
+          result.plugins.orphanIntelligence = {
+            criticalOrphans: orphans.length,
+            sampleOrphans: orphans.slice(0, 10).map((n: any) => ({ url: n.url, severity: n.orphanScore }))
+          };
         }
       }
     }
-
-    context.logger?.info?.(`🔍 Orphan detection complete.`);
   }
 };
+
+export default OrphanIntelligencePlugin;

@@ -1,12 +1,21 @@
-import { SimHash, type CrawlPlugin, type SiteGraph, type GraphNode } from '@crawlith/core';
-export const SimhashPlugin: CrawlPlugin = {
+import { SimHash, CrawlithPlugin, PluginContext } from '@crawlith/core';
+import { Command } from 'commander';
+
+export const SimhashPlugin: CrawlithPlugin = {
   name: 'simhash',
-  cli: { defaultFor: ['crawl'] },
-  async onMetricsPhase(graph: SiteGraph) {
-    for (const node of graph.getNodes()) {
-      const tokens = ((node as GraphNode & { title?: string }).title ?? node.url).toLowerCase().split(/\W+/).filter(Boolean);
-      node.simhash = SimHash.generate(tokens).toString(16);
+  version: '1.0.0',
+  register: (cli: Command) => {
+    // Default for crawl in original, no new flags added.
+  },
+  hooks: {
+    onMetrics: async (ctx: PluginContext, graph: any) => {
+      for (const node of graph.getNodes()) {
+        const title = (node as any).title || '';
+        const tokens = (title || node.url).toLowerCase().split(/\W+/).filter(Boolean);
+        node.simhash = SimHash.generate(tokens).toString(16);
+      }
     }
   }
 };
+
 export default SimhashPlugin;

@@ -1,7 +1,19 @@
-import { computePageRank, type CrawlPlugin, type SiteGraph } from '@crawlith/core';
-export const PageRankPlugin: CrawlPlugin = {
+import { computePageRank, CrawlithPlugin, PluginContext } from '@crawlith/core';
+import { Command } from 'commander';
+
+export const PageRankPlugin: CrawlithPlugin = {
   name: 'pagerank',
-  cli: { defaultFor: ['crawl'] },
-  async onMetricsPhase(graph: SiteGraph) { computePageRank(graph); }
+  version: '1.0.0',
+  register: (cli: Command) => {
+    // Enabled by default for crawl command in previous version's defaultFor
+    // If it doesn't need flags, we don't necessarily need to add any, 
+    // but the system will load it based on discovery.
+  },
+  hooks: {
+    onMetrics: async (ctx: PluginContext, graph: any) => {
+      computePageRank(graph);
+    }
+  }
 };
+
 export default PageRankPlugin;

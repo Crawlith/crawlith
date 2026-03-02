@@ -1,4 +1,5 @@
-import type { CrawlPlugin, ParsedPage, CrawlContext } from '@crawlith/core';
+import type { CrawlithPlugin, PluginContext } from '@crawlith/core';
+import { Command } from 'commander';
 
 function headingHealth(html?: string): number {
   if (!html) return 0;
@@ -8,20 +9,42 @@ function headingHealth(html?: string): number {
   return Math.min(100, 70 + Math.min(h2Count, 3) * 10);
 }
 
-export const HeadingHealthPlugin: CrawlPlugin = {
+export const HeadingHealthPlugin: CrawlithPlugin = {
   name: 'heading-health',
-  cli: {
-    flag: 'heading',
-    description: 'Analyze heading structure',
-    defaultFor: ['crawl'],
-    optionalFor: ['page']
+  version: '1.0.0',
+
+  register: (cli: Command) => {
+    if (cli.name() === 'crawl' || cli.name() === 'page') {
+      cli.option('--heading', 'Analyze heading structure');
+    }
   },
-  async onPageParsed(page: ParsedPage, ctx: CrawlContext) {
-    ctx.metadata = ctx.metadata ?? {};
-    const map = (ctx.metadata.headingHealth as Record<string, number> | undefined) ?? {};
-    map[page.url] = headingHealth(page.html);
-    ctx.metadata.headingHealth = map;
+
+  hooks: {
+    onPageParsed: async (ctx: PluginContext, page: any) => {
+      ctx.metadata = ctx.metadata ?? {};
+      const map = (ctx.metadata.headingHealth as Record<string, number> | undefined) ?? {};
+      map[page.url] = headingHealth(page.html);
+      ctx.metadata.headingHealth = map;
+    },
+    onReport: async (ctx: PluginContext, result: any) => {
+      if (ctx.metadata?.headingHealth) {
+        // Add to site summary or individual pages
+        if (!result.plugins) result.plugins = {};
+        result.plugins.headingHealth = ctx.metadata.headingHealth;
+
+        // Also attach to individual pages if they exist in the report
+        if (result.pages) {
+          for (const page of result.pages) {
+            if (ctx.metadata.headingHealth[page.url] !== undefined) {
+              if (!page.plugins) page.plugins = {};
+              page.plugins.headingHealth = ctx.metadata.headingHealth[page.url];
+            }
+          }
+        }
+      }
+    }
   }
 };
 
 export default HeadingHealthPlugin;
+

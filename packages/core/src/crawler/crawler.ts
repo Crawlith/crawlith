@@ -16,7 +16,7 @@ import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { analyzeContent, calculateThinContentScore } from '../analysis/content.js';
 import { analyzeLinks } from '../analysis/links.js';
 import { EngineContext } from '../events.js';
-import { PluginManager } from '../plugin/manager.js';
+import { PluginRegistry } from '../plugin-system/plugin-registry.js';
 
 export interface CrawlOptions {
   limit: number;
@@ -38,7 +38,7 @@ export interface CrawlOptions {
   maxRedirects?: number;
   userAgent?: string;
   snapshotType?: 'full' | 'partial' | 'incremental';
-  pluginManager?: PluginManager;
+  registry?: PluginRegistry;
   robots?: any;
 }
 
@@ -64,7 +64,7 @@ export class Crawler {
   private startUrl: string;
   private options: CrawlOptions;
   private context: EngineContext;
-  private pluginManager?: PluginManager;
+  private registry?: PluginRegistry;
   private visited: Set<string>;
   private uniqueQueue: Set<string>;
   private queue: QueueItem[];
@@ -107,7 +107,7 @@ export class Crawler {
     this.startUrl = startUrl;
     this.options = options;
     this.context = context || nullContext;
-    this.pluginManager = options.pluginManager;
+    this.registry = options.registry;
     this.visited = new Set<string>();
     this.uniqueQueue = new Set<string>();
     this.queue = [];
@@ -197,8 +197,8 @@ export class Crawler {
     if (depth > this.maxDepthInCrawl) return false;
     if (this.scopeManager!.isUrlEligible(url) !== 'allowed') return false;
 
-    if (this.pluginManager) {
-      const allowed = this.pluginManager.runSyncBailHook('shouldEnqueueUrl', url, depth, this.context);
+    if (this.registry) {
+      const allowed = this.registry.runSyncBailHook('shouldEnqueueUrl', this.context as any, url, depth);
       if (allowed === false) return false;
     }
 
@@ -463,6 +463,16 @@ export class Crawler {
     }
 
     const parseResult = this.parser!.parse(res.body, finalUrl, res.status as number);
+
+    if (this.registry) {
+      this.registry.runHook('onPageParsed', this.context as any, {
+        url: finalUrl,
+        status: res.status,
+        html: parseResult.html,
+        depth: depth,
+        ...parseResult
+      });
+    }
 
     this.bufferPage(finalUrl, depth, res.status as number, {
       html: parseResult.html,

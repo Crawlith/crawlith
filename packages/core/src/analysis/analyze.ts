@@ -43,6 +43,8 @@ export interface AnalyzeOptions {
   clusterThreshold?: number;
   minClusterSize?: number;
   allPages?: boolean;
+  plugins?: any[]; // CrawlithPlugin[]
+  pluginContext?: any; // PluginContext
 }
 
 export interface PageAnalysis {
@@ -62,7 +64,8 @@ export interface PageAnalysis {
     noindex?: boolean;
     nofollow?: boolean;
     crawlStatus?: string;
-  }
+  };
+  plugins?: Record<string, any>;
 }
 
 export interface AnalysisResult {
@@ -72,6 +75,7 @@ export interface AnalysisResult {
     thin_pages: number;
     duplicate_titles: number;
     site_score: number;
+    site_score_breakdown?: any;
   };
   site_scores: ReturnType<typeof aggregateSiteScore>;
   pages: PageAnalysis[];
@@ -83,6 +87,7 @@ export interface AnalysisResult {
   clusters?: ClusterInfo[];
   snapshotId?: number;
   crawledAt?: string;
+  plugins?: Record<string, any>;
 }
 
 interface CrawlData {
@@ -122,7 +127,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
         const robotsParserModule = await import('robots-parser');
         const robotsParser = (robotsParserModule as any).default || robotsParserModule;
         robots = (robotsParser as any)(robotsUrl, robotsRes.body);
-        if (context) context.emit({ type: 'info', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
+        if (context) context.emit({ type: 'debug', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
       }
     } catch {
       // Fallback
@@ -133,12 +138,12 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   if (options.live) {
     const crawlStart = Date.now();
     crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
-    if (context) context.emit({ type: 'info', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
+    if (context) context.emit({ type: 'debug', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
   } else {
     try {
       const loadStart = Date.now();
       crawlData = await loadCrawlData(normalizedRoot, options.snapshotId);
-      if (context) context.emit({ type: 'info', message: `[analyze] loadCrawlData took ${Date.now() - loadStart}ms` });
+      if (context) context.emit({ type: 'debug', message: `[analyze] loadCrawlData took ${Date.now() - loadStart}ms` });
 
       const allPages = Array.from(crawlData.pages);
       crawlData.pages = allPages;
@@ -161,14 +166,14 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const clusterStart = Date.now();
   if (options.allPages) {
     detectContentClusters(crawlData.graph, options.clusterThreshold, options.minClusterSize);
-    if (context) context.emit({ type: 'info', message: `[analyze] detectContentClusters took ${Date.now() - clusterStart}ms` });
+    if (context) context.emit({ type: 'debug', message: `[analyze] detectContentClusters took ${Date.now() - clusterStart}ms` });
   } else {
-    if (context) context.emit({ type: 'info', message: `[analyze] Skipping clustering for single-page view` });
+    if (context) context.emit({ type: 'debug', message: `[analyze] Skipping clustering for single-page view` });
   }
 
   const pagesStart = Date.now();
   const pages = analyzePages(normalizedRoot, crawlData.pages, robots, options);
-  if (context) context.emit({ type: 'info', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
+  if (context) context.emit({ type: 'debug', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
 
   const activeModules = {
     seo: !!options.seo,
@@ -191,16 +196,16 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const duplicateTitles = pages.filter((page) => page.title.status === 'duplicate').length;
   const thinPages = pages.filter((page) => page.thinScore >= 70).length;
   const siteScores = aggregateSiteScore(crawlData.metrics, resultPages.length === 1 ? resultPages : pages);
+  if (context) context.emit({ type: 'debug', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
 
-  if (context) context.emit({ type: 'info', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
-
-  return {
+  let result: AnalysisResult = {
     site_summary: {
       pages_analyzed: resultPages.length,
       avg_seo_score: siteScores.seoHealthScore,
       thin_pages: thinPages,
       duplicate_titles: duplicateTitles,
-      site_score: siteScores.overallScore
+      site_score: siteScores.overallScore,
+      site_score_breakdown: (siteScores as any).breakdown
     },
     site_scores: siteScores,
     pages: resultPages,
@@ -209,6 +214,37 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     snapshotId,
     crawledAt
   };
+
+  if (options.plugins && options.plugins.length > 0) {
+    const { PluginRegistry } = await import('../plugin-system/plugin-registry.js');
+    const registry = new PluginRegistry(options.plugins);
+    const pluginCtx = options.pluginContext || { command: 'page' };
+
+    await registry.runHook('onInit', pluginCtx);
+    await registry.runHook('onMetrics', pluginCtx, crawlData.graph);
+
+    // Map graph node plugin data back to the results
+    for (const page of result.pages) {
+      const node = crawlData.graph.nodes.get(page.url);
+      if (node) {
+        const extra: Record<string, any> = {};
+        // Common node properties to exclude
+        const internalKeys = ['url', 'status', 'html', 'depth', 'crawlStatus', 'metadata', 'in_links', 'out_links', 'metrics', 'rank', 'hub', 'authority'];
+        for (const [key, value] of Object.entries(node)) {
+          if (!internalKeys.includes(key)) {
+            extra[key] = value;
+          }
+        }
+        if (Object.keys(extra).length > 0) {
+          page.plugins = { ...(page.plugins || {}), ...extra };
+        }
+      }
+    }
+
+    await registry.runHook('onReport', pluginCtx, result);
+  }
+
+  return result;
 }
 
 export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | CrawlPage[], robots?: any, options: AnalyzeOptions = {}): PageAnalysis[] {
@@ -364,7 +400,8 @@ async function runLiveCrawl(url: string, options: AnalyzeOptions, context?: Engi
     maxRedirects: options.maxRedirects,
     debug: options.debug,
     snapshotType: 'partial',
-    robots
+    robots,
+    plugins: options.plugins
   }, context) as number;
   const graph = loadGraphFromSnapshot(snapshotId);
   const pages = graph.getNodes().map((node) => ({

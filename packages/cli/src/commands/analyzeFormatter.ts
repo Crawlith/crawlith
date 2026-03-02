@@ -13,6 +13,7 @@ export interface AnalyzeInsightPage {
   links: { internalLinks: number; externalLinks: number; nofollowCount: number; externalRatio: number };
   structuredData: { present: boolean; valid: boolean; types: string[] };
   meta: { canonical?: string; noindex?: boolean; nofollow?: boolean; crawlStatus?: string };
+  plugins?: Record<string, any>;
 }
 
 export interface AnalyzeInsightResult {
@@ -22,7 +23,9 @@ export interface AnalyzeInsightResult {
     thin_pages: number;
     duplicate_titles: number;
     site_score: number;
+    site_score_breakdown?: any;
   };
+  plugins?: Record<string, any>;
   pages: AnalyzeInsightPage[];
   active_modules?: {
     seo: boolean;
@@ -222,6 +225,18 @@ export function renderAnalyzeInsightOutput(report: AnalyzeInsightReport, result?
       }
     }
 
+    // 9. Plugins
+    const plugins = (page as any).plugins || {};
+    const pluginKeys = Object.keys(plugins);
+    if (pluginKeys.length > 0) {
+      lines.push(chalk.bold('Plugins'));
+      for (const [key, value] of Object.entries(plugins)) {
+        const displayValue = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
+        lines.push(`  ${chalk.blue('•')} [${key}]      ${displayValue}`);
+      }
+      lines.push('');
+    }
+
     lines.push('');
     const scoreColor = report.score >= 75 ? chalk.green : (report.score >= 50 ? chalk.yellow : chalk.red);
     lines.push(`${chalk.bold('Health')}      ${scoreColor(`${report.score}/100`)}   ${chalk.bold(report.status)}`);
@@ -256,6 +271,17 @@ export function renderAnalyzeInsightOutput(report: AnalyzeInsightReport, result?
     if (warningItems.length > 0) {
       lines.push(`Warnings`);
       for (const w of warningItems) lines.push(`  • ${w}`);
+      lines.push('');
+    }
+
+    // Plugins Summary
+    const resultPlugins = result?.plugins || {};
+    if (Object.keys(resultPlugins).length > 0) {
+      lines.push(`Plugins`);
+      for (const [key, value] of Object.entries(resultPlugins)) {
+        const displayValue = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
+        lines.push(`  • [${key}]      ${displayValue}`);
+      }
       lines.push('');
     }
 

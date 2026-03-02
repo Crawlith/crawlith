@@ -1,11 +1,24 @@
-import { computeHITS, type CrawlPlugin, type SiteGraph } from '@crawlith/core';
-export const HitsPlugin: CrawlPlugin = {
+import { computeHITS, CrawlithPlugin, PluginContext } from '@crawlith/core';
+import { Command } from 'commander';
+
+export const HitsPlugin: CrawlithPlugin = {
   name: 'hits',
-  cli: {
-    flag: 'compute-hits',
-    description: 'Compute Hub and Authority scores (HITS)',
-    optionalFor: ['crawl']
+  version: '1.0.0',
+  register: (cli: Command) => {
+    if (cli.name() === 'crawl') {
+      cli.option('--compute-hits', 'Compute Hub and Authority scores (HITS)');
+    }
   },
-  async onMetricsPhase(graph: SiteGraph) { computeHITS(graph); }
+  hooks: {
+    onInit: async (ctx: PluginContext) => {
+      // Logic if we want to toggle it based on flag
+    },
+    onMetrics: async (ctx: PluginContext, graph: any) => {
+      if (ctx.flags?.computeHits) {
+        computeHITS(graph);
+      }
+    }
+  }
 };
+
 export default HitsPlugin;
