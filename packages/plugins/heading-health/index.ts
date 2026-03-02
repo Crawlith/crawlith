@@ -1,5 +1,5 @@
 import type { CrawlithPlugin, PluginContext } from '@crawlith/core';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 
 function headingHealth(html?: string): number {
   if (!html) return 0;

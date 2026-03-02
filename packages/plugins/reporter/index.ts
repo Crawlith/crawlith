@@ -6,7 +6,7 @@ import {
     renderInsightOutput
 } from '@crawlith/core';
 import chalk from 'chalk';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 
 export const ReporterPlugin: CrawlithPlugin = {
     name: 'reporter',

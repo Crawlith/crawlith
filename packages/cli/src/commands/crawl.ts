@@ -75,7 +75,7 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
           command: 'crawl',
           flags: options as Record<string, any>,
           logger: {
-            info: (m: string) => context.emit({ type: 'debug', message: m }),
+            info: (m: string) => context.emit({ type: 'info', message: m }),
             warn: (m: string) => context.emit({ type: 'warn', message: m, context: undefined }),
             error: (m: string) => context.emit({ type: 'error', message: m, error: null }),
             debug: (m: string) => context.emit({ type: 'debug', message: m })

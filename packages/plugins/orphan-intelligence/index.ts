@@ -1,5 +1,5 @@
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 import { annotateOrphans, OrphanScoringOptions } from './src/orphanSeverity.js';
 
 export * from './src/orphanSeverity.js';
@@ -47,7 +47,7 @@ export const OrphanIntelligencePlugin: CrawlithPlugin = {
           const graphNode = graph.getNode(annotated.url);
           if (graphNode) {
             graphNode.orphanScore = annotated.orphanSeverity;
-            graphNode.orphanType = annotated.softOrphan ? 'soft' : 'hard';
+            graphNode.orphanType = annotated.orphanType;
           }
         }
       }

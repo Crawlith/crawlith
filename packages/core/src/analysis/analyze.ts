@@ -229,9 +229,17 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
       if (node) {
         const extra: Record<string, any> = {};
         // Common node properties to exclude
-        const internalKeys = ['url', 'status', 'html', 'depth', 'crawlStatus', 'metadata', 'in_links', 'out_links', 'metrics', 'rank', 'hub', 'authority'];
+        const internalKeys = [
+          'url', 'status', 'html', 'depth', 'crawlStatus', 'metadata',
+          'inLinks', 'outLinks', 'metrics', 'rank', 'hub', 'authority',
+          'canonical', 'noindex', 'nofollow', 'brokenLinks', 'redirectChain',
+          'incrementalStatus', 'etag', 'lastModified', 'contentHash',
+          'isCollapsed', 'collapseInto', 'simhash', 'uniqueTokenRatio',
+          'securityError', 'retries', 'bytesReceived', 'wordCount',
+          'thinContentScore', 'externalLinkRatio', 'h1Count', 'h2Count', 'title'
+        ];
         for (const [key, value] of Object.entries(node)) {
-          if (!internalKeys.includes(key)) {
+          if (value !== undefined && !internalKeys.includes(key)) {
             extra[key] = value;
           }
         }

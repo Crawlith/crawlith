@@ -19,13 +19,13 @@ vi.mock('@crawlith/core', () => {
 });
 
 describe('SnapshotDiffPlugin', () => {
-    it('should resolve previous graph during onBeforeCrawl when --incremental is passed', async () => {
+    it('should resolve previous graph during onCrawlStart when --incremental is passed', async () => {
         const ctx = {
             flags: { incremental: true, url: 'https://example.com' },
             metadata: {}
         };
 
-        await SnapshotDiffPlugin.onBeforeCrawl!(ctx as any);
+        await SnapshotDiffPlugin.hooks!.onCrawlStart!(ctx as any);
 
         expect(ctx.metadata).toHaveProperty('previousGraph', 'mocked-graph');
     });
@@ -36,7 +36,7 @@ describe('SnapshotDiffPlugin', () => {
             metadata: {}
         };
 
-        await SnapshotDiffPlugin.onBeforeCrawl!(ctx as any);
+        await SnapshotDiffPlugin.hooks!.onCrawlStart!(ctx as any);
 
         expect(ctx.metadata).not.toHaveProperty('previousGraph');
     });

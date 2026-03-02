@@ -8,7 +8,7 @@ import {
 } from '@crawlith/core';
 import path from 'node:path';
 import chalk from 'chalk';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 
 export const ExporterPlugin: CrawlithPlugin = {
   name: 'exporter',

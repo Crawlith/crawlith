@@ -1,17 +1,21 @@
-import { detectContentClusters, type CrawlPlugin, type SiteGraph, type MetricsContext } from '@crawlith/core';
-export const ContentClusteringPlugin: CrawlPlugin = {
+import { detectContentClusters, CrawlithPlugin, PluginContext, Command, Graph } from '@crawlith/core';
+
+export const ContentClusteringPlugin: CrawlithPlugin = {
   name: 'content-clustering',
-  cli: {
-    defaultFor: ['crawl'],
-    options: [
-      { flags: '--cluster-threshold <number>', description: 'Hamming distance for content clusters', defaultValue: '10' },
-      { flags: '--min-cluster-size <number>', description: 'Minimum pages per cluster', defaultValue: '3' },
-    ]
+  version: '1.0.0',
+  register: (cli: Command) => {
+    if (cli.name() === 'crawl') {
+      cli.option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10');
+      cli.option('--min-cluster-size <number>', 'Minimum pages per cluster', '3');
+    }
   },
-  async onMetricsPhase(graph: SiteGraph, ctx: MetricsContext) {
-    const threshold = Number(ctx.flags?.clusterThreshold ?? ctx.metadata?.clusterThreshold ?? 10);
-    const minSize = Number(ctx.flags?.minClusterSize ?? ctx.metadata?.minClusterSize ?? 3);
-    detectContentClusters(graph, threshold, minSize);
+  hooks: {
+    onMetrics: async (ctx: PluginContext, graph: Graph) => {
+      const threshold = Number(ctx.flags?.clusterThreshold ?? 10);
+      const minSize = Number(ctx.flags?.minClusterSize ?? 3);
+      detectContentClusters(graph as any, threshold, minSize);
+    }
   }
 };
+
 export default ContentClusteringPlugin;

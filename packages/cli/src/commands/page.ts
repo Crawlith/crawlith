@@ -53,7 +53,7 @@ export const getPageCommand = (registry: PluginRegistry) => {
           command: 'page',
           flags: options as Record<string, any>,
           logger: {
-            info: (m: string) => context.emit({ type: 'debug', message: m }),
+            info: (m: string) => context.emit({ type: 'info', message: m }),
             warn: (m: string) => context.emit({ type: 'warn', message: m, context: undefined }),
             error: (m: string) => context.emit({ type: 'error', message: m, error: null }),
             debug: (m: string) => context.emit({ type: 'debug', message: m })

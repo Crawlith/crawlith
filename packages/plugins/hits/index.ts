@@ -1,5 +1,5 @@
 import { computeHITS, CrawlithPlugin, PluginContext } from '@crawlith/core';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 
 export const HitsPlugin: CrawlithPlugin = {
   name: 'hits',

@@ -9,11 +9,13 @@ describe('HealthScoreEnginePlugin', () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
         const mockResult = {
-            site_scores: { overallScore: 45 }
+            site_summary: { site_score: 45 }
         };
 
+        const ctx = { flags: { failOnCritical: true } };
+
         await expect(
-            HealthScoreEnginePlugin.onAnalyzeDone!(mockResult, { flags: { failOnCritical: true } })
+            HealthScoreEnginePlugin.hooks!.onReport!(ctx, mockResult)
         ).rejects.toThrow('exit:1');
 
         expect(errorSpy).toHaveBeenCalled();
@@ -27,10 +29,12 @@ describe('HealthScoreEnginePlugin', () => {
         });
 
         const mockResult = {
-            site_scores: { overallScore: 80 }
+            site_summary: { site_score: 80 }
         };
 
-        await HealthScoreEnginePlugin.onAnalyzeDone!(mockResult, { flags: { failOnCritical: true } });
+        const ctx = { flags: { failOnCritical: true } };
+
+        await HealthScoreEnginePlugin.hooks!.onReport!(ctx, mockResult);
 
         expect(exitSpy).not.toHaveBeenCalled();
         exitSpy.mockRestore();

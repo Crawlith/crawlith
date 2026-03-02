@@ -84,8 +84,24 @@ export class PluginLoader {
 
             if (!isCrawlithPlugin) return;
 
-            const entryPoint = pkg.exports?.['.'] ?? pkg.main ?? 'index.js';
+            let entryPoint = pkg.exports ?? pkg.main ?? 'index.js';
+            if (typeof entryPoint === 'object' && entryPoint !== null) {
+                entryPoint = (entryPoint as any)['.'] ?? (entryPoint as any).import ?? (entryPoint as any).default ?? 'index.js';
+            }
+            if (typeof entryPoint !== 'string') {
+                entryPoint = 'index.js';
+            }
+
             let fullEntryPoint = path.join(pluginPath, entryPoint);
+
+            // If we're loading a .ts file as the intended entry point, but a .js one exists in dist, 
+            // prefer the .js one to avoid requiring a TS loader at runtime.
+            if (fullEntryPoint.endsWith('.ts')) {
+                const distJsPath = path.join(pluginPath, 'dist', 'index.js');
+                if (fs.existsSync(distJsPath)) {
+                    fullEntryPoint = distJsPath;
+                }
+            }
 
             if (!fs.existsSync(fullEntryPoint) && fs.existsSync(path.join(pluginPath, 'index.ts'))) {
                 fullEntryPoint = path.join(pluginPath, 'index.ts');
@@ -98,7 +114,6 @@ export class PluginLoader {
 
             const imported = await import(pathToFileURL(fullEntryPoint).href);
             const plugin = imported.default || imported;
-
             if (this.validatePlugin(plugin, pkg)) {
                 if (this.plugins.has(plugin.name)) {
                     throw new Error(`Duplicate plugin name: ${plugin.name}`);

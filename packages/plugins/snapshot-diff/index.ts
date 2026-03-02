@@ -1,7 +1,7 @@
 import { CrawlithPlugin, PluginContext, compareGraphs, Graph, SiteRepository, SnapshotRepository, getDb, loadGraphFromSnapshot } from '@crawlith/core';
 import fs from 'node:fs/promises';
 import chalk from 'chalk';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 
 export const SnapshotDiffPlugin: CrawlithPlugin = {
   name: 'snapshot-diff',

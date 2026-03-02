@@ -66,15 +66,14 @@ vi.mock('@crawlith/core', async (importOriginal) => {
     PageAnalysisUseCase: class {
       execute = vi.fn().mockImplementation(async (input: any) => {
         // Call the mocked analyzeSite function so expectations pass
-        await (core.analyzeSite as any)(input.url, input, undefined);
+        const result = await (core.analyzeSite as any)(input.url, input, undefined);
 
-        const mockResult = { url: input.url, pages: [], site_summary: {}, active_modules: {} };
-        if (input.plugins) {
+        if (input.plugins && result) {
           for (const p of input.plugins) {
-            if (p.hooks?.onReport) await p.hooks.onReport(input.context, mockResult);
+            if (p.hooks?.onReport) await p.hooks.onReport(input.context, result);
           }
         }
-        return mockResult;
+        return result || { url: input.url, pages: [], site_summary: { pages_analyzed: 0, site_score: 0, avg_seo_score: 0, thin_pages: 0, duplicate_titles: 0 }, active_modules: { seo: true, content: true, accessibility: true } };
       });
     }
   };

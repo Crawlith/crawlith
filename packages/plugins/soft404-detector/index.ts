@@ -1,6 +1,6 @@
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
 import * as cheerio from 'cheerio';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 
 export const Soft404DetectorPlugin: CrawlithPlugin = {
   name: 'soft404-detector',
@@ -86,6 +86,19 @@ export const Soft404DetectorPlugin: CrawlithPlugin = {
       }
 
       ctx.logger?.info?.(`🕵️ Soft 404 detection complete.`);
+    },
+    onReport: async (ctx: PluginContext, result: any) => {
+      const flags = ctx.flags || {};
+      if (!flags.detectSoft404) return;
+
+      const soft404Pages = result.pages.filter((p: any) => p.plugins?.soft404?.score > 0.5);
+      if (soft404Pages.length > 0) {
+        if (!result.plugins) result.plugins = {};
+        result.plugins.soft404 = {
+          totalDetected: soft404Pages.length,
+          topSample: soft404Pages.slice(0, 5).map((p: any) => ({ url: p.url, score: p.plugins.soft404.score }))
+        };
+      }
     }
   }
 };

@@ -1,5 +1,5 @@
 import { detectDuplicates, CrawlithPlugin, PluginContext } from '@crawlith/core';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 
 export const DuplicateDetectionPlugin: CrawlithPlugin = {
   name: 'duplicate-detection',

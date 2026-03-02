@@ -1,5 +1,5 @@
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
-import { Command } from 'commander';
+import { Command } from '@crawlith/core';
 import { TrapDetector, TrapResult } from './src/trap.js';
 
 let detector: TrapDetector | null = null;
