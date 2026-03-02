@@ -1,14 +1,15 @@
 {
-    "name": "@crawlith/plugin-reporter",
-    "private": true,
-    "version": "0.1.1",
-    "type": "module",
-    "dependencies": {
-        "@crawlith/core": "workspace:*",
-        "chalk": "^5.6.2"
-    },
-    "scripts": {
-        "build": "tsc"
-    },
-    "exports": "./index.ts"
+  "name": "@crawlith/plugin-reporter",
+  "private": true,
+  "version": "0.1.2",
+  "type": "module",
+  "dependencies": {
+    "@crawlith/core": "workspace:*",
+    "chalk": "^5.6.2"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "exports": "./index.ts",
+  "description": "Crawlith plugin for reporter"
 }

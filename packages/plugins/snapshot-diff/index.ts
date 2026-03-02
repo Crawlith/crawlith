@@ -1,11 +1,20 @@
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
+
 import { CrawlithPlugin, PluginContext, compareGraphs, Graph, SiteRepository, SnapshotRepository, getDb, loadGraphFromSnapshot } from '@crawlith/core';
 import fs from 'node:fs/promises';
 import chalk from 'chalk';
 import { Command } from '@crawlith/core';
 
+/**
+ * Snapshot Diff Plugin
+ * Crawlith plugin for snapshot diff
+ */
 export const SnapshotDiffPlugin: CrawlithPlugin = {
   name: 'snapshot-diff',
-  version: '1.0.0',
+  version: pkg.version,
+  description: pkg.description,
 
   register: (cli: Command) => {
     if (cli.name() === 'crawl') {

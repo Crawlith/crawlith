@@ -15,6 +15,7 @@ export interface PluginContext {
 export interface CrawlithPlugin {
     name: string;
     version: string;
+    description?: string;
 
     register?: (cli: Command) => void;
 

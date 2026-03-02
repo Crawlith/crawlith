@@ -1,7 +1,7 @@
 {
   "name": "@crawlith/plugin-health-score-engine",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "dependencies": {
     "@crawlith/core": "workspace:*",
@@ -11,5 +11,6 @@
     "build": "tsc",
     "test": "vitest run"
   },
-  "exports": "./index.ts"
+  "exports": "./index.ts",
+  "description": "Crawlith plugin for health score engine"
 }

@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
+
 import {
   CrawlithPlugin,
   PluginContext,
@@ -9,9 +13,14 @@ import {
 import chalk from 'chalk';
 import { Command } from '@crawlith/core';
 
+/**
+ * Health Score Engine Plugin
+ * Crawlith plugin for health score engine
+ */
 export const HealthScoreEnginePlugin: CrawlithPlugin = {
   name: 'health-score-engine',
-  version: '1.0.0',
+  version: pkg.version,
+  description: pkg.description,
 
   register: (cli: Command) => {
     if (cli.name() === 'crawl' || cli.name() === 'page') {

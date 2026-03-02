@@ -93,9 +93,6 @@ importers:
       '@crawlith/plugin-orphan-intelligence':
         specifier: workspace:*
         version: link:../plugins/orphan-intelligence
-      '@crawlith/plugin-page-analyzer':
-        specifier: workspace:*
-        version: link:../plugins/page-analyzer
       '@crawlith/plugin-pagerank':
         specifier: workspace:*
         version: link:../plugins/pagerank
@@ -251,15 +248,6 @@ importers:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../../core
-
-  packages/plugins/page-analyzer:
-    dependencies:
-      '@crawlith/core':
-        specifier: workspace:*
-        version: link:../../core
-      cheerio:
-        specifier: ^1.0.0
-        version: 1.2.0
 
   packages/plugins/pagerank:
     dependencies:

@@ -1,3 +1,7 @@
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
+
 import { CrawlithPlugin, PluginContext } from '@crawlith/core';
 import { Command } from '@crawlith/core';
 import { TrapDetector, TrapResult } from './src/trap.js';
@@ -5,9 +9,14 @@ import { TrapDetector, TrapResult } from './src/trap.js';
 let detector: TrapDetector | null = null;
 const trapResults = new Map<string, TrapResult>();
 
+/**
+ * Crawl Trap Analyzer Plugin
+ * Crawlith plugin for crawl trap analyzer
+ */
 export const CrawlTrapAnalyzerPlugin: CrawlithPlugin = {
     name: 'crawl-trap-analyzer',
-    version: '1.0.0',
+  version: pkg.version,
+  description: pkg.description,
 
     register: (cli: Command) => {
         if (cli.name() === 'crawl') {

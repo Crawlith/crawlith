@@ -1,8 +1,17 @@
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
+
 import { detectContentClusters, CrawlithPlugin, PluginContext, Command, Graph } from '@crawlith/core';
 
+/**
+ * Content Clustering Plugin
+ * Crawlith plugin for content clustering
+ */
 export const ContentClusteringPlugin: CrawlithPlugin = {
   name: 'content-clustering',
-  version: '1.0.0',
+  version: pkg.version,
+  description: pkg.description,
   register: (cli: Command) => {
     if (cli.name() === 'crawl') {
       cli.option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10');
