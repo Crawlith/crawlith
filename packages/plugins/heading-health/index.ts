@@ -96,7 +96,12 @@ function analyzePage(html: string, fallbackTitle?: string): LocalPageAnalysis {
   const segments = extractHeadingSegments(html);
   const headingNodes = computeHeadingNodes(segments);
   const sections = computeSectionsFromSegments(html, headingNodes, segments);
-  const levelCounts = [1, 2, 3, 4, 5, 6].map((level) => headingNodes.filter((n) => n.level === level).length);
+
+  const levelCounts = [0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < headingNodes.length; i++) {
+    levelCounts[headingNodes[i].level - 1]++;
+  }
+
   const entropyScore = Number(entropy(levelCounts).toFixed(3));
   const missingH1 = levelCounts[0] === 0 ? 1 : 0;
   const multipleH1 = levelCounts[0] > 1 ? 1 : 0;
