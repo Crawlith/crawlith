@@ -1,9 +1,8 @@
 <div align="center">
-  <img src="./verification/sitegraph.png" alt="Crawlith Logo" width="200" height="200" />
   <h1>Crawlith</h1>
   <p><b>Professional-grade SEO crawling and graph intelligence suite.</b></p>
 
-  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
   [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
   [![Coverage](https://img.shields.io/badge/coverage-78%25-blue.svg)]()
   [![TypeScript](https://img.shields.io/badge/language-TypeScript-blue.svg)]()
@@ -105,7 +104,7 @@ pnpm run lint
 
 ## 🛡 License & Safety
 
-Crawlith is released under the **MIT License**.
+Crawlith is released under the **Apache License 2.0**.
 
 **IMPORTANT**: Please ensure you have permission to crawl target domains. Crawlith respects `robots.txt` and rate limits by default. Do not use this tool for unauthorized scraping or density-testing.
 

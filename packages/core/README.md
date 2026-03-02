@@ -67,4 +67,4 @@ Extend the engine's behavior by tapping into the lifecycle:
 
 ## 🛡 License
 
-MIT © [Crawlith](https://github.com/Crawlith)
+Apache License 2.0 © [Crawlith](https://github.com/Crawlith)

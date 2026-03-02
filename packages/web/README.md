@@ -40,4 +40,4 @@ The app expects a running [Crawlith server](../server) at `localhost:3000` to fe
 
 ## 🛡 License
 
-MIT © [Crawlith](https://github.com/Crawlith)
+Apache License 2.0 © [Crawlith](https://github.com/Crawlith)

@@ -48,4 +48,4 @@ app.listen(3000, () => {
 
 ## 🛡 License
 
-MIT © [Crawlith](https://github.com/Crawlith)
+Apache License 2.0 © [Crawlith](https://github.com/Crawlith)

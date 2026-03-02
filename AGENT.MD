@@ -6,14 +6,14 @@ When operating in this codebase, you **MUST** adhere to the following rules, arc
 
 ---
 
-## � 1. Monorepo Structure
+##  1. Monorepo Structure
 
-| Package | Path | Purpose |
-| :--- | :--- | :--- |
-| **`core`** | `packages/core` | The heavy-lifting engine (Graph math, BFS Crawler, SQLite). |
-| **`cli`** | `packages/cli` | The terminal interface (Chalk-themed, premium DX). |
-| **`web`** | `packages/web` | React dashboard (Vite + Tailwind). |
-| **`server`** | `packages/server` | REST API layer bridge. |
+| Package        | Path               | Purpose                                                       |
+| :------------- | :----------------- | :------------------------------------------------------------ |
+| **`core`**     | `packages/core`    | The heavy-lifting engine (Graph math, BFS Crawler, SQLite).   |
+| **`cli`**      | `packages/cli`     | The terminal interface (Chalk-themed, premium DX).            |
+| **`web`**      | `packages/web`     | React dashboard (Vite + Tailwind).                            |
+| **`server`**   | `packages/server`  | REST API layer bridge.                                        |
 | **`plugins`** | `packages/plugins` | Modular intelligence (PageRank, Soft404, etc). |
 
 ---

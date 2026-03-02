@@ -23,4 +23,4 @@ This package is intended as an **internal** dependency for the Crawlith workspac
 
 ## 🛡 License
 
-MIT © [Crawlith](https://github.com/Crawlith)
+Apache License 2.0 © [Crawlith](https://github.com/Crawlith)

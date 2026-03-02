@@ -93,4 +93,4 @@ Traditional crawlers give you a flat list of errors. Crawlith treats your websit
 
 ## 🛡 License
 
-MIT © [Crawlith](https://github.com/Crawlith)
+Apache License 2.0 © [Crawlith](https://github.com/Crawlith)

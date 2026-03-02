@@ -1,5 +1,6 @@
 {
   "name": "@crawlith/core",
+  "license": "Apache-2.0",
   "version": "0.1.2",
   "description": "Headless intelligence engine for Crawlith. Handles crawling, graph analysis, scoring, and data persistence.",
   "type": "module",

@@ -1,5 +1,6 @@
 {
   "name": "@crawlith/architecture-infrastructure",
+  "license": "Apache-2.0",
   "private": true,
   "version": "0.0.1",
   "description": "Shared infrastructure components and common utilities used across the Crawlith workspace.",
