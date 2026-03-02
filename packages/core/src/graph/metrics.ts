@@ -32,15 +32,26 @@ export function calculateMetrics(graph: Graph, _maxDepth: number): Metrics {
   // Identify broken nodes
   const brokenNodes = new Set(nodes.filter(n => n.status >= 400 || n.status === 0).map(n => n.url));
 
+  // Pre-compute outgoing edges per node for faster lookup
+  const outgoingEdges = new Map<string, string[]>();
+  for (const edge of edges) {
+    let targets = outgoingEdges.get(edge.source);
+    if (!targets) {
+      targets = [];
+      outgoingEdges.set(edge.source, targets);
+    }
+    targets.push(edge.target);
+  }
+
   // Populate brokenLinks per node
   for (const node of nodes) {
-    const nodeEdges = edges.filter(e => e.source === node.url);
-    const broken = nodeEdges
-      .map(e => e.target)
-      .filter(targetUrl => brokenNodes.has(targetUrl));
+    const targets = outgoingEdges.get(node.url);
+    if (targets) {
+      const broken = targets.filter(targetUrl => brokenNodes.has(targetUrl));
 
-    if (broken.length > 0) {
-      node.brokenLinks = broken;
+      if (broken.length > 0) {
+        node.brokenLinks = broken;
+      }
     }
   }
 
