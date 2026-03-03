@@ -283,7 +283,7 @@ export class Crawler {
             const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
 
             if (sitemapUrls.length > 0) {
-              this.context.emit({ type: 'info', message: `Mapping ${sitemapUrls.length} URLs from sitemap... (Background)` });
+              this.context.emit({ type: 'debug', message: `Mapping ${sitemapUrls.length} URLs from sitemap... (Background)` });
               const sitemapEntries = sitemapUrls.map(u => {
                 const normalized = normalizeUrl(u, this.rootOrigin, this.options);
                 if (!normalized) return null;
