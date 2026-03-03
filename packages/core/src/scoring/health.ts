@@ -1,4 +1,4 @@
-import { Graph, analyzeContent, analyzeH1, analyzeImageAlts, analyzeLinks } from '../index.js';
+import { Graph, analyzeContent, analyzeH1, analyzeImageAlts, analyzeLinks, UrlUtil } from '../index.js';
 
 export interface HealthScoreWeights {
     orphans: number;
@@ -105,7 +105,7 @@ export class HealthService {
         };
     }
 
-    public collectCrawlIssues(graph: Graph, metrics: any): CrawlIssueCounts {
+    public collectCrawlIssues(graph: Graph, metrics: any, rootOrigin: string = ''): CrawlIssueCounts {
         const nodes = graph.getNodes();
 
         let brokenInternalLinks = 0;
@@ -146,7 +146,7 @@ export class HealthService {
             if ((node.redirectChain?.length || 0) > 1) {
                 redirectChains += 1;
             }
-            if (node.canonical && node.canonical !== node.url) {
+            if (node.canonical && node.canonical !== node.url && node.canonical !== (rootOrigin ? new URL(node.url, rootOrigin).toString() : node.url)) {
                 canonicalConflicts += 1;
             }
             if (node.noindex && node.status >= 200 && node.status < 300) {
@@ -180,7 +180,8 @@ export class HealthService {
                 }
             }
 
-            const links = analyzeLinks(node.html || '', node.url, node.url);
+            const pageAbsUrl = rootOrigin ? UrlUtil.toAbsolute(node.url, rootOrigin) : node.url;
+            const links = analyzeLinks(node.html || '', pageAbsUrl, rootOrigin || node.url);
             externalLinks += links.externalLinks;
             if (links.externalRatio > HIGH_EXTERNAL_LINK_RATIO_THRESHOLD) {
                 highExternalLinkRatio += 1;

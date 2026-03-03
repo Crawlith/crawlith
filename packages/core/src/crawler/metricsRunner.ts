@@ -84,9 +84,50 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
 
     // 3. Analysis / Intelligence
     if (options.clustering) {
-        new ClusteringService().detectContentClusters(graph, options.clusterThreshold, options.minClusterSize);
+        const contentClusters = new ClusteringService().detectContentClusters(graph, options.clusterThreshold, options.minClusterSize);
+        if (contentClusters.length > 0) {
+            const insertCluster = db.prepare(`
+                INSERT OR REPLACE INTO content_clusters (id, snapshot_id, count, primary_url, risk, shared_path_prefix)
+                VALUES (@id, @snapshot_id, @count, @primary_url, @risk, @shared_path_prefix)
+            `);
+            const insertContentTx = db.transaction((clusters: any[]) => {
+                for (const c of clusters) {
+                    insertCluster.run({
+                        id: c.id,
+                        snapshot_id: snapshotId,
+                        count: c.count,
+                        primary_url: c.primaryUrl,
+                        risk: c.risk,
+                        shared_path_prefix: c.sharedPathPrefix ?? null
+                    });
+                }
+            });
+            insertContentTx(contentClusters);
+        }
     }
     new DuplicateService().detectDuplicates(graph, { collapse: false });
+
+    // Persist duplicate clusters to DB (populated on graph by applyClusterToGraph)
+    const duplicateClusters: any[] = (graph as any).duplicateClusters || [];
+    if (duplicateClusters.length > 0) {
+        const insertCluster = db.prepare(`
+            INSERT OR REPLACE INTO duplicate_clusters (id, snapshot_id, type, size, representative, severity)
+            VALUES (@id, @snapshot_id, @type, @size, @representative, @severity)
+        `);
+        const insertDuplicateTx = db.transaction((clusters: any[]) => {
+            for (const c of clusters) {
+                insertCluster.run({
+                    id: c.id,
+                    snapshot_id: snapshotId,
+                    type: c.type, // valid: 'exact' | 'near' | 'template_heavy'
+                    size: c.size,
+                    representative: c.representative,
+                    severity: c.severity || 'low'
+                });
+            }
+        });
+        insertDuplicateTx(duplicateClusters);
+    }
 
     let annotatedNodes: any[] = [];
     if (options.orphans) {
@@ -179,7 +220,8 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
             orphan_score: node.orphanScore ?? null,
             orphan_type: node.orphanType ?? null,
             impact_level: node.impactLevel ?? null,
-            heading_data: node.headingData ?? null
+            heading_data: node.headingData ?? null,
+            is_cluster_primary: (node as any).isClusterPrimary ? 1 : 0
         };
     }).filter(m => m !== null);
 

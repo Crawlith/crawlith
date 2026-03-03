@@ -29,6 +29,7 @@ import { PageRankService } from '../graph/pagerank.js';
 import { HITSService } from '../graph/hits.js';
 import { HeadingHealthService } from './heading.js';
 import { annotateOrphans } from './orphan.js';
+import { HealthService } from '../scoring/health.js';
 
 export interface CrawlPage {
   url: string;
@@ -290,6 +291,14 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     });
   }
 
+  // Run HealthService when --health is enabled
+  let healthBreakdown: ReturnType<HealthService['calculateHealthScore']> | undefined;
+  if (options.health) {
+    const healthService = new HealthService();
+    const issues = healthService.collectCrawlIssues(crawlData.graph, crawlData.metrics, rootOrigin);
+    healthBreakdown = healthService.calculateHealthScore(crawlData.graph.nodes.size, issues);
+  }
+
   // Update nodes in graph with results
   for (const node of crawlData.graph.getNodes()) {
     const pr = prResults.get(node.url);
@@ -347,6 +356,15 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
       is_cluster_primary: (node as any).isClusterPrimary ? 1 : 0
     };
   }).filter(m => m !== null);
+
+  // Persist health score to snapshot if computed
+  if (healthBreakdown && snapshotId) {
+    const db2 = getDb();
+    const snapshotRepo = new SnapshotRepository(db2);
+    snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
+      health_score: healthBreakdown.score
+    });
+  }
 
   metricsRepo.insertMany(metricsToSave as any);
 

@@ -157,6 +157,18 @@ export class Crawler {
     // Update normalized start URL as a path
     this.startUrl = UrlUtil.toPath(rootUrl, this.rootOrigin);
 
+    // Now that rootOrigin is resolved, initialize ScopeManager with the correct absolute origin
+    this.scopeManager = new ScopeManager({
+      allowedDomains: this.options.allowedDomains || [],
+      deniedDomains: this.options.deniedDomains || [],
+      includeSubdomains: this.options.includeSubdomains || false,
+      rootUrl: this.rootOrigin
+    });
+    // Update fetcher with the now-initialized scopeManager
+    if (this.fetcher) {
+      (this.fetcher as any).scopeManager = this.scopeManager;
+    }
+
     // For partial snapshots (page --live), reuse the latest partial snapshot
     // instead of creating a new one each time
     if (this.options.snapshotType === 'partial') {
@@ -184,17 +196,10 @@ export class Crawler {
   }
 
   setupModules(): void {
-    this.scopeManager = new ScopeManager({
-      allowedDomains: this.options.allowedDomains || [],
-      deniedDomains: this.options.deniedDomains || [],
-      includeSubdomains: this.options.includeSubdomains || false,
-      rootUrl: this.startUrl
-    });
-
     this.fetcher = new Fetcher({
       rate: this.options.rate,
       proxyUrl: this.options.proxyUrl,
-      scopeManager: this.scopeManager,
+      scopeManager: this.scopeManager ?? undefined,
       maxRedirects: this.options.maxRedirects,
       userAgent: this.options.userAgent
     });
@@ -618,9 +623,13 @@ export class Crawler {
       return;
     }
 
+    // Convert stored path to absolute URL for fetching.
+    // External/subdomain URLs are already absolute (UrlUtil.toPath returns them as-is).
+    const fetchUrl = UrlUtil.toAbsolute(url, this.rootOrigin);
+
     try {
       const prevNode = this.options.previousGraph?.nodes.get(url);
-      const res = await this.fetchPage(url, depth, prevNode);
+      const res = await this.fetchPage(fetchUrl, depth, prevNode);
 
       if (!res) return;
 
@@ -711,11 +720,12 @@ export class Crawler {
           const item = this.queue.shift()!;
           if (this.visited.has(item.url)) continue;
 
-          // Robust robots check: if path doesn't end in /, check both /path and /path/
-          // to handle cases where normalization stripped a slash that robots.txt relies on.
+          // Robust robots check: reconstruct absolute URL since robots-parser needs full URLs,
+          // not root-relative paths. Also check /path/ variant in case robots.txt uses trailing slash.
+          const absUrlForRobots = UrlUtil.toAbsolute(item.url, this.rootOrigin);
           const isBlocked = this.robots && (
-            !this.robots.isAllowed(item.url, 'crawlith') ||
-            (!item.url.endsWith('/') && !this.robots.isAllowed(item.url + '/', 'crawlith'))
+            !this.robots.isAllowed(absUrlForRobots, 'crawlith') ||
+            (!absUrlForRobots.endsWith('/') && !this.robots.isAllowed(absUrlForRobots + '/', 'crawlith'))
           );
 
           if (isBlocked) {

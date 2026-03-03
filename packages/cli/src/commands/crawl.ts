@@ -121,7 +121,9 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
         plugins: registry.getPlugins(),
         context: {
           command: 'crawl',
+          scope: 'crawl' as const,
           flags: options as Record<string, any>,
+          emit: (e: any) => controller.handle(e),
           logger: {
             info: (m: string) => context.emit({ type: 'info', message: m }),
             warn: (m: string) => context.emit({ type: 'warn', message: m, context: undefined }),

@@ -91,7 +91,12 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       registry: registry
     };
 
-    const snapshotId = await crawl(input.url, crawlOpts as any);
+    // Build an EngineContext from the plugin context's emit so per-page logs reach OutputController
+    const engineContext: EngineContext | undefined = ctx.emit
+      ? { emit: (e: any) => ctx.emit!(e) }
+      : undefined;
+
+    const snapshotId = await crawl(input.url, crawlOpts as any, engineContext);
     const graph = loadGraphFromSnapshot(snapshotId);
 
     await registry.runHook('onGraphBuilt', ctx, graph);
@@ -101,16 +106,16 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       context: undefined,
       limitReached: false,
       graphInstance: graph,
-      clustering: input.clustering,
+      clustering: input.clustering ?? true,
       clusterThreshold: input.clusterThreshold,
       minClusterSize: input.minClusterSize,
-      heading: input.heading,
-      health: input.health,
-      computeHits: input.computeHits,
-      computePagerank: input.computePagerank,
-      orphans: input.orphans,
-      orphanSeverity: input.orphanSeverity,
-      includeSoftOrphans: input.includeSoftOrphans,
+      heading: input.heading ?? true,
+      health: input.health ?? true,
+      computeHits: input.computeHits ?? true,
+      computePagerank: input.computePagerank ?? true,
+      orphans: input.orphans ?? true,
+      orphanSeverity: input.orphanSeverity ?? true,
+      includeSoftOrphans: input.includeSoftOrphans ?? true,
       minInbound: input.minInbound
     });
 

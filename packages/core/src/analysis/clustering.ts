@@ -213,7 +213,17 @@ export class ClusteringService {
         if (urls.length < 2) return undefined;
 
         try {
-            const paths = urls.map(u => new URL(u).pathname.split('/').filter(Boolean));
+            // Works for both absolute URLs (https://example.com/foo) and root-relative paths (/foo)
+            const getPathname = (u: string): string[] => {
+                try {
+                    return new URL(u).pathname.split('/').filter(Boolean);
+                } catch {
+                    // root-relative path like '/foo/bar'
+                    return u.split('/').filter(Boolean);
+                }
+            };
+
+            const paths = urls.map(getPathname);
             const first = paths[0];
             const common: string[] = [];
 
