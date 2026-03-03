@@ -5,8 +5,6 @@ import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../db/repositories/PageRepository.js';
 import { calculateMetrics } from '../graph/metrics.js';
 import { EngineContext } from '../events.js';
-import { calculateHealthScore, collectCrawlIssues } from '../scoring/health.js';
-
 import { Graph } from '../graph/graph.js';
 
 export interface PostCrawlMetricOptions {
@@ -118,20 +116,13 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
     emit({ type: 'metrics:start', phase: 'Computing aggregate stats' });
     const metrics = calculateMetrics(graph, maxDepth);
 
-    // Calculate penalty-based health score (matches CLI)
-    const issues = collectCrawlIssues(graph, metrics);
-    const health = calculateHealthScore(metrics.totalPages, issues);
-
     snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
         node_count: metrics.totalPages,
         edge_count: metrics.totalEdges,
-        health_score: health.score,
-        orphan_count: issues.orphanPages,
-        thin_content_count: issues.thinContent,
         limit_reached: limitReached ? 1 : 0
     });
 
     emit({ type: 'metrics:complete', durationMs: 0 });
 
-    return { metrics, issues, health };
+    return { metrics };
 }

@@ -28,9 +28,10 @@ export const ReporterPlugin: CrawlithPlugin = {
 
             const { graph, snapshotId } = result;
             const metrics = calculateMetrics(graph, 10);
+            const healthData = result.plugins?.health;
 
             if (String(flags.format) === 'json') {
-                const insightReport = buildCrawlInsightReport(graph, metrics);
+                const insightReport = buildCrawlInsightReport(graph, metrics, healthData);
                 process.stdout.write(JSON.stringify(insightReport, null, 2));
                 return;
             }
@@ -38,7 +39,7 @@ export const ReporterPlugin: CrawlithPlugin = {
             process.stdout.write(chalk.gray('📊 Calculating final report metrics... '));
             process.stdout.write(chalk.green('Done\n'));
 
-            const insightReport = buildCrawlInsightReport(graph, metrics);
+            const insightReport = buildCrawlInsightReport(graph, metrics, healthData);
             process.stdout.write(renderInsightOutput(insightReport, snapshotId));
 
             if (flags.verbose) {
