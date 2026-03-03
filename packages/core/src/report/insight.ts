@@ -32,7 +32,7 @@ export function buildCrawlInsightReport(
             internalLinks: metrics.totalEdges,
             externalLinks: healthData?.issues?.externalLinks || 0
         },
-        topAuthorityPages: metrics.topPageRankPages.slice(0, 10)
+        topAuthorityPages: metrics.topAuthorityPages.map(p => ({ url: p.url, score: p.authority }))
     };
 }
 

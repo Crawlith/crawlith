@@ -22,9 +22,9 @@ export const HealthScoreHooks = {
      * On metrics, we compute the site-wide health score and issues.
      */
     onMetrics: async (ctx: PluginContext, graph: Graph) => {
-        const metrics = (graph as any).metrics || {}; // Assume core or other plugins populated metrics
-
-        const issues = service.collectCrawlIssues(graph, metrics);
+        const metrics = (graph as any).metrics || {};
+        const clusters = ctx.metadata?.clusters || [];
+        const issues = service.collectCrawlIssues(graph, { ...metrics, clusters });
         const health = service.calculateHealthScore(graph.nodes.size, issues, DEFAULT_HEALTH_WEIGHTS);
 
         // Save summary to plugin-scoped storage

@@ -3,14 +3,14 @@ import { crawl } from '../crawler/crawl.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { normalizeUrl } from '../crawler/normalize.js';
 import { calculateMetrics, Metrics } from '../graph/metrics.js';
-import { Graph, ClusterInfo } from '../graph/graph.js';
+import { Graph } from '../graph/graph.js';
 import { analyzeContent, calculateThinContentScore } from './content.js';
 import { analyzeH1, analyzeMetaDescription, analyzeTitle, H1Analysis, TextFieldAnalysis } from './seo.js';
 import { analyzeImageAlts, ImageAltAnalysis } from './images.js';
 import { analyzeLinks, LinkRatioAnalysis } from './links.js';
 import { analyzeStructuredData, StructuredDataResult } from './structuredData.js';
 import { aggregateSiteScore, scorePageSeo } from './scoring.js';
-import { detectContentClusters } from '../graph/cluster.js';
+
 import { getDb } from '../db/index.js';
 import { SiteRepository } from '../db/repositories/SiteRepository.js';
 import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
@@ -84,7 +84,7 @@ export interface AnalysisResult {
     content: boolean;
     accessibility: boolean;
   };
-  clusters?: ClusterInfo[];
+
   snapshotId?: number;
   crawledAt?: string;
   plugins?: Record<string, any>;
@@ -162,14 +162,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const snapshotId = crawlData.snapshotId;
   const crawledAt = crawlData.crawledAt;
 
-  // 3. Post-Processing
-  const clusterStart = Date.now();
-  if (options.allPages) {
-    detectContentClusters(crawlData.graph, options.clusterThreshold, options.minClusterSize);
-    if (context) context.emit({ type: 'debug', message: `[analyze] detectContentClusters took ${Date.now() - clusterStart}ms` });
-  } else {
-    if (context) context.emit({ type: 'debug', message: `[analyze] Skipping clustering for single-page view` });
-  }
+
 
   const pagesStart = Date.now();
   const pages = analyzePages(normalizedRoot, crawlData.pages, robots, options);
@@ -210,7 +203,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     site_scores: siteScores,
     pages: resultPages,
     active_modules: activeModules,
-    clusters: crawlData.graph.contentClusters,
+
     snapshotId,
     crawledAt
   };

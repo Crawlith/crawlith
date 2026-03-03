@@ -55,15 +55,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
         urlToId.set(p.normalized_url, p.id);
     }
 
-    const clusterStmt = db.prepare(`
-        INSERT OR REPLACE INTO duplicate_clusters (id, snapshot_id, type, size, representative, severity)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `);
 
-    const contentStmt = db.prepare(`
-        INSERT OR REPLACE INTO content_clusters (id, snapshot_id, count, primary_url, risk, shared_path_prefix)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `);
 
     const tx = db.transaction(() => {
         for (const node of nodes) {
@@ -80,10 +72,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
                 word_count: node.wordCount ?? null,
                 thin_content_score: node.thinContentScore ?? null,
                 external_link_ratio: node.externalLinkRatio ?? null,
-                orphan_score: node.orphanScore ?? null,
-                duplicate_cluster_id: node.duplicateClusterId ?? null,
-                duplicate_type: node.duplicateType ?? null,
-                is_cluster_primary: node.isClusterPrimary ? 1 : 0
+                orphan_score: node.orphanScore ?? null
             });
 
             // Update page-level crawl trap data
@@ -101,15 +90,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
             }
         }
 
-        // Save duplicate clusters
-        for (const cluster of graph.duplicateClusters) {
-            clusterStmt.run(cluster.id, snapshotId, cluster.type, cluster.size, cluster.representative, cluster.severity);
-        }
 
-        // Save content clusters
-        for (const cluster of graph.contentClusters) {
-            contentStmt.run(cluster.id, snapshotId, cluster.count, cluster.primaryUrl, cluster.risk, cluster.sharedPathPrefix ?? null);
-        }
     });
     tx();
 

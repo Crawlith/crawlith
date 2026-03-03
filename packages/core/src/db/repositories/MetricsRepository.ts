@@ -10,9 +10,7 @@ export interface DbMetrics {
   thin_content_score: number | null;
   external_link_ratio: number | null;
   orphan_score: number | null;
-  duplicate_cluster_id: string | null;
-  duplicate_type: 'exact' | 'near' | 'template_heavy' | 'none' | null;
-  is_cluster_primary: number;
+
 }
 
 export class MetricsRepository {
@@ -25,11 +23,11 @@ export class MetricsRepository {
       INSERT OR REPLACE INTO metrics (
         snapshot_id, page_id,
         link_role, crawl_status, word_count, thin_content_score, external_link_ratio,
-        orphan_score, duplicate_cluster_id, duplicate_type, is_cluster_primary
+        orphan_score
       ) VALUES (
         @snapshot_id, @page_id,
         @link_role, @crawl_status, @word_count, @thin_content_score, @external_link_ratio,
-        @orphan_score, @duplicate_cluster_id, @duplicate_type, @is_cluster_primary
+        @orphan_score
       )
     `);
   }

@@ -157,11 +157,15 @@ export class HealthService {
             }
         }
 
-        const duplicateClusters = graph.duplicateClusters?.length || 0;
-        const cannibalizationClusters = graph.duplicateClusters?.filter((cluster: any) => cluster.type === 'near').length || 0;
+        const clusters = (graph as any).contentClusters || metrics.clusters || [];
+        const duplicateClusters = clusters.length;
+        const cannibalizationClusters = clusters.filter((cluster: any) => cluster.risk === 'high' || cluster.type === 'near').length;
 
         for (const node of nodes) {
-            const authority = node.pageRank || 0;
+            // Since PageRank is now a plugin, we use in-links as a basic authority signal here
+            // or we could check ctx.metadata.pagerank if we want to be more integrated.
+            // For now, let's use in-links normalized against hypothetical max.
+            const authority = node.inLinks > 5 ? 0.8 : 0.2;
             if (authority >= OPPORTUNITY_AUTHORITY_THRESHOLD && node.outLinks < 3) {
                 strongPagesUnderLinking += 1;
             }

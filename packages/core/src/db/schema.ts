@@ -97,9 +97,6 @@ export function initSchema(db: Database) {
       thin_content_score REAL,
       external_link_ratio REAL,
       orphan_score INTEGER,
-      duplicate_cluster_id TEXT,
-      duplicate_type TEXT CHECK(duplicate_type IN ('exact', 'near', 'template_heavy', 'none')),
-      is_cluster_primary INTEGER DEFAULT 0,
       PRIMARY KEY(snapshot_id, page_id),
       FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
       FOREIGN KEY(page_id) REFERENCES pages(id) ON DELETE CASCADE
@@ -108,33 +105,7 @@ export function initSchema(db: Database) {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_metrics_snapshot ON metrics(snapshot_id);`);
 
-  // Duplicate Clusters Table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS duplicate_clusters (
-      id TEXT NOT NULL,
-      snapshot_id INTEGER NOT NULL,
-      type TEXT CHECK(type IN ('exact', 'near', 'template_heavy')) NOT NULL,
-      size INTEGER NOT NULL,
-      representative TEXT NOT NULL,
-      severity TEXT CHECK(severity IN ('low', 'medium', 'high')) NOT NULL,
-      PRIMARY KEY(snapshot_id, id),
-      FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE
-    );
-  `);
 
-  // Content Clusters Table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS content_clusters (
-      id INTEGER NOT NULL,
-      snapshot_id INTEGER NOT NULL,
-      count INTEGER NOT NULL,
-      primary_url TEXT NOT NULL,
-      risk TEXT CHECK(risk IN ('low', 'medium', 'high')) NOT NULL,
-      shared_path_prefix TEXT,
-      PRIMARY KEY(snapshot_id, id),
-      FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE
-    );
-  `);
 
   // Plugin Reports Table
   db.exec(`
@@ -173,11 +144,7 @@ function migrateSchema(db: Database) {
   try { db.exec('ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0'); } catch { /* already exists */ }
 
   // Add missing columns to metrics
-  const metricsColumns = [
-    ['duplicate_cluster_id', 'TEXT'],
-    ['duplicate_type', 'TEXT'],
-    ['is_cluster_primary', 'INTEGER DEFAULT 0'],
-  ];
+  const metricsColumns: [string, string][] = [];
 
   for (const [col, type] of metricsColumns) {
     try { db.exec(`ALTER TABLE metrics ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }

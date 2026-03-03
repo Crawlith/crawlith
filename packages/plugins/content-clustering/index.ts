@@ -1,24 +1,34 @@
 
-import { detectContentClusters, CrawlithPlugin, PluginContext, Command, Graph } from '@crawlith/core';
+import { CrawlithPlugin } from '@crawlith/core';
+import { ClusteringHooks } from './src/plugin.js';
 
 /**
  * Content Clustering Plugin
  * Crawlith plugin for content clustering
  */
 export const ContentClusteringPlugin: CrawlithPlugin = {
-  name: 'content-clustering',  register: (cli: Command) => {
-    if (cli.name() === 'crawl') {
-      cli.option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10');
-      cli.option('--min-cluster-size <number>', 'Minimum pages per cluster', '3');
+  name: 'content-clustering',
+  description: 'Detects near-duplicate content clusters using SimHash LSH',
+
+  cli: {
+    flag: '--clustering',
+    description: 'Enable content clustering analysis',
+    options: [
+      { flag: '--cluster-threshold <number>', description: 'Hamming distance for content clusters', defaultValue: '10' },
+      { flag: '--min-cluster-size <number>', description: 'Minimum pages per cluster', defaultValue: '3' }
+    ]
+  },
+
+  storage: {
+    fetchMode: 'local',
+    perPage: {
+      columns: {
+        cluster_id: 'INTEGER'
+      }
     }
   },
-  hooks: {
-    onMetrics: async (ctx: PluginContext, graph: Graph) => {
-      const threshold = Number(ctx.flags?.clusterThreshold ?? 10);
-      const minSize = Number(ctx.flags?.minClusterSize ?? 3);
-      detectContentClusters(graph as any, threshold, minSize);
-    }
-  }
+
+  hooks: ClusteringHooks
 };
 
 export default ContentClusteringPlugin;
