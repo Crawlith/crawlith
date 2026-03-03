@@ -1,7 +1,8 @@
 import { X, ExternalLink, Link, AlertTriangle } from 'lucide-react';
+import * as API from '../../api';
 
 interface IssueDrawerProps {
-  issue: any | null; // using any since this drawer seems unused/unconnected right now and requires fields not on API.Issue
+  issue: API.Issue | null;
   onClose: () => void;
   isOpen: boolean;
 }
