@@ -1,7 +1,8 @@
-import { criticalIssues } from '../data.js';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
 
 export const WarningPanel = () => {
+  // criticalIssues mock removed
+  const criticalIssues: any[] = [];
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 h-full">
       <div className="flex items-center gap-2 mb-4">

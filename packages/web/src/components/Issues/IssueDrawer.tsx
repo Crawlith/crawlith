@@ -1,9 +1,7 @@
-import React from 'react';
 import { X, ExternalLink, Link, AlertTriangle } from 'lucide-react';
-import { Issue } from '../../data';
 
 interface IssueDrawerProps {
-  issue: Issue | null;
+  issue: any | null; // using any since this drawer seems unused/unconnected right now and requires fields not on API.Issue
   onClose: () => void;
   isOpen: boolean;
 }

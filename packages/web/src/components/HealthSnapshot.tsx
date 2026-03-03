@@ -1,7 +1,14 @@
-import { healthMetrics } from '../data';
 import { Activity, Link, Ghost, Copy, Layers, TrendingUp } from 'lucide-react';
 
 export const HealthSnapshot = () => {
+  const healthMetrics = {
+    score: 0,
+    brokenLinks: 0,
+    orphanPages: 0,
+    duplicateClusters: 0,
+    pagesCrawled: 0,
+    efficiency: 0,
+  };
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
       <StatCard label="Health Score" value={healthMetrics.score} unit="/100" icon={Activity} color="text-green-600 dark:text-green-500" />

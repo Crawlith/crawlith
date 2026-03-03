@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, AlertCircle, Info, ChevronRight, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { DashboardContext } from '../App';
@@ -50,10 +50,10 @@ export const IssuesTable = () => {
 
     // Client-side sort for current page (since API sort is limited in this scope)
     const sorted = [...issues].sort((a, b) => {
-      // @ts-expect-error - dynamic key access
-      if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
-      // @ts-expect-error - dynamic key access
-      if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
+      const aVal = a[key] as any;
+      const bVal = b[key] as any;
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
       return 0;
     });
     setIssues(sorted);
