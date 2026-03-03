@@ -35,10 +35,9 @@ export class PageRankService {
         // 1. Filter Eligible Nodes
         const eligibleNodes = allNodes.filter(node => {
             if (node.noindex) return false;
-            // @ts-ignore - compat with mixed node types
             if (node.isCollapsed) return false;
             // Keep compat with other plugins mutating soft404Score onto nodes
-            // @ts-ignore
+
             if (node.soft404Score && node.soft404Score > soft404Threshold) return false;
             if (node.canonical && node.canonical !== node.url) return false;
             if (node.status >= 400) return false; // Don't pass rank to broken pages

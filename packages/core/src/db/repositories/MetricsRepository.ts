@@ -21,6 +21,8 @@ export interface DbMetrics {
   orphan_score: number | null;
   orphan_type: string | null;
   impact_level: string | null;
+  heading_data: string | null;
+  is_cluster_primary: number | null;
 }
 
 export class MetricsRepository {
@@ -36,14 +38,16 @@ export class MetricsRepository {
         pagerank_score, hub_score, auth_score, link_role,
         duplicate_cluster_id, duplicate_type, cluster_id,
         soft404_score, heading_score,
-        orphan_score, orphan_type, impact_level
+        orphan_score, orphan_type, impact_level,
+        heading_data, is_cluster_primary
       ) VALUES (
         @snapshot_id, @page_id,
         @crawl_status, @word_count, @thin_content_score, @external_link_ratio,
         @pagerank_score, @hub_score, @auth_score, @link_role,
         @duplicate_cluster_id, @duplicate_type, @cluster_id,
         @soft404_score, @heading_score,
-        @orphan_score, @orphan_type, @impact_level
+        @orphan_score, @orphan_type, @impact_level,
+        @heading_data, @is_cluster_primary
       )
     `);
   }

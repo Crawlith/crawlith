@@ -247,7 +247,7 @@ export class DuplicateService {
     }
 
     private checkTemplateHeavy(cluster: DuplicateCluster) {
-        // @ts-ignore
+
         const avgRatio = cluster.nodes.reduce((sum, n) => sum + (n.uniqueTokenRatio || 0), 0) / cluster.nodes.length;
         if (avgRatio < 0.3) {
             cluster.type = 'template_heavy';

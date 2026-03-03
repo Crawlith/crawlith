@@ -22,7 +22,7 @@ export interface SiteCrawlInput {
   concurrency?: number;
   stripQuery?: boolean;
   ignoreRobots?: boolean;
-  sitemap?: string;
+  sitemap?: string | boolean;
   debug?: boolean;
   detectSoft404?: boolean;
   detectTraps?: boolean;
@@ -34,6 +34,19 @@ export interface SiteCrawlInput {
   proxyUrl?: string;
   maxRedirects?: number;
   userAgent?: string;
+  clustering?: boolean;
+  clusterThreshold?: number;
+  minClusterSize?: number;
+  heading?: boolean;
+  health?: boolean;
+  failOnCritical?: boolean;
+  scoreBreakdown?: boolean;
+  computeHits?: boolean;
+  computePagerank?: boolean;
+  orphans?: boolean;
+  orphanSeverity?: 'low' | 'medium' | 'high';
+  includeSoftOrphans?: boolean;
+  minInbound?: number;
   plugins?: CrawlithPlugin[];
   context?: PluginContext;
 }
@@ -83,7 +96,22 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     await registry.runHook('onGraphBuilt', ctx, graph);
     await registry.runHook('onMetrics', ctx, graph);
 
-    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph);
+    runPostCrawlMetrics(snapshotId, crawlOpts.depth, {
+      context: undefined,
+      limitReached: false,
+      graphInstance: graph,
+      clustering: input.clustering,
+      clusterThreshold: input.clusterThreshold,
+      minClusterSize: input.minClusterSize,
+      heading: input.heading,
+      health: input.health,
+      computeHits: input.computeHits,
+      computePagerank: input.computePagerank,
+      orphans: input.orphans,
+      orphanSeverity: input.orphanSeverity,
+      includeSoftOrphans: input.includeSoftOrphans,
+      minInbound: input.minInbound
+    });
 
     if (ctx.db) {
       ctx.db.aggregateScoreProviders(snapshotId, registry.pluginsList);
@@ -125,10 +153,23 @@ export interface PageAnalysisInput {
   proxyUrl?: string;
   userAgent?: string;
   maxRedirects?: number;
+  maxBytes?: number;
+  clustering?: boolean;
   clusterThreshold?: number;
   minClusterSize?: number;
   debug?: boolean;
   allPages?: boolean;
+  sitemap?: string | boolean;
+  heading?: boolean;
+  health?: boolean;
+  failOnCritical?: boolean;
+  scoreBreakdown?: boolean;
+  computeHits?: boolean;
+  computePagerank?: boolean;
+  orphans?: boolean;
+  orphanSeverity?: 'low' | 'medium' | 'high';
+  includeSoftOrphans?: boolean;
+  minInbound?: number;
   plugins?: CrawlithPlugin[];
   context?: PluginContext;
 }
@@ -147,8 +188,21 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       proxyUrl: input.proxyUrl,
       userAgent: input.userAgent,
       maxRedirects: input.maxRedirects,
+      maxBytes: input.maxBytes,
+      clustering: input.clustering,
       clusterThreshold: input.clusterThreshold,
       minClusterSize: input.minClusterSize,
+      sitemap: input.sitemap,
+      heading: input.heading,
+      health: input.health,
+      failOnCritical: input.failOnCritical,
+      scoreBreakdown: input.scoreBreakdown,
+      computeHits: input.computeHits,
+      computePagerank: input.computePagerank,
+      orphans: input.orphans,
+      orphanSeverity: input.orphanSeverity,
+      includeSoftOrphans: input.includeSoftOrphans,
+      minInbound: input.minInbound,
       debug: input.debug,
       allPages: input.allPages,
     }, this.context);

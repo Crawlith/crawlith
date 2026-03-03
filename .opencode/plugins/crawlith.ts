@@ -26,7 +26,7 @@ async function runCli(
 /**
  * Crawlith OpenCode plugin exposing Crawlith CLI tools and useful lifecycle hooks.
  */
-export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }) => {
+export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }: any) => {
   await client.app.log({
     body: {
       service: 'crawlith-plugin',
@@ -45,7 +45,7 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }) 
           depth: tool.schema.number().optional().describe('Maximum click depth'),
           concurrency: tool.schema.number().optional().describe('Max concurrent requests')
         },
-        async execute({ url, limit, depth, concurrency }) {
+        async execute({ url, limit, depth, concurrency }: any) {
           const flags = [
             typeof limit === 'number' ? `--limit ${limit}` : '',
             typeof depth === 'number' ? `--depth ${depth}` : '',
@@ -64,7 +64,7 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }) 
           url: tool.schema.string().describe('Page URL to analyze'),
           live: tool.schema.boolean().optional().describe('Run with --live flag')
         },
-        async execute({ url, live }) {
+        async execute({ url, live }: any) {
           const flags = live ? '--live' : '';
           return runCli($, `page ${url} ${flags}`.trim());
         }
@@ -76,7 +76,7 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }) 
           url: tool.schema.string().describe('Domain or URL to inspect'),
           timeout: tool.schema.number().optional().describe('Probe timeout in milliseconds')
         },
-        async execute({ url, timeout }) {
+        async execute({ url, timeout }: any) {
           const flags = typeof timeout === 'number' ? `--timeout ${timeout}` : '';
           return runCli($, `probe ${url} ${flags}`.trim());
         }
@@ -91,7 +91,7 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }) 
       })
     },
 
-    event: async ({ event }) => {
+    event: async ({ event }: any) => {
       if (event.type === 'session.idle') {
         await client.app.log({
           body: {
@@ -103,7 +103,7 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }) 
       }
     },
 
-    'tool.execute.before': async (input) => {
+    'tool.execute.before': async (input: any) => {
       await client.app.log({
         body: {
           service: 'crawlith-plugin',
@@ -113,7 +113,7 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }) 
       });
     },
 
-    'tool.execute.after': async (input, output) => {
+    'tool.execute.after': async (input: any, output: any) => {
       const crawlithTools = new Set([
         'crawlith-crawl-site',
         'crawlith-analyze-page',

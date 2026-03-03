@@ -15,7 +15,31 @@ export const getPageCommand = (registry: PluginRegistry) => {
     .addOption(new Option('--log-level <level>', 'Log level (normal, verbose, debug)').choices(['normal', 'verbose', 'debug']).default('normal'))
     .option('--seo', 'Show only SEO module output')
     .option('--content', 'Show only content module output')
-    .option('--accessibility', 'Show only accessibility module output');
+    .option('--accessibility', 'Show only accessibility module output')
+    // Crawl Policy
+    .option('--proxy <url>', 'proxy URL to use for requests')
+    .option('--ua <string>', 'user agent string to use')
+    .option('--rate <number>', 'requests per second limit')
+    .option('--max-bytes <number>', 'maximum bytes to download per page')
+    .option('--max-redirects <number>', 'maximum redirects to follow')
+    // Clustering
+    .option('--clustering', 'Enable content clustering analysis')
+    .option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10')
+    .option('--min-cluster-size <number>', 'Minimum pages per cluster', '3')
+    .option('--sitemap [url]', 'sitemap URL (defaults to /sitemap.xml if not specified)')
+    // Heading & Health
+    .option('--heading', 'Analyze heading structure and hierarchy health')
+    .option('--health', 'Run health score analysis')
+    .option('--fail-on-critical', 'Exit code 1 if critical issues exist')
+    .option('--score-breakdown', 'Print health score component weights')
+    // Graph Centrality
+    .option('--pagerank', 'Calculate PageRank')
+    .option('--hits', 'Compute Hub and Authority scores (HITS)')
+    // Orphans
+    .option('--orphans', 'Detect orphaned pages')
+    .option('--orphan-severity <value>', 'Severity for orphans (low/medium/high)')
+    .option('--include-soft-orphans', 'Include soft orphans in detection')
+    .option('--min-inbound <value>', 'Minimum inbound links to not be an orphan', '2');
 
   // Let plugins register their flags on this command
   registry.registerPlugins(analyze);
@@ -47,6 +71,25 @@ export const getPageCommand = (registry: PluginRegistry) => {
         seo: options.seo,
         content: options.content,
         accessibility: options.accessibility,
+        proxyUrl: options.proxy,
+        userAgent: options.ua,
+        rate: options.rate ? parseFloat(options.rate) : undefined,
+        maxBytes: options.maxBytes ? parseInt(options.maxBytes, 10) : undefined,
+        maxRedirects: options.maxRedirects ? parseInt(options.maxRedirects, 10) : undefined,
+        clustering: options.clustering,
+        clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : undefined,
+        minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : undefined,
+        sitemap: options.sitemap,
+        heading: options.heading,
+        health: options.health,
+        failOnCritical: options.failOnCritical,
+        scoreBreakdown: options.scoreBreakdown,
+        computePagerank: options.pagerank,
+        computeHits: options.hits,
+        orphans: options.orphans,
+        orphanSeverity: options.orphanSeverity,
+        includeSoftOrphans: options.includeSoftOrphans,
+        minInbound: options.minInbound ? parseInt(options.minInbound, 10) : undefined,
         debug: options.logLevel === 'debug',
         plugins: registry.getPlugins(),
         context: {

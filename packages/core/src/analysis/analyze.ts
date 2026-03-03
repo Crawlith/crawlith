@@ -1,5 +1,7 @@
 import { load } from 'cheerio';
 import { crawl } from '../crawler/crawl.js';
+import { UrlResolver } from '../crawler/resolver.js';
+import { Fetcher } from '../crawler/fetcher.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { normalizeUrl } from '../crawler/normalize.js';
 import { calculateMetrics, Metrics } from '../graph/metrics.js';
@@ -18,8 +20,14 @@ import { getDb } from '../db/index.js';
 import { SiteRepository } from '../db/repositories/SiteRepository.js';
 import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../db/repositories/PageRepository.js';
+import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { ANALYSIS_LIST_TEMPLATE, ANALYSIS_PAGE_TEMPLATE } from './templates.js';
 import { EngineContext } from '../events.js';
+
+import { PageRankService } from '../graph/pagerank.js';
+import { HITSService } from '../graph/hits.js';
+import { HeadingHealthService } from './heading.js';
+import { annotateOrphans } from './orphan.js';
 
 export interface CrawlPage {
   url: string;
@@ -42,10 +50,23 @@ export interface AnalyzeOptions {
   proxyUrl?: string;
   userAgent?: string;
   maxRedirects?: number;
+  maxBytes?: number;
   debug?: boolean;
+  heading?: boolean;
+  clustering?: boolean;
   clusterThreshold?: number;
   minClusterSize?: number;
   allPages?: boolean;
+  sitemap?: string | boolean;
+  health?: boolean;
+  failOnCritical?: boolean;
+  scoreBreakdown?: boolean;
+  computeHits?: boolean;
+  computePagerank?: boolean;
+  orphans?: boolean;
+  orphanSeverity?: 'low' | 'medium' | 'high';
+  includeSoftOrphans?: boolean;
+  minInbound?: number;
   plugins?: any[]; // CrawlithPlugin[]
   pluginContext?: any; // PluginContext
 }
@@ -68,6 +89,7 @@ export interface PageAnalysis {
     nofollow?: boolean;
     crawlStatus?: string;
   };
+  soft404?: { score: number; reason: string };
   plugins?: Record<string, any>;
 }
 
@@ -108,7 +130,20 @@ interface CrawlData {
  * Supports live crawling or loading from a database snapshot.
  */
 export async function analyzeSite(url: string, options: AnalyzeOptions, context?: EngineContext): Promise<AnalysisResult> {
-  const normalizedRoot = normalizeUrl(url, '', { stripQuery: false });
+  // 1. Resolve URL (SSL, WWW) if it's a live crawl or we need to identify the site
+  let workingUrl = url;
+  if (options.live !== false) {
+    const resolver = new UrlResolver();
+    const fetcher = new Fetcher({ rate: options.rate, proxyUrl: options.proxyUrl, userAgent: options.userAgent });
+    try {
+      const resolved = await resolver.resolve(url, fetcher);
+      workingUrl = resolved.url;
+    } catch (e) {
+      // Fallback to basic normalization if resolution fails
+    }
+  }
+
+  const normalizedRoot = normalizeUrl(workingUrl, '', { stripQuery: false });
   if (!normalizedRoot) {
     throw new Error('Invalid URL for analysis');
   }
@@ -173,6 +208,18 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const pages = analyzePages(normalizedRoot, crawlData.pages, robots, options);
   if (context) context.emit({ type: 'debug', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
 
+  // Sync basic page analysis results back to graph nodes for persistence
+  for (const pageAnalysis of pages) {
+    const node = crawlData.graph.nodes.get(pageAnalysis.url);
+    if (node) {
+      node.soft404Score = pageAnalysis.soft404?.score;
+      node.wordCount = pageAnalysis.content.wordCount;
+      node.externalLinkRatio = pageAnalysis.links.externalRatio;
+      node.thinContentScore = pageAnalysis.thinScore;
+      node.title = pageAnalysis.title.value || undefined;
+    }
+  }
+
   const activeModules = {
     seo: !!options.seo,
     content: !!options.content,
@@ -198,14 +245,106 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
   let clusters: any[] = [];
   let duplicates: any[] = [];
+  let prResults = new Map<string, any>();
+  let hitsResults = new Map<string, any>();
+  let headingPayloads: Record<string, any> = {};
 
-  if (options.allPages) {
+  if (options.clustering) {
     const clustering = new ClusteringService();
     clusters = clustering.detectContentClusters(crawlData.graph, options.clusterThreshold, options.minClusterSize);
+  }
 
+  if (options.allPages) {
     const duplication = new DuplicateService();
     duplicates = duplication.detectDuplicates(crawlData.graph, { collapse: false });
   }
+
+  if (options.computePagerank) {
+    const prService = new PageRankService();
+    prResults = prService.evaluate(crawlData.graph);
+  }
+
+  if (options.computeHits) {
+    const hitsService = new HITSService();
+    hitsResults = hitsService.evaluate(crawlData.graph);
+  }
+
+  if (options.heading) {
+    const headingService = new HeadingHealthService();
+    const { payloadsByUrl } = headingService.evaluateNodes(crawlData.graph.getNodes());
+    headingPayloads = payloadsByUrl;
+  }
+
+  if (options.orphans) {
+    const edges = crawlData.graph.getEdges();
+    annotateOrphans(crawlData.graph.getNodes(), edges, {
+      enabled: true,
+      severityEnabled: !!options.orphanSeverity,
+      includeSoftOrphans: !!options.includeSoftOrphans,
+      minInbound: options.minInbound || 2,
+      rootUrl: normalizedRoot
+    });
+  }
+
+  // Update nodes in graph with results
+  for (const node of crawlData.graph.getNodes()) {
+    const pr = prResults.get(node.url);
+    if (pr) node.pagerankScore = pr.score;
+
+    const hits = hitsResults.get(node.url);
+    if (hits) {
+      node.hubScore = hits.hub_score;
+      node.authScore = hits.authority_score;
+      node.linkRole = hits.link_role;
+    }
+
+    const heading = headingPayloads[node.url];
+    if (heading) {
+      node.headingScore = heading.score;
+      node.headingData = JSON.stringify(heading);
+    }
+  }
+
+
+
+  // Persist to Database
+  const db = getDb();
+  const metricsRepo = new MetricsRepository(db);
+  const pageRepo = new PageRepository(db);
+
+  // Efficiently map URLs to IDs for this snapshot
+  const pagesIdentity = pageRepo.getPagesIdentityBySnapshot(snapshotId);
+  const urlToIdMap = new Map(pagesIdentity.map(p => [p.normalized_url, p.id]));
+
+  const metricsToSave = crawlData.graph.getNodes().map(node => {
+    const pageId = urlToIdMap.get(node.url);
+    if (!pageId) return null;
+
+    return {
+      snapshot_id: snapshotId,
+      page_id: pageId,
+      crawl_status: node.crawlStatus || null,
+      word_count: node.wordCount || null,
+      thin_content_score: node.thinContentScore || null,
+      external_link_ratio: node.externalLinkRatio || null,
+      pagerank_score: node.pagerankScore || null,
+      hub_score: node.hubScore || null,
+      auth_score: node.authScore || null,
+      link_role: node.linkRole || null,
+      duplicate_cluster_id: (node as any).duplicateClusterId || null,
+      duplicate_type: (node as any).duplicateType || null,
+      cluster_id: (node as any).clusterId || null,
+      soft404_score: node.soft404Score || null,
+      heading_score: node.headingScore || null,
+      orphan_score: node.orphanScore || null,
+      orphan_type: node.orphanType || null,
+      impact_level: node.impactLevel || null,
+      heading_data: node.headingData || null,
+      is_cluster_primary: (node as any).isClusterPrimary ? 1 : 0
+    };
+  }).filter(m => m !== null);
+
+  metricsRepo.insertMany(metricsToSave as any);
 
   const result: AnalysisResult = {
     site_summary: {
@@ -276,6 +415,9 @@ export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | Crawl
     }
     sentenceCountFrequency.set(content.uniqueSentenceCount, (sentenceCountFrequency.get(content.uniqueSentenceCount) || 0) + 1);
 
+    const soft404Service = new Soft404Service();
+    const soft404 = soft404Service.analyze(html, links.externalLinks + links.internalLinks);
+
     results.push({
       url: page.url,
       status: page.status || 0,
@@ -293,7 +435,8 @@ export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | Crawl
         noindex: page.noindex,
         nofollow: page.nofollow,
         crawlStatus
-      }
+      },
+      soft404
     });
   }
 
@@ -384,6 +527,7 @@ async function runLiveCrawl(url: string, options: AnalyzeOptions, context?: Engi
     debug: options.debug,
     snapshotType: 'partial',
     robots,
+    sitemap: options.sitemap,
     plugins: options.plugins
   }, context) as number;
   const graph = loadGraphFromSnapshot(snapshotId);

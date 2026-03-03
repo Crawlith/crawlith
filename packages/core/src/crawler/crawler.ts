@@ -6,6 +6,7 @@ import { Fetcher, FetchResult } from './fetcher.js';
 import { Parser } from './parser.js';
 import { Sitemap } from './sitemap.js';
 import { normalizeUrl } from './normalize.js';
+import { UrlResolver } from './resolver.js';
 import { ScopeManager } from '../core/scope/scopeManager.js';
 import { getDb } from '../db/index.js';
 import { SiteRepository } from '../db/repositories/SiteRepository.js';
@@ -25,7 +26,7 @@ export interface CrawlOptions {
   ignoreRobots?: boolean;
   stripQuery?: boolean;
   previousGraph?: Graph;
-  sitemap?: string;
+  sitemap?: string | boolean;
   debug?: boolean;
   detectSoft404?: boolean;
   detectTraps?: boolean;
@@ -96,6 +97,7 @@ export class Crawler {
   private pageBuffer: Map<string, any> = new Map();
   private edgeBuffer: { sourceUrl: string; targetUrl: string; weight: number; rel: string }[] = [];
   private metricsBuffer: any[] = [];
+  private pendingSitemaps: number = 0;
 
   // Modules
   private scopeManager: ScopeManager | null = null;
@@ -179,7 +181,7 @@ export class Crawler {
     });
 
     this.parser = new Parser();
-    this.sitemapFetcher = new Sitemap(this.context);
+    this.sitemapFetcher = new Sitemap(this.context, this.fetcher!);
   }
 
   async fetchRobots(): Promise<void> {
@@ -226,25 +228,74 @@ export class Crawler {
   }
 
   async seedQueue(): Promise<void> {
-    // Seed from Sitemap
+    // Seed from startUrl first to ensure it's prioritized in the queue
+    this.addToQueue(this.startUrl, 0);
+
+    const sitemapsToFetch = new Set<string>();
+
+    // 1. Explicitly configured sitemap
     if (this.options.sitemap) {
-      try {
-        const sitemapUrl = this.options.sitemap === 'true' ? new URL('/sitemap.xml', this.rootOrigin).toString() : this.options.sitemap;
-        if (sitemapUrl.startsWith('http')) {
-          this.context.emit({ type: 'info', message: 'Fetching sitemap', context: { url: sitemapUrl } });
-          const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
-          for (const u of sitemapUrls) {
-            const normalized = normalizeUrl(u, '', this.options);
-            if (normalized) this.addToQueue(normalized, 0, { discovered_via_sitemap: 1 });
-          }
-        }
-      } catch (e) {
-        this.context.emit({ type: 'warn', message: 'Sitemap fetch failed', context: e });
+      const explicitUrl = this.options.sitemap === 'true' || (this.options.sitemap as any) === true
+        ? new URL('/sitemap.xml', this.rootOrigin).toString()
+        : this.options.sitemap;
+
+      if (typeof explicitUrl === 'string' && explicitUrl.startsWith('http')) {
+        sitemapsToFetch.add(explicitUrl);
       }
     }
 
-    // Seed from startUrl
-    this.addToQueue(this.startUrl, 0);
+    // 2. Discover sitemaps from robots.txt (unless explicitly disabled)
+    // Priority: explicit --sitemap OR automated discovery on first crawl
+    const isFirstCrawl = (this.snapshotRepo?.getSnapshotCount(this.siteId!) || 0) <= 1;
+    if (this.options.sitemap !== false && (this.options.sitemap || isFirstCrawl) && this.robots) {
+      const robotsSitemaps = this.robots.getSitemaps();
+      for (const s of robotsSitemaps) {
+        sitemapsToFetch.add(s);
+      }
+    }
+
+    // Process all discovered sitemaps in background
+    if (sitemapsToFetch.size > 0) {
+      for (const sitemapUrl of sitemapsToFetch) {
+        this.pendingSitemaps++;
+        // KICK OFF BACKGROUND TASK (Un-awaited)
+        (async () => {
+          try {
+            this.context.emit({ type: 'info', message: 'Fetching sitemap in background', context: { url: sitemapUrl } });
+            const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
+
+            if (sitemapUrls.length > 0) {
+              this.context.emit({ type: 'info', message: `Mapping ${sitemapUrls.length} URLs from sitemap... (Background)` });
+              const sitemapEntries = sitemapUrls.map(u => {
+                const normalized = normalizeUrl(u, '', this.options);
+                if (!normalized) return null;
+                return {
+                  site_id: this.siteId!,
+                  normalized_url: normalized,
+                  first_seen_snapshot_id: this.snapshotId!,
+                  last_seen_snapshot_id: this.snapshotId!,
+                  discovered_via_sitemap: 1,
+                  depth: 0,
+                  http_status: 0
+                };
+              }).filter((p): p is any => p !== null);
+
+              // Bulk register to DB
+              this.pageRepo!.upsertMany(sitemapEntries);
+
+              // Add to queue for Actual Crawling
+              for (const entry of sitemapEntries) {
+                this.addToQueue(entry.normalized_url, 0, { discovered_via_sitemap: 1 });
+              }
+            }
+          } catch (e) {
+            this.context.emit({ type: 'warn', message: 'Sitemap fetch failed', context: { url: sitemapUrl, error: String(e) } });
+          } finally {
+            this.pendingSitemaps--;
+          }
+        })();
+      }
+    }
   }
 
   private bufferPage(url: string, depth: number, status: number, data: any = {}): void {
@@ -357,18 +408,23 @@ export class Crawler {
       return {
         snapshot_id: this.snapshotId!,
         page_id: pageId,
-        authority_score: null,
-        hub_score: null,
-        pagerank: null,
-        pagerank_score: null,
-        link_role: null,
         crawl_status: null,
         word_count: null,
         thin_content_score: null,
         external_link_ratio: null,
-        orphan_score: null,
+        pagerank_score: null,
+        hub_score: null,
+        auth_score: null,
+        link_role: null,
         duplicate_cluster_id: null,
         duplicate_type: null,
+        cluster_id: null,
+        soft404_score: null,
+        heading_score: null,
+        orphan_score: null,
+        orphan_type: null,
+        impact_level: null,
+        heading_data: null,
         is_cluster_primary: 0,
         ...item.data
       };
@@ -564,8 +620,23 @@ export class Crawler {
   }
 
   async run(): Promise<number> {
-    await this.initialize();
+    // 1. Setup fetcher and basic modules for resolution
     this.setupModules();
+
+    // 2. Resolve URL preference (SSL, WWW)
+    const resolver = new UrlResolver();
+    try {
+      const resolved = await resolver.resolve(this.startUrl, this.fetcher!);
+      this.startUrl = resolved.url;
+      this.context.emit({ type: 'debug', message: `Resolved start URL: ${this.startUrl}` });
+    } catch (e) {
+      this.context.emit({ type: 'error', message: `URL Resolution failed: ${String(e)}` });
+      return 0;
+    }
+
+    // 3. Initialize repositories and Site context
+    await this.initialize();
+
     if (this.options.robots) {
       this.robots = this.options.robots;
     } else {
@@ -575,7 +646,7 @@ export class Crawler {
 
     return new Promise((resolve) => {
       const checkDone = async () => {
-        if (this.queue.length === 0 && this.active === 0) {
+        if (this.queue.length === 0 && this.active === 0 && this.pendingSitemaps === 0) {
           await this.flushAll();
           this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
             limit_reached: this.reachedLimit ? 1 : 0

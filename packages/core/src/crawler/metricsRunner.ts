@@ -11,10 +11,35 @@ import { Graph } from '../graph/graph.js';
 import { PageRankService } from '../graph/pagerank.js';
 import { HITSService } from '../graph/hits.js';
 import { TrapDetector } from './trap.js';
+import { ClusteringService } from '../analysis/clustering.js';
 import { DuplicateService } from '../analysis/duplicate.js';
 import { annotateOrphans } from '../analysis/orphan.js';
+import { Soft404Service } from '../analysis/soft404.js';
+import { HeadingHealthService } from '../analysis/heading.js';
+import { analyzeContent } from '../analysis/content.js';
+import { load } from 'cheerio';
 
-export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph) {
+export interface PostCrawlOptions {
+    context?: EngineContext;
+    limitReached?: boolean;
+    graphInstance?: Graph;
+    clustering?: boolean;
+    clusterThreshold?: number;
+    minClusterSize?: number;
+    health?: boolean;
+    computePagerank?: boolean;
+    computeHits?: boolean;
+    heading?: boolean;
+    orphans?: boolean;
+    orphanSeverity?: 'low' | 'medium' | 'high' | boolean;
+    includeSoftOrphans?: boolean;
+    minInbound?: number;
+}
+
+export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, options: PostCrawlOptions = {}) {
+    const context = options.context;
+    const limitReached = options.limitReached || false;
+    const graphInstance = options.graphInstance;
     const db = getDb();
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
@@ -51,54 +76,118 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
     emit({ type: 'metrics:start', phase: 'Running core algorithms' });
 
     // 1. Graph Algorithms
-    new PageRankService().evaluate(graph);
-    new HITSService().evaluate(graph, { iterations: 20 });
+    const prResults = options.computePagerank ? new PageRankService().evaluate(graph) : new Map();
+    const hitsResults = options.computeHits ? new HITSService().evaluate(graph, { iterations: 20 }) : new Map();
 
     // 2. Crawler Safety
     new TrapDetector().analyze(graph);
 
     // 3. Analysis / Intelligence
+    if (options.clustering) {
+        new ClusteringService().detectContentClusters(graph, options.clusterThreshold, options.minClusterSize);
+    }
     new DuplicateService().detectDuplicates(graph, { collapse: false });
 
-    const orphanOptions = {
-        enabled: true,
-        severityEnabled: true,
-        includeSoftOrphans: true,
-        minInbound: 2
-    };
-    annotateOrphans(graph.getNodes(), graph.getEdges(), orphanOptions);
+    let annotatedNodes: any[] = [];
+    if (options.orphans) {
+        const orphanOptions = {
+            enabled: true,
+            severityEnabled: !!options.orphanSeverity || options.orphanSeverity === undefined,
+            includeSoftOrphans: options.includeSoftOrphans ?? true,
+            minInbound: options.minInbound ?? 2
+        };
+        annotatedNodes = annotateOrphans(graph.getNodes(), graph.getEdges(), orphanOptions) as any[];
+    }
+
+    const soft404Service = new Soft404Service();
+    const headingService = new HeadingHealthService();
+    // Pre-calculate heading health for all nodes with HTML
+    let headingPayloads = new Map();
+    if (options.heading) {
+        const result = headingService.evaluateNodes(graph.getNodes());
+        headingPayloads = result.payloadsByUrl;
+    }
+
+    // Apply signals to nodes
+    for (const node of graph.getNodes()) {
+        const pr = prResults.get(node.url);
+        if (pr) node.pagerankScore = pr.score;
+
+        const hits = hitsResults.get(node.url);
+        if (hits) {
+            node.authScore = hits.authority_score;
+            node.hubScore = hits.hub_score;
+            node.linkRole = hits.link_role;
+        }
+
+        if (options.orphans) {
+            const annotated = annotatedNodes.find((n: any) => n.url === node.url);
+            if (annotated) {
+                node.orphanScore = annotated.orphanSeverity;
+                node.orphanType = annotated.orphanType;
+                node.impactLevel = annotated.impactLevel;
+            }
+        }
+
+        if (options.heading) {
+            const heading = headingPayloads.get(node.url);
+            if (heading) {
+                node.headingScore = heading.score;
+                node.headingData = JSON.stringify(heading);
+            }
+        }
+
+        if (node.html) {
+            const soft404 = soft404Service.analyze(node.html, node.outLinks);
+            node.soft404Score = soft404.score;
+
+            const $ = load(node.html);
+            const content = analyzeContent($);
+            node.wordCount = content.wordCount;
+        }
+    }
 
     emit({ type: 'metrics:start', phase: 'Updating metrics in DB' });
-    const nodes = graph.getNodes();
 
     // Pre-fetch all page IDs to avoid N+1 queries
-    // Use getPagesIdentityBySnapshot to avoid loading full page content (HTML) into memory again
-    const pages = pageRepo.getPagesIdentityBySnapshot(snapshotId);
+    const pagesIdentity = pageRepo.getPagesIdentityBySnapshot(snapshotId);
     const urlToId = new Map<string, number>();
-    for (const p of pages) {
+    for (const p of pagesIdentity) {
         urlToId.set(p.normalized_url, p.id);
     }
 
+    const metricsToSave = graph.getNodes().map(node => {
+        const pageId = urlToId.get(node.url);
+        if (!pageId) return null;
 
+        return {
+            snapshot_id: snapshotId,
+            page_id: pageId,
+            crawl_status: node.crawlStatus ?? null,
+            word_count: node.wordCount ?? null,
+            thin_content_score: node.thinContentScore ?? null,
+            external_link_ratio: node.externalLinkRatio ?? null,
+            pagerank_score: node.pagerankScore ?? null,
+            hub_score: node.hubScore ?? null,
+            auth_score: node.authScore ?? null,
+            link_role: node.linkRole ?? null,
+            duplicate_cluster_id: (node as any).duplicateClusterId ?? null,
+            duplicate_type: (node as any).duplicateType ?? null,
+            cluster_id: (node as any).clusterId ?? null,
+            soft404_score: node.soft404Score ?? null,
+            heading_score: node.headingScore ?? null,
+            orphan_score: node.orphanScore ?? null,
+            orphan_type: node.orphanType ?? null,
+            impact_level: node.impactLevel ?? null,
+            heading_data: node.headingData ?? null
+        };
+    }).filter(m => m !== null);
 
+    metricsRepo.insertMany(metricsToSave as any);
+
+    // Update page-level metadata in transaction
     const tx = db.transaction(() => {
-        for (const node of nodes) {
-            const pageId = urlToId.get(node.url);
-            if (!pageId) continue;
-
-
-            metricsRepo.insertMetrics({
-                snapshot_id: snapshotId,
-                page_id: pageId,
-
-                crawl_status: node.crawlStatus ?? null,
-                word_count: node.wordCount ?? null,
-                thin_content_score: node.thinContentScore ?? null,
-                external_link_ratio: node.externalLinkRatio ?? null,
-                orphan_score: node.orphanScore ?? null
-            });
-
-            // Update page-level crawl trap data
+        for (const node of graph.getNodes()) {
             if (node.crawlTrapFlag || node.redirectChain?.length || node.bytesReceived) {
                 pageRepo.upsertPage({
                     site_id: snapshot.site_id,
@@ -112,8 +201,6 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
                 });
             }
         }
-
-
     });
     tx();
 
