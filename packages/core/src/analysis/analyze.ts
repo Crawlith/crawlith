@@ -209,7 +209,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
 
   const pagesStart = Date.now();
-  const pages = analyzePages(normalizedAbs, crawlData.pages, robots, options);
+  const pages = analyzePages(normalizedPath, rootOrigin, crawlData.pages, robots, options);
   if (context) context.emit({ type: 'debug', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
 
   // Sync basic page analysis results back to graph nodes for persistence
@@ -373,40 +373,40 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 }
 
 
-export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | CrawlPage[], robots?: any, options: AnalyzeOptions = {}): PageAnalysis[] {
+export function analyzePages(targetPath: string, rootOrigin: string, pages: Iterable<CrawlPage> | CrawlPage[], robots?: any, options: AnalyzeOptions = {}): PageAnalysis[] {
   const titleCounts = new Map<string, number>();
   const metaCounts = new Map<string, number>();
   const sentenceCountFrequency = new Map<number, number>();
 
   const results: PageAnalysis[] = [];
-  const normalizedRoot = rootUrl;
 
   for (const page of pages) {
-    const isTarget = page.url === normalizedRoot;
+    // page.url is a root-relative path (e.g. '/about') — compare to targetPath
+    const isTarget = page.url === targetPath;
 
     // In single-page mode, if it's not the target, we skip it entirely for speed.
-    // Duplicate title detection is sacrificed for single-page live analysis speed.
-    // Full site audits will correctly handle site-wide duplication.
     if (!options.allPages && !isTarget) continue;
 
     const html = page.html || '';
     const $ = load(html || '<html></html>');
 
+    // Reconstruct absolute URL from stored path for robots & link resolution
+    const pageAbsUrl = UrlUtil.toAbsolute(page.url, rootOrigin);
+
     let crawlStatus = page.crawlStatus;
     if (robots) {
-      const isBlocked = !robots.isAllowed(page.url, 'crawlith') ||
-        (!page.url.endsWith('/') && !robots.isAllowed(page.url + '/', 'crawlith'));
+      const isBlocked = !robots.isAllowed(pageAbsUrl, 'crawlith') ||
+        (!pageAbsUrl.endsWith('/') && !robots.isAllowed(pageAbsUrl + '/', 'crawlith'));
       if (isBlocked) crawlStatus = 'blocked_by_robots';
     }
 
     // Shared DOM Analysis
     const title = analyzeTitle($);
     const metaDescription = analyzeMetaDescription($);
-
     const h1 = analyzeH1($, title.value);
     const content = analyzeContent($);
     const images = analyzeImageAlts($);
-    const links = analyzeLinks($, page.url, rootUrl);
+    const links = analyzeLinks($, pageAbsUrl, rootOrigin);
     const structuredData = analyzeStructuredData($);
 
     if (title.value) {
