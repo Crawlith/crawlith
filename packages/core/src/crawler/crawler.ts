@@ -263,8 +263,9 @@ export class Crawler {
     }
 
     // 2. Discover sitemaps from robots.txt (unless explicitly disabled)
-    // Priority: explicit --sitemap OR automated discovery on first crawl
-    const isFirstCrawl = (this.snapshotRepo?.getSnapshotCount(this.siteId!) || 0) <= 1;
+    // Only auto-fetch on the FIRST real crawl (full/incremental).
+    // page --live reuses partial snapshots and should NOT trigger sitemap fetch.
+    const isFirstCrawl = !this.snapshotRepo?.hasFullCrawl(this.siteId!);
     if (this.options.sitemap !== false && (this.options.sitemap || isFirstCrawl) && this.robots) {
       const robotsSitemaps = this.robots.getSitemaps();
       for (const s of robotsSitemaps) {
