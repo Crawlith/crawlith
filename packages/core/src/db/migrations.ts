@@ -98,8 +98,6 @@ export function runBaseMigrations(db: Database) {
       page_id INTEGER NOT NULL,
       authority_score REAL,
       hub_score REAL,
-      pagerank REAL,
-      pagerank_score REAL,
       link_role TEXT,
       crawl_status TEXT,
       word_count INTEGER,

@@ -9,7 +9,6 @@ export * from './report/export.js';
 export * from './report/insight.js';
 export * from './graph/graph.js';
 export * from './diff/compare.js';
-export * from './graph/pagerank.js';
 export * from './graph/duplicate.js';
 export * from './graph/cluster.js';
 export * from './graph/simhash.js';

@@ -1,22 +1,33 @@
-
-import { computePageRank, CrawlithPlugin, PluginContext } from '@crawlith/core';
-import { Command } from '@crawlith/core';
+import { CrawlithPlugin } from '@crawlith/core';
+import { PageRankHooks } from './src/plugin.js';
 
 /**
- * Pagerank Plugin
- * Crawlith plugin for pagerank
+ * Description: PageRank calculates the relative authority of pages across a snapshot based on internal link weight and distribution.
+ * @requirements Must have a fully built graph from a 'crawl' execution spanning 100+ edges to be precise.
  */
 export const PageRankPlugin: CrawlithPlugin = {
-  name: 'pagerank',  register: (_cli: Command) => {
-    // Enabled by default for crawl command in previous version's defaultFor
-    // If it doesn't need flags, we don't necessarily need to add any, 
-    // but the system will load it based on discovery.
+  name: 'pagerank',
+
+  // Implicitly activated inside core due to its legacy importance, 
+  // but mapping 'flag' cleanly for new PluginRegistry loaders.
+  cli: {
+    flag: '--pagerank',
+    description: 'Calculate PageRank'
   },
-  hooks: {
-    onMetrics: async (ctx: PluginContext, graph: any) => {
-      computePageRank(graph);
+
+  scoreProvider: true, // Automatically sums total pagerank score distributed natively across snapshots
+
+  storage: {
+    fetchMode: 'local',
+    perPage: {
+      columns: {
+        raw_rank: 'REAL',
+        score: 'REAL'
+      }
     }
-  }
+  },
+
+  hooks: PageRankHooks
 };
 
 export default PageRankPlugin;
