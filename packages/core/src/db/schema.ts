@@ -92,9 +92,6 @@ export function initSchema(db: Database) {
     CREATE TABLE IF NOT EXISTS metrics (
       snapshot_id INTEGER NOT NULL,
       page_id INTEGER NOT NULL,
-      authority_score REAL,
-      hub_score REAL,
-      link_role TEXT CHECK(link_role IN ('hub', 'authority', 'power', 'balanced', 'peripheral')),
       crawl_status TEXT,
       word_count INTEGER,
       thin_content_score REAL,
@@ -177,7 +174,6 @@ function migrateSchema(db: Database) {
 
   // Add missing columns to metrics
   const metricsColumns = [
-    ['link_role', 'TEXT'],
     ['duplicate_cluster_id', 'TEXT'],
     ['duplicate_type', 'TEXT'],
     ['is_cluster_primary', 'INTEGER DEFAULT 0'],

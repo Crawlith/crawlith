@@ -13,7 +13,6 @@ export * from './graph/duplicate.js';
 export * from './graph/cluster.js';
 export * from './graph/simhash.js';
 export * from './scoring/health.js';
-export * from './scoring/hits.js';
 export * from './analysis/analyze.js';
 export * from './analysis/content.js';
 export * from './analysis/seo.js';

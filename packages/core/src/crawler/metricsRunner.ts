@@ -4,14 +4,12 @@ import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../db/repositories/PageRepository.js';
 import { calculateMetrics } from '../graph/metrics.js';
-import { computeHITS } from '../scoring/hits.js';
 import { EngineContext } from '../events.js';
 import { calculateHealthScore, collectCrawlIssues } from '../scoring/health.js';
 
 import { Graph } from '../graph/graph.js';
 
 export interface PostCrawlMetricOptions {
-    computeHITS?: boolean;
 }
 
 export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph, options: PostCrawlMetricOptions = {}) {
@@ -46,10 +44,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
     }
 
 
-    if (options.computeHITS !== false) {
-        emit({ type: 'metrics:start', phase: 'Computing HITS' });
-        computeHITS(graph);
-    }
+
 
     emit({ type: 'metrics:start', phase: 'Updating metrics in DB' });
     const nodes = graph.getNodes();
@@ -81,8 +76,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
             metricsRepo.insertMetrics({
                 snapshot_id: snapshotId,
                 page_id: pageId,
-                authority_score: node.authorityScore ?? null,
-                hub_score: node.hubScore ?? null,
+
                 link_role: node.linkRole ?? null,
                 crawl_status: node.crawlStatus ?? null,
                 word_count: node.wordCount ?? null,

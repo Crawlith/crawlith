@@ -75,9 +75,6 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             crawlTrapRisk: p.crawl_trap_risk || undefined,
             trapType: p.trap_type || undefined,
             // Metrics
-            authorityScore: m?.authority_score ?? undefined,
-            hubScore: m?.hub_score ?? undefined,
-            linkRole: m?.link_role ?? undefined,
             // Duplicate info
             duplicateClusterId: m?.duplicate_cluster_id ?? undefined,
             duplicateType: m?.duplicate_type ?? undefined,

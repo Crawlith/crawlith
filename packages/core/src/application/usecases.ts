@@ -83,9 +83,7 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     await registry.runHook('onGraphBuilt', ctx, graph);
     await registry.runHook('onMetrics', ctx, graph);
 
-    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {
-      computeHITS: false
-    });
+    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {});
 
     if (ctx.db) {
       ctx.db.aggregateScoreProviders(snapshotId, registry.pluginsList);

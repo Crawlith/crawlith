@@ -96,9 +96,6 @@ export function runBaseMigrations(db: Database) {
     CREATE TABLE IF NOT EXISTS metrics (
       snapshot_id INTEGER NOT NULL,
       page_id INTEGER NOT NULL,
-      authority_score REAL,
-      hub_score REAL,
-      link_role TEXT,
       crawl_status TEXT,
       word_count INTEGER,
       thin_content_score REAL,

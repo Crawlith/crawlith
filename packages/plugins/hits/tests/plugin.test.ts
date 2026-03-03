@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Graph } from '../src/graph/graph.js';
-import { computeHITS } from '../src/scoring/hits.js';
+import { Graph } from '@crawlith/core';
+import { HITSService } from '../src/Service.js';
 
 describe('HITS Scoring', () => {
     it('should compute scores for a simple star topology', () => {
@@ -16,7 +16,14 @@ describe('HITS Scoring', () => {
         graph.addEdge('http://hub.com', 'http://auth2.com');
         graph.addEdge('http://hub.com', 'http://auth3.com');
 
-        computeHITS(graph, { iterations: 10 });
+        const service = new HITSService();
+        const results = service.evaluate(graph, { iterations: 10 });
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.authorityScore = res.authority_score;
+            node.hubScore = res.hub_score;
+            node.linkRole = res.link_role;
+        }
 
         const hub = graph.nodes.get('http://hub.com')!;
         const auth1 = graph.nodes.get('http://auth1.com')!;
@@ -45,7 +52,14 @@ describe('HITS Scoring', () => {
         graph.addEdge('http://valid.com', 'http://noindex.com');
         graph.addEdge('http://valid.com', 'http://redirect.com');
 
-        computeHITS(graph);
+        const service = new HITSService();
+        const results = service.evaluate(graph);
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.authorityScore = res.authority_score;
+            node.hubScore = res.hub_score;
+            node.linkRole = res.link_role;
+        }
 
         expect(graph.nodes.get('http://noindex.com')?.hubScore).toBeUndefined();
         expect(graph.nodes.get('http://redirect.com')?.hubScore).toBeUndefined();
@@ -61,7 +75,14 @@ describe('HITS Scoring', () => {
         graph.addEdge('http://hub.com', 'http://auth-high.com', 1.0);
         graph.addEdge('http://hub.com', 'http://auth-low.com', 0.1);
 
-        computeHITS(graph, { iterations: 10 });
+        const service = new HITSService();
+        const results = service.evaluate(graph, { iterations: 10 });
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.authorityScore = res.authority_score;
+            node.hubScore = res.hub_score;
+            node.linkRole = res.link_role;
+        }
 
         const authHigh = graph.nodes.get('http://auth-high.com')!;
         const authLow = graph.nodes.get('http://auth-low.com')!;
@@ -95,7 +116,14 @@ describe('HITS Scoring', () => {
         // Some filler nodes to push medians down
         graph.addEdge('http://node8.com', 'http://node9.com');
 
-        computeHITS(graph, { iterations: 20 });
+        const service = new HITSService();
+        const results = service.evaluate(graph, { iterations: 20 });
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.authorityScore = res.authority_score;
+            node.hubScore = res.hub_score;
+            node.linkRole = res.link_role;
+        }
 
         const roles = graph.getNodes().map(n => n.linkRole).filter(Boolean);
         expect(roles).toContain('authority');
@@ -124,7 +152,14 @@ describe('HITS Scoring', () => {
         }
 
         const start = Date.now();
-        computeHITS(graph, { iterations: 20 });
+        const service = new HITSService();
+        const results = service.evaluate(graph, { iterations: 20 });
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.authorityScore = res.authority_score;
+            node.hubScore = res.hub_score;
+            node.linkRole = res.link_role;
+        }
         const duration = Date.now() - start;
 
         console.log(`HITS on 5000 nodes took ${duration}ms`);

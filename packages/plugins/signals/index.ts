@@ -1,5 +1,4 @@
 import type { CrawlithPlugin } from '@crawlith/core';
-import { registerSignalsCli } from './src/cli.js';
 import { SignalsHooks } from './src/plugin.js';
 
 /**
@@ -38,9 +37,6 @@ export const SignalsPlugin: CrawlithPlugin = {
     }
   },
 
-  register: (cli: any) => {
-    registerSignalsCli(cli);
-  },
 
   hooks: SignalsHooks
 };

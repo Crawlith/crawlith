@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Graph } from '@crawlith/core';
-// import { computePageRank } from '../src/Service.js';
+import { PageRankService } from '../src/Service.js';
 
 describe('PageRank Engine', () => {
     it('should calculate identical PageRank for a simple loop', () => {
@@ -10,7 +10,13 @@ describe('PageRank Engine', () => {
         graph.addEdge('https://a.com', 'https://b.com');
         graph.addEdge('https://b.com', 'https://a.com');
 
-        // computePageRank(graph);
+        const service = new PageRankService();
+        const results = service.evaluate(graph);
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.pageRank = res.raw_rank;
+            node.pageRankScore = res.score;
+        }
         const nodes = graph.getNodes();
 
         expect(nodes[0].pageRank).toBeCloseTo(0.5, 4);
@@ -31,7 +37,13 @@ describe('PageRank Engine', () => {
         graph.addEdge('https://p2.com', 'https://center.com');
         graph.addEdge('https://p3.com', 'https://center.com');
 
-        // computePageRank(graph);
+        const service = new PageRankService();
+        const results = service.evaluate(graph);
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.pageRank = res.raw_rank;
+            node.pageRankScore = res.score;
+        }
         const nodes = graph.getNodes();
 
         const center = nodes.find(n => n.url.includes('center'))!;
@@ -54,7 +66,13 @@ describe('PageRank Engine', () => {
         graph.addEdge('https://source.com', 'https://body-target.com', 1.0);
         graph.addEdge('https://source.com', 'https://footer-target.com', 0.4);
 
-        // computePageRank(graph);
+        const service = new PageRankService();
+        const results = service.evaluate(graph);
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.pageRank = res.raw_rank;
+            node.pageRankScore = res.score;
+        }
 
         const bodyTarget = graph.nodes.get('https://body-target.com')!;
         const footerTarget = graph.nodes.get('https://footer-target.com')!;
@@ -68,7 +86,13 @@ describe('PageRank Engine', () => {
         graph.addNode('https://b.com', 1, 200); // b is a sink
         graph.addEdge('https://a.com', 'https://b.com');
 
-        // computePageRank(graph);
+        const service = new PageRankService();
+        const results = service.evaluate(graph);
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.pageRank = res.raw_rank;
+            node.pageRankScore = res.score;
+        }
 
         const nodeA = graph.nodes.get('https://a.com')!;
         const nodeB = graph.nodes.get('https://b.com')!;
@@ -87,7 +111,13 @@ describe('PageRank Engine', () => {
 
         graph.addEdge('https://a.com', 'https://no-index.com');
 
-        // computePageRank(graph);
+        const service = new PageRankService();
+        const results = service.evaluate(graph);
+        for (const [url, res] of results) {
+            const node = graph.nodes.get(url)!;
+            node.pageRank = res.raw_rank;
+            node.pageRankScore = res.score;
+        }
 
         const nodeA = graph.nodes.get('https://a.com')!;
         const nodeNoIndex = graph.nodes.get('https://no-index.com')!;

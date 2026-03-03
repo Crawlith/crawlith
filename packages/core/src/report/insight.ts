@@ -22,13 +22,6 @@ export interface CrawlInsightReport {
         externalLinks: number;
     };
     topAuthorityPages: { url: string; score: number }[];
-    hits?: {
-        powerNodes: number;
-        authorityNodes: number;
-        hubNodes: number;
-        topAuthorities: { url: string; score: number }[];
-        topHubs: { url: string; score: number }[];
-    };
 }
 
 export function buildCrawlInsightReport(
@@ -49,22 +42,7 @@ export function buildCrawlInsightReport(
             internalLinks: metrics.totalEdges,
             externalLinks: issues.externalLinks
         },
-        topAuthorityPages: metrics.topPageRankPages.slice(0, 10),
-        hits: graph.getNodes().some(n => !!n.linkRole) ? {
-            powerNodes: graph.getNodes().filter(n => n.linkRole === 'power').length,
-            authorityNodes: graph.getNodes().filter(n => n.linkRole === 'authority').length,
-            hubNodes: graph.getNodes().filter(n => n.linkRole === 'hub').length,
-            topAuthorities: graph.getNodes()
-                .filter(n => (n.authorityScore || 0) > 0)
-                .sort((a, b) => (b.authorityScore || 0) - (a.authorityScore || 0))
-                .slice(0, 5)
-                .map(n => ({ url: n.url, score: n.authorityScore! })),
-            topHubs: graph.getNodes()
-                .filter(n => (n.hubScore || 0) > 0)
-                .sort((a, b) => (b.hubScore || 0) - (a.hubScore || 0))
-                .slice(0, 5)
-                .map(n => ({ url: n.url, score: n.hubScore! }))
-        } : undefined
+        topAuthorityPages: metrics.topPageRankPages.slice(0, 10)
     };
 }
 
@@ -167,31 +145,7 @@ export function renderInsightOutput(report: CrawlInsightReport, snapshotId: numb
         lines.push('');
     }
 
-    // ===== HITS =====
-    if (report.hits) {
-        lines.push(`HITS`);
-        lines.push(
-            `  Authorities ${report.hits.authorityNodes}   Hubs ${report.hits.hubNodes}   Power ${report.hits.powerNodes}`
-        );
 
-        if (report.hits.topAuthorities.length > 0) {
-            lines.push('');
-            lines.push(`Top Authorities`);
-            report.hits.topAuthorities.slice(0, 5).forEach(p => {
-                lines.push(`    ${p.url}   ${p.score.toFixed(3)}`);
-            });
-        }
-
-        if (report.hits.topHubs.length > 0) {
-            lines.push('');
-            lines.push(`Top Hubs`);
-            report.hits.topHubs.slice(0, 5).forEach(p => {
-                lines.push(`    ${p.url}   ${p.score.toFixed(3)}`);
-            });
-        }
-
-        lines.push('');
-    }
 
     return `${lines.join('\n')}\n`;
 }
