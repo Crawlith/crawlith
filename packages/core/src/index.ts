@@ -33,12 +33,14 @@ export * from './db/repositories/MetricsRepository.js';
 export * from './lock/lockManager.js';
 export * from './lock/hashKey.js';
 export * from './utils/version.js';
+export * from './utils/secureConfig.js';
 export * from './events.js';
 
 
 export * from './plugin-system/plugin-types.js';
 export * from './plugin-system/plugin-loader.js';
 export * from './plugin-system/plugin-registry.js';
+export * from './plugin-system/plugin-cli.js';
 export * from './ports/index.js';
 export * from './application/usecase.js';
 export * from './application/usecases.js';

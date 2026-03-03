@@ -72,6 +72,11 @@ Launch the interactive dashboard:
 crawlith ui
 ```
 
+Configure a plugin (e.g., PageSpeed):
+```bash
+crawlith config pagespeed set YOUR_API_KEY
+```
+
 ---
 
 ## 🔌 Intelligence Plugins
@@ -81,6 +86,7 @@ Crawlith ships with a suite of professional plugins:
 - **`hits`**: Identifies "Hubs" (navigation) vs "Authorities" (content).
 - **`soft404-detector`**: Heuristic analysis to find 200 OK pages that are actually errors.
 - **`orphan-intelligence`**: Detects pages with zero internal inbound links.
+- **`pagespeed`**: Integration with Google PageSpeed Insights for Core Web Vitals and Lighthouse metrics.
 - **`snapshot-diff`**: Compare two crawl snapshots to see how metrics have evolved.
 
 ---

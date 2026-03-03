@@ -1,9 +1,17 @@
 import { Command } from 'commander';
+import type { CrawlithDB } from '../db/CrawlithDB.js';
 
 export interface PluginContext {
     command?: string;
     flags?: Record<string, any>;
     snapshotId?: number;
+    targetUrl?: string;
+    db?: CrawlithDB;
+    config?: {
+        get(key?: string): string;
+        require(key?: string): string;
+        set(value: string): void;
+    };
     logger?: {
         info(msg: string): void;
         warn(msg: string): void;
