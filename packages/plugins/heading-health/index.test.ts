@@ -36,14 +36,12 @@ describe('heading-health plugin', () => {
 
         const graph = { getNodes: () => rawNodes };
 
-        const save = vi.fn();
-        const find = vi.fn(() => null);
+        const getOrFetch = vi.fn(async (url, fetchFn) => fetchFn());
 
         const ctx: PluginContext = {
             flags: { heading: true },
             db: {
-                schema: { define: vi.fn() },
-                data: { save, find }
+                data: { getOrFetch }
             } as any
         };
 
@@ -64,8 +62,7 @@ describe('heading-health plugin', () => {
         expect(summary.totalMissing).toBe(0);
         expect(summary.totalSkips).toBeGreaterThan(0);
 
-        expect(find).toHaveBeenCalledTimes(2);
-        expect(save).toHaveBeenCalledTimes(2);
+        expect(getOrFetch).toHaveBeenCalledTimes(2);
     });
 
     it('attaches summary payload on report output', async () => {

@@ -1,5 +1,4 @@
 import type { CrawlithPlugin } from '@crawlith/core';
-import { registerHeadingHealthCli } from './src/cli.js';
 import { HeadingHealthHooks } from './src/plugin.js';
 
 /**
@@ -11,10 +10,34 @@ import { HeadingHealthHooks } from './src/plugin.js';
 export const HeadingHealthPlugin: CrawlithPlugin = {
     name: 'heading-health',
     description: 'Analyzes heading structure, hierarchy health, and content distribution',
-    register: (cli) => {
-        registerHeadingHealthCli(cli);
+
+    cli: {
+        flag: '--heading',
+        description: 'Analyze heading structure and hierarchy health',
+        for: ['page', 'crawl'],
+        options: [
+            { flag: '--heading-force-refresh', description: 'Bypass the 24h heading-health cache and recompute' }
+        ]
     },
-    hooks: HeadingHealthHooks
+
+    scoreProvider: true,
+
+    storage: {
+        fetchMode: 'local',
+        perPage: {
+
+            columns: {
+                status: 'TEXT',
+                analysis_json: 'TEXT'
+            }
+        }
+    },
+
+    hooks: {
+        onPage: HeadingHealthHooks.onPage,
+        onMetrics: HeadingHealthHooks.onMetrics,
+        onReport: HeadingHealthHooks.onReport
+    }
 };
 
 export default HeadingHealthPlugin;

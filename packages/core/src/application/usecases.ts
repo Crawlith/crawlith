@@ -40,12 +40,15 @@ export interface SiteCrawlInput {
 
 export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphResult> {
   async execute(input: SiteCrawlInput): Promise<CrawlSitegraphResult> {
-    const ctx = input.context ?? { command: 'crawl' };
+    const ctx = input.context ?? { command: 'crawl', scope: 'crawl' as const };
+    ctx.scope = 'crawl';
     ctx.db = getCrawlithDB();
     const registry = new PluginRegistry(input.plugins ?? []);
 
+    await registry.applyStorage(ctx);
     await registry.runHook('onInit', ctx);
     if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
+
 
     await registry.runHook('onCrawlStart', ctx);
     if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
@@ -85,6 +88,10 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       computeHITS: false
     });
 
+    if (ctx.db) {
+      ctx.db.aggregateScoreProviders(snapshotId, registry.pluginsList);
+    }
+
     await registry.runHook('onReport', ctx, { snapshotId, graph });
     return { snapshotId, graph };
   }
@@ -96,8 +103,12 @@ export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeO
 
     if (input.plugins && input.plugins.length > 0) {
       const registry = new PluginRegistry(input.plugins);
-      const ctx = input.context ?? { command: 'analyze' };
-      ctx.db = getCrawlithDB();
+      const ctx: PluginContext = {
+        command: 'analyze',
+        scope: 'crawl',
+        ...(input.context || {}),
+        db: getCrawlithDB()
+      };
       await registry.runHook('onInit', ctx);
       await registry.runHook('onReport', ctx, result);
     }
@@ -143,12 +154,35 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       minClusterSize: input.minClusterSize,
       debug: input.debug,
       allPages: input.allPages,
-      plugins: input.plugins,
-      pluginContext: {
-        ...(input.context || { command: 'page' }),
-        db: getCrawlithDB()
-      }
     }, this.context);
+
+    // Run plugins with page scope — only onInit + onPage are called
+    if (input.plugins && input.plugins.length > 0) {
+      const { PluginRegistry } = await import('../plugin-system/plugin-registry.js');
+      const registry = new PluginRegistry(input.plugins);
+
+      const pluginCtx: PluginContext = {
+        command: 'page',
+        scope: 'page',
+        targetUrl: input.url,
+        snapshotId: result.snapshotId,
+        live: input.live || !!(input.context?.flags?.live),
+        ...(input.context || {}),
+        db: getCrawlithDB(),
+      };
+
+      await registry.applyStorage(pluginCtx);
+      await registry.runHook('onInit', pluginCtx);
+
+      // Fire onPage once per analyzed page (normally just 1 for the page command)
+      for (const page of result.pages) {
+        await registry.runHook('onPage', pluginCtx, {
+          url: page.url,
+          html: (page as any).html ?? '',
+          status: page.status,
+        });
+      }
+    }
 
     return result;
   }

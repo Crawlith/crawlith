@@ -26,6 +26,10 @@ export function runBaseMigrations(db: Database) {
       health_score REAL,
       orphan_count INTEGER,
       thin_content_count INTEGER,
+      total_score REAL,
+      score_count INTEGER,
+      score_weight_sum REAL,
+      score_calculated_at TEXT,
       FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
     );
   `);
@@ -157,6 +161,10 @@ export function runBaseMigrations(db: Database) {
       snapshot_id INTEGER NOT NULL,
       plugin_name TEXT NOT NULL,
       data TEXT NOT NULL,
+      total_score REAL,
+      score_count INTEGER,
+      score_weight_sum REAL,
+      score_calculated_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE
     );

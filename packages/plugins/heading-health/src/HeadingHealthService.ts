@@ -102,6 +102,51 @@ export class HeadingHealthService {
         return { payloadsByUrl, summary };
     }
 
+    /**
+     * Evaluates a single page's heading health directly from raw HTML.
+     * Used by the `onPage` hook (page command). Cross-page duplicate signals are omitted
+     * since there is only one page to compare against.
+     */
+    public evaluateSinglePage(url: string, html: string): HeadingHealthPayload {
+        const analysis = analyzeHeadingHealth(html);
+        analysis.url = url;
+
+        const thinSectionCount = analysis.sections.filter((section) => section.thin).length;
+        const health = scoreHealth({
+            metrics: analysis.metrics,
+            thinSectionCount,
+            duplicateH1GroupSize: 1,
+            similarH1GroupSize: 0,
+            identicalH2SetGroupSize: 1,
+            duplicatePatternGroupSize: 1,
+            templateRisk: 0,
+            issues: analysis.issues
+        });
+
+        return {
+            score: health.score,
+            status: health.status,
+            issues: health.issues,
+            map: analysis.headingNodes,
+            missing_h1: analysis.metrics.missingH1,
+            multiple_h1: analysis.metrics.multipleH1,
+            entropy: analysis.metrics.entropy,
+            max_depth: analysis.metrics.maxDepth,
+            avg_depth: analysis.metrics.avgDepth,
+            heading_density: analysis.metrics.headingDensity,
+            fragmentation: analysis.metrics.fragmentation,
+            volatility: analysis.metrics.levelVolatility,
+            hierarchy_skips: analysis.metrics.hierarchySkips,
+            reverse_jumps: analysis.metrics.reverseJumps,
+            thin_sections: thinSectionCount,
+            duplicate_h1_group: 1,
+            similar_h1_group: 0,
+            identical_h2_set_group: 1,
+            duplicate_pattern_group: 1,
+            template_risk: 0
+        };
+    }
+
     private collectAnalyses(nodes: Array<Record<string, any>>): LocalPageAnalysis[] {
         const analyses: LocalPageAnalysis[] = [];
 

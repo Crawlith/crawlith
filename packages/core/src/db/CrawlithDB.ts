@@ -3,6 +3,7 @@ import { runBaseMigrations } from './migrations.js';
 import { Statements } from './statements.js';
 import { PluginRegistry } from './pluginRegistry.js';
 import { normalizeUrl } from '../crawler/normalize.js';
+import type { CrawlithPlugin } from '../plugin-system/plugin-types.js';
 
 export class CrawlithDB {
     private db: Database.Database;
@@ -21,6 +22,10 @@ export class CrawlithDB {
     // Optional scoping properties
     private _pluginName?: string;
     private _snapshotId?: number | string;
+    /** Whether live fallback is allowed (from --live flag). Core-controlled. */
+    private _live: boolean = false;
+    /** Whether this plugin makes network calls. Core-controlled via plugin.storage.fetchMode. */
+    private _fetchMode: 'local' | 'network' = 'network';
 
     constructor(dbPath: string) {
         this.db = new Database(dbPath);
@@ -58,9 +63,22 @@ export class CrawlithDB {
     public get data() {
         return {
             save: <T>(input: { url: string; data: T }) => this.insertPluginRow(input),
+
             find: <T>(url: string, options?: { maxAge?: string | number, global?: boolean }) =>
                 this.getPluginRow<T>(url, undefined, undefined, options),
-            all: <T>() => this.getPluginRows<T>()
+
+            all: <T>() => this.getPluginRows<T>(),
+
+            /**
+             * Cache-first with live fallback. Core-enforced pattern:
+             * 1. If cached data exists → return it (always, regardless of age)
+             * 2. If no cache + fetchMode='network' + live=false → return null (skip)
+             * 3. If no cache + (fetchMode='local' OR live=true) → call fetchFn, save, return
+             *
+             * Plugin authors NEVER touch ctx.live — the core injects it via scope().
+             */
+            getOrFetch: <T>(url: string, fetchFn: () => Promise<T>) =>
+                this._getOrFetch<T>(url, fetchFn),
         };
     }
 
@@ -69,7 +87,12 @@ export class CrawlithDB {
      */
     public get report() {
         return {
-            save: (summary: any) => this.insertPluginReport({ summary }),
+            save: (summary: any, optionalScores?: {
+                totalScore?: number,
+                scoreCount?: number,
+                scoreWeightSum?: number,
+                scoreCalculatedAt?: string
+            }) => this.insertPluginReport({ summary, ...optionalScores }),
             find: <T>() => this.getPluginReport() as T | null
         };
     }
@@ -80,14 +103,22 @@ export class CrawlithDB {
 
     /**
      * Create a scoped instance for a specific plugin.
+     * Also bakes in live + fetchMode so getOrFetch() can enforce the protocol
+     * without exposing those controls to the plugin author.
      */
-    public scope(pluginName: string, snapshotId?: number | string): CrawlithDB {
+    public scope(
+        pluginName: string,
+        snapshotId?: number | string,
+        options: { live?: boolean; fetchMode?: 'local' | 'network' } = {}
+    ): CrawlithDB {
         if (this._pluginName && this._pluginName !== pluginName) {
             throw new Error(`Security Violation: Cannot re-scope a database instance already bound to "${this._pluginName}"`);
         }
         const scoped = Object.create(this);
         scoped._pluginName = pluginName;
         scoped._snapshotId = snapshotId;
+        scoped._live = options.live ?? false;
+        scoped._fetchMode = options.fetchMode ?? 'network';
         return scoped;
     }
 
@@ -103,10 +134,11 @@ export class CrawlithDB {
         if (!pluginName) throw new Error('Plugin name is required for registration (use unbound DB or scope() before calling)');
         if (!columns) throw new Error('Columns definition is required');
 
-        const tableName = `${pluginName}_plugin`;
+        // Sanitize: hyphens are invalid in unquoted SQLite identifiers (e.g. "heading-health" → "heading_health_plugin")
+        const tableName = this._toTableName(pluginName);
 
         // Validate columns
-        const reserved = ['id', 'snapshot_id', 'url_id', 'created_at'];
+        const reserved = ['id', 'snapshot_id', 'url_id', 'score', 'weight', 'created_at'];
         for (const col of Object.keys(columns)) {
             if (reserved.includes(col.toLowerCase())) {
                 throw new Error(`Plugin "${pluginName}" cannot define reserved column "${col}". Reserved: ${reserved.join(', ')}`);
@@ -124,6 +156,8 @@ export class CrawlithDB {
             'snapshot_id INTEGER NOT NULL',
             'url_id INTEGER NOT NULL',
             ...Object.entries(columns).map(([col, type]) => `${col} ${type}`),
+            "score REAL",
+            "weight REAL DEFAULT 1.0",
             "created_at TEXT DEFAULT (datetime('now'))",
             'FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE',
             'FOREIGN KEY(url_id) REFERENCES pages(id) ON DELETE CASCADE'
@@ -166,9 +200,13 @@ export class CrawlithDB {
     }
 
     public insertPluginReport(input: {
-        snapshotId?: number | string
-        pluginName?: string
-        summary: unknown
+        snapshotId?: number | string;
+        pluginName?: string;
+        summary: unknown;
+        totalScore?: number;
+        scoreCount?: number;
+        scoreWeightSum?: number;
+        scoreCalculatedAt?: string;
     }): void {
         const snapshotId = input.snapshotId || this._snapshotId;
         const pluginName = input.pluginName || this._pluginName;
@@ -179,7 +217,15 @@ export class CrawlithDB {
         this._assertSnapshotExists(snapshotId);
 
         const data = JSON.stringify(input.summary);
-        this.statements.insertPluginReport.run(snapshotId, pluginName, data);
+        this.statements.insertPluginReport.run(
+            snapshotId,
+            pluginName,
+            data,
+            input.totalScore ?? null,
+            input.scoreCount ?? null,
+            input.scoreWeightSum ?? null,
+            input.scoreCalculatedAt ?? null
+        );
     }
 
     public insertPluginRow<T>(input: {
@@ -234,7 +280,7 @@ export class CrawlithDB {
     }
 
     public getPluginRows<T>(tableName?: string, snapshotId?: number | string): T[] {
-        const targetTable = tableName || (this._pluginName ? `${this._pluginName}_plugin` : undefined);
+        const targetTable = tableName || (this._pluginName ? this._toTableName(this._pluginName) : undefined);
         const sid = snapshotId || this._snapshotId;
 
         if (!targetTable || !sid) throw new Error('Table name and snapshotId are required');
@@ -283,10 +329,10 @@ export class CrawlithDB {
         const params: any[] = [];
 
         if (options.global) {
-            // Join with pages to find the URL globally
-            query += ` JOIN pages p ON t.url_id = p.id WHERE p.url = ?`;
-            query += ` AND p.snapshot_id = t.snapshot_id`; // Sanity check
+            // Join with pages to find the URL globally across all snapshots
+            query += ` JOIN pages p ON t.url_id = p.id WHERE p.normalized_url = ?`;
             params.push(targetUrl);
+
         } else {
             const urlId = this.getPageIdByUrl(sid!, targetUrl);
             if (!urlId) return null;
@@ -343,6 +389,109 @@ export class CrawlithDB {
         });
     }
 
+    private async _getOrFetch<T>(url: string, fetchFn: () => Promise<T>): Promise<T | null> {
+        // 1. Check cache (global across snapshots)
+        const cached = this.getPluginRow<T>(url, undefined, undefined, { global: true });
+        if (cached !== null) {
+            return cached; // Always use cache when it exists
+        }
+
+        // 2. No cache. Can we fetch live?
+        const canFetchFresh = this._fetchMode === 'local' || (this._fetchMode === 'network' && this._live);
+
+        if (!canFetchFresh) {
+            return null; // Silent skip, no data to return
+        }
+
+        // 3. Compute/Fetch fresh data
+        const freshData = await fetchFn();
+
+        // 4. Save to DB
+        this.insertPluginRow({ url, data: freshData });
+
+        return freshData;
+    }
+
+    public aggregateScoreProviders(snapshotId: number | string, plugins: CrawlithPlugin[]): void {
+        this._assertSnapshotExists(snapshotId);
+
+        for (const plugin of plugins) {
+            if (!plugin.scoreProvider || !plugin.storage?.perPage?.columns) continue;
+
+            const tableName = this._toTableName(plugin.name);
+            if (!this.registry.isTableRegistered(tableName)) continue;
+
+            try {
+                // Ensure the table schema strictly conforms by ignoring plugins that might have bypassed registry constraints
+                const aggregate = this.db.prepare(`
+                    SELECT 
+                        SUM(score * weight) as total_score,
+                        SUM(weight) as score_weight_sum,
+                        COUNT(score) as score_count
+                    FROM ${tableName}
+                    WHERE snapshot_id = ? AND score IS NOT NULL
+                `).get(snapshotId) as any;
+
+                if (!aggregate || aggregate.score_count === 0) continue;
+
+                const { total_score, score_weight_sum, score_count } = aggregate;
+
+                const recentReport = this.db.prepare(`
+                    SELECT id FROM plugin_reports 
+                    WHERE snapshot_id = ? AND plugin_name = ?
+                    ORDER BY created_at DESC LIMIT 1
+                `).get(snapshotId, plugin.name) as { id: number } | undefined;
+
+                if (recentReport) {
+                    this.db.prepare(`
+                        UPDATE plugin_reports 
+                        SET total_score = ?, score_weight_sum = ?, score_count = ?, score_calculated_at = datetime('now')
+                        WHERE id = ?
+                    `).run(total_score, score_weight_sum, score_count, recentReport.id);
+                } else {
+                    this.db.prepare(`
+                        INSERT INTO plugin_reports 
+                        (snapshot_id, plugin_name, data, total_score, score_weight_sum, score_count, score_calculated_at)
+                        VALUES (?, ?, '{}', ?, ?, ?, datetime('now'))
+                    `).run(snapshotId, plugin.name, total_score, score_weight_sum, score_count);
+                }
+            } catch (err) {
+                console.error(`[CrawlithDB.Aggregation] Failed to aggregate scores for plugin: ${plugin.name} - ${(err as Error).message}`);
+            }
+        }
+
+        try {
+            // After all plugins are aggregated, tally up the snapshot-level totals
+            const snapshotAggregate = this.db.prepare(`
+                SELECT 
+                    SUM(total_score) as overall_total_score,
+                    SUM(score_weight_sum) as overall_weight_sum,
+                    SUM(score_count) as overall_score_count
+                FROM plugin_reports
+                WHERE snapshot_id = ? AND total_score IS NOT NULL
+            `).get(snapshotId) as any;
+
+            if (snapshotAggregate && snapshotAggregate.overall_score_count > 0) {
+                this.db.prepare(`
+                    UPDATE snapshots
+                    SET 
+                        total_score = ?, 
+                        score_weight_sum = ?, 
+                        score_count = ?, 
+                        score_calculated_at = datetime('now')
+                    WHERE id = ?
+                `).run(
+                    snapshotAggregate.overall_total_score,
+                    snapshotAggregate.overall_weight_sum,
+                    snapshotAggregate.overall_score_count,
+                    snapshotId
+                );
+            }
+        } catch (err) {
+            console.error(`[CrawlithDB.Aggregation] Failed to aggregate snapshot-level scores: ${(err as Error).message}`);
+        }
+    }
+
     public runInTransaction(fn: () => void): void {
         const tx = this.db.transaction(fn);
         tx();
@@ -350,9 +499,14 @@ export class CrawlithDB {
 
     private _resolveTableName(name: string): string {
         if (this.registry.isTableRegistered(name)) return name;
-        const pluginTable = `${name}_plugin`;
+        const pluginTable = this._toTableName(name);
         if (this.registry.isTableRegistered(pluginTable)) return pluginTable;
         return name; // Will fail assertion later
+    }
+
+    /** Converts a plugin name to its canonical SQLite table name, sanitizing invalid characters. */
+    private _toTableName(pluginName: string): string {
+        return `${pluginName.replace(/-/g, '_')}_plugin`;
     }
 
     public close(): void {
