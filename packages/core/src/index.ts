@@ -33,6 +33,7 @@ export * from './db/repositories/MetricsRepository.js';
 export * from './lock/lockManager.js';
 export * from './lock/hashKey.js';
 export * from './utils/version.js';
+export * from './utils/secureConfig.js';
 export * from './events.js';
 
 
