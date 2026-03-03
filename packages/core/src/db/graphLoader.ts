@@ -75,13 +75,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             crawlTrapRisk: p.crawl_trap_risk || undefined,
             trapType: p.trap_type || undefined,
             // Metrics
-            authorityScore: m?.authority_score ?? undefined,
-            hubScore: m?.hub_score ?? undefined,
-            linkRole: m?.link_role ?? undefined,
-            // Duplicate info
-            duplicateClusterId: m?.duplicate_cluster_id ?? undefined,
-            duplicateType: m?.duplicate_type ?? undefined,
-            isClusterPrimary: m?.is_cluster_primary ? true : undefined,
+
             // Additional metrics
             crawlStatus: m?.crawl_status || undefined,
             wordCount: m?.word_count != null ? m.word_count : undefined,
@@ -101,25 +95,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
         }
     }
 
-    // Load duplicate clusters
-    const dupClusters = db.prepare('SELECT * FROM duplicate_clusters WHERE snapshot_id = ?').all(snapshotId) as any[];
-    graph.duplicateClusters = dupClusters.map(c => ({
-        id: c.id,
-        type: c.type,
-        size: c.size,
-        representative: c.representative,
-        severity: c.severity
-    }));
 
-    // Load content clusters
-    const contentClusters = db.prepare('SELECT * FROM content_clusters WHERE snapshot_id = ?').all(snapshotId) as any[];
-    graph.contentClusters = contentClusters.map(c => ({
-        id: c.id,
-        count: c.count,
-        primaryUrl: c.primary_url,
-        risk: c.risk,
-        sharedPathPrefix: c.shared_path_prefix || undefined
-    }));
 
     // Set session stats
     graph.sessionStats = {

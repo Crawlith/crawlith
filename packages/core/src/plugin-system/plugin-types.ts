@@ -40,6 +40,8 @@ export interface PageInput {
     html: string;
     /** HTTP status code. */
     status: number;
+    /** HTTP Response headers. */
+    headers?: Record<string, string | string[]>;
 }
 
 // ─── Scoped hook contexts ─────────────────────────────────────────────────────

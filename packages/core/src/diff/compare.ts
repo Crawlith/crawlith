@@ -6,7 +6,7 @@ export interface DiffResult {
   removedUrls: string[];
   changedStatus: { url: string; oldStatus: number; newStatus: number }[];
   changedCanonical: { url: string; oldCanonical: string | null; newCanonical: string | null }[];
-  changedDuplicateGroup: { url: string; oldGroup: string | null; newGroup: string | null }[];
+
   metricDeltas: {
     structuralEntropy: number;
     orphanCount: number;
@@ -22,7 +22,7 @@ export function compareGraphs(oldGraph: Graph, newGraph: Graph): DiffResult {
   const removedUrls: string[] = [];
   const changedStatus: { url: string; oldStatus: number; newStatus: number }[] = [];
   const changedCanonical: { url: string; oldCanonical: string | null; newCanonical: string | null }[] = [];
-  const changedDuplicateGroup: { url: string; oldGroup: string | null; newGroup: string | null }[] = [];
+
 
   // Added & Changed
   for (const [url, newNode] of newNodes) {
@@ -42,16 +42,7 @@ export function compareGraphs(oldGraph: Graph, newGraph: Graph): DiffResult {
           newCanonical: newNode.canonical || null
         });
       }
-      // Changed Duplicate Group
-      const oldGroup = oldNode.duplicateClusterId || null;
-      const newGroup = newNode.duplicateClusterId || null;
-      if (oldGroup !== newGroup) {
-        changedDuplicateGroup.push({
-          url,
-          oldGroup,
-          newGroup
-        });
-      }
+
     }
   }
 
@@ -78,7 +69,6 @@ export function compareGraphs(oldGraph: Graph, newGraph: Graph): DiffResult {
     removedUrls,
     changedStatus,
     changedCanonical,
-    changedDuplicateGroup,
     metricDeltas
   };
 }

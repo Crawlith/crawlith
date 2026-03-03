@@ -137,23 +137,16 @@ describe('Database Layer', () => {
     metricsRepo.insertMetrics({
       snapshot_id: snapshotId,
       page_id: p1.id,
-      authority_score: 0.5,
-      hub_score: 0.2,
-      pagerank: 0.8,
-      pagerank_score: 80.0,
-      link_role: 'authority',
       crawl_status: 'fetched',
       word_count: 100,
       thin_content_score: 0.1,
       external_link_ratio: 0.0,
-      orphan_score: 0,
-      duplicate_cluster_id: null,
-      duplicate_type: null,
-      is_cluster_primary: 0
+      orphan_score: 0
     });
 
     const metrics = metricsRepo.getMetricsForPage(snapshotId, p1.id);
     expect(metrics).toBeDefined();
-    expect(metrics?.authority_score).toBe(0.5);
+    expect(metrics?.crawl_status).toBe('fetched');
+    expect(metrics?.word_count).toBe(100);
   });
 });

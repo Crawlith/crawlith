@@ -4,17 +4,12 @@ import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../db/repositories/PageRepository.js';
 import { calculateMetrics } from '../graph/metrics.js';
-import { computeHITS } from '../scoring/hits.js';
 import { EngineContext } from '../events.js';
-import { calculateHealthScore, collectCrawlIssues } from '../scoring/health.js';
-
 import { Graph } from '../graph/graph.js';
 
-export interface PostCrawlMetricOptions {
-    computeHITS?: boolean;
-}
 
-export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph, options: PostCrawlMetricOptions = {}) {
+
+export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph) {
     const db = getDb();
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
@@ -46,10 +41,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
     }
 
 
-    if (options.computeHITS !== false) {
-        emit({ type: 'metrics:start', phase: 'Computing HITS' });
-        computeHITS(graph);
-    }
+
 
     emit({ type: 'metrics:start', phase: 'Updating metrics in DB' });
     const nodes = graph.getNodes();
@@ -62,15 +54,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
         urlToId.set(p.normalized_url, p.id);
     }
 
-    const clusterStmt = db.prepare(`
-        INSERT OR REPLACE INTO duplicate_clusters (id, snapshot_id, type, size, representative, severity)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `);
 
-    const contentStmt = db.prepare(`
-        INSERT OR REPLACE INTO content_clusters (id, snapshot_id, count, primary_url, risk, shared_path_prefix)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `);
 
     const tx = db.transaction(() => {
         for (const node of nodes) {
@@ -81,17 +65,12 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
             metricsRepo.insertMetrics({
                 snapshot_id: snapshotId,
                 page_id: pageId,
-                authority_score: node.authorityScore ?? null,
-                hub_score: node.hubScore ?? null,
-                link_role: node.linkRole ?? null,
+
                 crawl_status: node.crawlStatus ?? null,
                 word_count: node.wordCount ?? null,
                 thin_content_score: node.thinContentScore ?? null,
                 external_link_ratio: node.externalLinkRatio ?? null,
-                orphan_score: node.orphanScore ?? null,
-                duplicate_cluster_id: node.duplicateClusterId ?? null,
-                duplicate_type: node.duplicateType ?? null,
-                is_cluster_primary: node.isClusterPrimary ? 1 : 0
+                orphan_score: node.orphanScore ?? null
             });
 
             // Update page-level crawl trap data
@@ -109,35 +88,20 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
             }
         }
 
-        // Save duplicate clusters
-        for (const cluster of graph.duplicateClusters) {
-            clusterStmt.run(cluster.id, snapshotId, cluster.type, cluster.size, cluster.representative, cluster.severity);
-        }
 
-        // Save content clusters
-        for (const cluster of graph.contentClusters) {
-            contentStmt.run(cluster.id, snapshotId, cluster.count, cluster.primaryUrl, cluster.risk, cluster.sharedPathPrefix ?? null);
-        }
     });
     tx();
 
     emit({ type: 'metrics:start', phase: 'Computing aggregate stats' });
     const metrics = calculateMetrics(graph, maxDepth);
 
-    // Calculate penalty-based health score (matches CLI)
-    const issues = collectCrawlIssues(graph, metrics);
-    const health = calculateHealthScore(metrics.totalPages, issues);
-
     snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
         node_count: metrics.totalPages,
         edge_count: metrics.totalEdges,
-        health_score: health.score,
-        orphan_count: issues.orphanPages,
-        thin_content_count: issues.thinContent,
         limit_reached: limitReached ? 1 : 0
     });
 
     emit({ type: 'metrics:complete', durationMs: 0 });
 
-    return { metrics, issues, health };
+    return { metrics };
 }

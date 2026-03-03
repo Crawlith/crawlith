@@ -24,7 +24,7 @@ export class PageRankService {
         // 1. Filter Eligible Nodes
         const eligibleNodes = allNodes.filter(node => {
             if (node.noindex) return false;
-            if (node.isCollapsed) return false;
+            if ((node as any).isCollapsed) return false;
             // Keep compat with other plugins mutating soft404Score onto nodes
             if ((node as any).soft404Score && (node as any).soft404Score > soft404Threshold) return false;
             if (node.canonical && node.canonical !== node.url) return false;

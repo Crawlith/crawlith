@@ -3,17 +3,14 @@ import { Database } from 'better-sqlite3';
 export interface DbMetrics {
   snapshot_id: number;
   page_id: number;
-  authority_score: number | null;
-  hub_score: number | null;
-  link_role: 'hub' | 'authority' | 'power' | 'balanced' | 'peripheral' | null;
+
+
   crawl_status: string | null;
   word_count: number | null;
   thin_content_score: number | null;
   external_link_ratio: number | null;
   orphan_score: number | null;
-  duplicate_cluster_id: string | null;
-  duplicate_type: 'exact' | 'near' | 'template_heavy' | 'none' | null;
-  is_cluster_primary: number;
+
 }
 
 export class MetricsRepository {
@@ -24,13 +21,13 @@ export class MetricsRepository {
     this.getByPageStmt = this.db.prepare('SELECT * FROM metrics WHERE snapshot_id = ? AND page_id = ?');
     this.insertStmt = this.db.prepare(`
       INSERT OR REPLACE INTO metrics (
-        snapshot_id, page_id, authority_score, hub_score,
-        link_role, crawl_status, word_count, thin_content_score, external_link_ratio,
-        orphan_score, duplicate_cluster_id, duplicate_type, is_cluster_primary
+        snapshot_id, page_id,
+        crawl_status, word_count, thin_content_score, external_link_ratio,
+        orphan_score
       ) VALUES (
-        @snapshot_id, @page_id, @authority_score, @hub_score,
-        @link_role, @crawl_status, @word_count, @thin_content_score, @external_link_ratio,
-        @orphan_score, @duplicate_cluster_id, @duplicate_type, @is_cluster_primary
+        @snapshot_id, @page_id,
+        @crawl_status, @word_count, @thin_content_score, @external_link_ratio,
+        @orphan_score
       )
     `);
   }

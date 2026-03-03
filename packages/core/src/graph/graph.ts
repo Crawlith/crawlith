@@ -15,27 +15,16 @@ export interface GraphNode {
   lastModified?: string;
   contentHash?: string;
   html?: string;
-  pageRank?: number;
-  pageRankScore?: number;
-  authorityScore?: number;
-  hubScore?: number;
-  duplicateClusterId?: string;
-  duplicateType?: 'exact' | 'near' | 'template_heavy' | 'none';
-  isClusterPrimary?: boolean;
-  isCollapsed?: boolean;
-  collapseInto?: string;
   simhash?: string;
   uniqueTokenRatio?: number;
-  soft404Score?: number;
-  soft404Signals?: string[];
+
   crawlTrapFlag?: boolean;
   crawlTrapRisk?: number;
   trapType?: string;
   securityError?: string;
+
   retries?: number;
-  clusterId?: number;
   bytesReceived?: number;
-  linkRole?: 'hub' | 'authority' | 'power' | 'balanced' | 'peripheral';
   crawlStatus?: string;
   wordCount?: number;
   thinContentScore?: number;
@@ -43,7 +32,7 @@ export interface GraphNode {
   orphanScore?: number;
   h1Count?: number;
   h2Count?: number;
-  headingHealthScore?: number;
+
   title?: string;
 }
 
@@ -51,14 +40,6 @@ export interface GraphEdge {
   source: string;
   target: string;
   weight: number;
-}
-
-export interface ClusterInfo {
-  id: number;
-  count: number;
-  primaryUrl: string;
-  risk: 'low' | 'medium' | 'high';
-  sharedPathPrefix?: string;
 }
 
 export interface CrawlStats {
@@ -79,9 +60,7 @@ export class Graph {
     pagesSkipped: 0,
     totalFound: 0
   };
-  trapClusters: { pattern: string; type: string; count: number }[] = [];
-  duplicateClusters: { id: string; type: 'exact' | 'near' | 'template_heavy'; size: number; representative: string; severity: 'low' | 'medium' | 'high' }[] = [];
-  contentClusters: ClusterInfo[] = [];
+
 
   /**
    * Generates a unique key for an edge.
@@ -167,9 +146,7 @@ export class Graph {
   toJSON() {
     return {
       nodes: this.getNodes(),
-      edges: this.getEdges(),
-      duplicateClusters: this.duplicateClusters,
-      contentClusters: this.contentClusters
+      edges: this.getEdges()
     };
   }
 
@@ -186,12 +163,7 @@ export class Graph {
         graph.edges.set(key, edge.weight || 1.0);
       }
     }
-    if (json.duplicateClusters) {
-      graph.duplicateClusters = json.duplicateClusters;
-    }
-    if (json.contentClusters) {
-      graph.contentClusters = json.contentClusters;
-    }
+
     return graph;
   }
 }
