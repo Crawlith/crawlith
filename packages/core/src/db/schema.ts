@@ -96,7 +96,18 @@ export function initSchema(db: Database) {
       word_count INTEGER,
       thin_content_score REAL,
       external_link_ratio REAL,
+      pagerank_score REAL,
+      hub_score REAL,
+      auth_score REAL,
+      link_role TEXT,
+      duplicate_cluster_id TEXT,
+      duplicate_type TEXT,
+      cluster_id INTEGER,
+      soft404_score REAL,
+      heading_score REAL,
       orphan_score INTEGER,
+      orphan_type TEXT,
+      impact_level TEXT,
       PRIMARY KEY(snapshot_id, page_id),
       FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
       FOREIGN KEY(page_id) REFERENCES pages(id) ON DELETE CASCADE
@@ -144,7 +155,19 @@ function migrateSchema(db: Database) {
   try { db.exec('ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0'); } catch { /* already exists */ }
 
   // Add missing columns to metrics
-  const metricsColumns: [string, string][] = [];
+  const metricsColumns: [string, string][] = [
+    ['pagerank_score', 'REAL'],
+    ['hub_score', 'REAL'],
+    ['auth_score', 'REAL'],
+    ['link_role', 'TEXT'],
+    ['duplicate_cluster_id', 'TEXT'],
+    ['duplicate_type', 'TEXT'],
+    ['cluster_id', 'INTEGER'],
+    ['soft404_score', 'REAL'],
+    ['heading_score', 'REAL'],
+    ['orphan_type', 'TEXT'],
+    ['impact_level', 'TEXT'],
+  ];
 
   for (const [col, type] of metricsColumns) {
     try { db.exec(`ALTER TABLE metrics ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }

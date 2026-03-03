@@ -9,8 +9,18 @@ export interface DbMetrics {
   word_count: number | null;
   thin_content_score: number | null;
   external_link_ratio: number | null;
+  pagerank_score: number | null;
+  hub_score: number | null;
+  auth_score: number | null;
+  link_role: string | null;
+  duplicate_cluster_id: string | null;
+  duplicate_type: string | null;
+  cluster_id: number | null;
+  soft404_score: number | null;
+  heading_score: number | null;
   orphan_score: number | null;
-
+  orphan_type: string | null;
+  impact_level: string | null;
 }
 
 export class MetricsRepository {
@@ -23,11 +33,17 @@ export class MetricsRepository {
       INSERT OR REPLACE INTO metrics (
         snapshot_id, page_id,
         crawl_status, word_count, thin_content_score, external_link_ratio,
-        orphan_score
+        pagerank_score, hub_score, auth_score, link_role,
+        duplicate_cluster_id, duplicate_type, cluster_id,
+        soft404_score, heading_score,
+        orphan_score, orphan_type, impact_level
       ) VALUES (
         @snapshot_id, @page_id,
         @crawl_status, @word_count, @thin_content_score, @external_link_ratio,
-        @orphan_score
+        @pagerank_score, @hub_score, @auth_score, @link_role,
+        @duplicate_cluster_id, @duplicate_type, @cluster_id,
+        @soft404_score, @heading_score,
+        @orphan_score, @orphan_type, @impact_level
       )
     `);
   }

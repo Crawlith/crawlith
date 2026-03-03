@@ -12,6 +12,7 @@ export interface H1Analysis {
   count: number;
   status: 'ok' | 'critical' | 'warning';
   matchesTitle: boolean;
+  value: string | null;
 }
 
 function normalizedText(value: string | null): string {
@@ -61,12 +62,12 @@ export function analyzeH1($: any, titleValue: string | null): H1Analysis {
   const matchesTitle = Boolean(first && titleValue && normalizedText(first) === normalizedText(titleValue));
 
   if (count === 0) {
-    return { count, status: 'critical', matchesTitle };
+    return { count, status: 'critical', matchesTitle, value: null };
   }
   if (count > 1) {
-    return { count, status: 'warning', matchesTitle };
+    return { count, status: 'warning', matchesTitle, value: first };
   }
-  return { count, status: 'ok', matchesTitle };
+  return { count, status: 'ok', matchesTitle, value: first };
 }
 
 export function applyDuplicateStatuses<T extends { value: string | null; status: string }>(items: T[]): T[] {

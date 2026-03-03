@@ -8,6 +8,11 @@ import { EngineContext } from '../events.js';
 import { Graph } from '../graph/graph.js';
 
 
+import { PageRankService } from '../graph/pagerank.js';
+import { HITSService } from '../graph/hits.js';
+import { TrapDetector } from './trap.js';
+import { DuplicateService } from '../analysis/duplicate.js';
+import { annotateOrphans } from '../analysis/orphan.js';
 
 export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph) {
     const db = getDb();
@@ -42,6 +47,26 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
 
 
 
+
+    emit({ type: 'metrics:start', phase: 'Running core algorithms' });
+
+    // 1. Graph Algorithms
+    new PageRankService().evaluate(graph);
+    new HITSService().evaluate(graph, { iterations: 20 });
+
+    // 2. Crawler Safety
+    new TrapDetector().analyze(graph);
+
+    // 3. Analysis / Intelligence
+    new DuplicateService().detectDuplicates(graph, { collapse: false });
+
+    const orphanOptions = {
+        enabled: true,
+        severityEnabled: true,
+        includeSoftOrphans: true,
+        minInbound: 2
+    };
+    annotateOrphans(graph.getNodes(), graph.getEdges(), orphanOptions);
 
     emit({ type: 'metrics:start', phase: 'Updating metrics in DB' });
     const nodes = graph.getNodes();

@@ -10,6 +10,9 @@ import { analyzeImageAlts, ImageAltAnalysis } from './images.js';
 import { analyzeLinks, LinkRatioAnalysis } from './links.js';
 import { analyzeStructuredData, StructuredDataResult } from './structuredData.js';
 import { aggregateSiteScore, scorePageSeo } from './scoring.js';
+import { ClusteringService } from './clustering.js';
+import { DuplicateService } from './duplicate.js';
+import { Soft404Service } from './soft404.js';
 
 import { getDb } from '../db/index.js';
 import { SiteRepository } from '../db/repositories/SiteRepository.js';
@@ -87,6 +90,8 @@ export interface AnalysisResult {
 
   snapshotId?: number;
   crawledAt?: string;
+  clusters?: any[];
+  duplicates?: any[];
   plugins?: Record<string, any>;
 }
 
@@ -191,6 +196,17 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const siteScores = aggregateSiteScore(crawlData.metrics, resultPages.length === 1 ? resultPages : pages);
   if (context) context.emit({ type: 'debug', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
 
+  let clusters: any[] = [];
+  let duplicates: any[] = [];
+
+  if (options.allPages) {
+    const clustering = new ClusteringService();
+    clusters = clustering.detectContentClusters(crawlData.graph, options.clusterThreshold, options.minClusterSize);
+
+    const duplication = new DuplicateService();
+    duplicates = duplication.detectDuplicates(crawlData.graph, { collapse: false });
+  }
+
   const result: AnalysisResult = {
     site_summary: {
       pages_analyzed: resultPages.length,
@@ -205,7 +221,9 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     active_modules: activeModules,
 
     snapshotId,
-    crawledAt
+    crawledAt,
+    clusters,
+    duplicates
   };
 
   return result;
@@ -301,7 +319,7 @@ function filterPageModules(page: PageAnalysis, modules: { seo: boolean; content:
     ...page,
     title: modules.seo ? page.title : { value: null, length: 0, status: 'missing' },
     metaDescription: modules.seo ? page.metaDescription : { value: null, length: 0, status: 'missing' },
-    h1: (modules.seo || modules.content) ? page.h1 : { count: 0, status: 'critical', matchesTitle: false },
+    h1: (modules.seo || modules.content) ? page.h1 : { count: 0, status: 'critical', matchesTitle: false, value: null },
     links: modules.seo ? page.links : { internalLinks: 0, externalLinks: 0, nofollowCount: 0, externalRatio: 0 },
     structuredData: modules.seo ? page.structuredData : { present: false, valid: false, types: [] },
     content: modules.content ? page.content : { wordCount: 0, textHtmlRatio: 0, uniqueSentenceCount: 0 },
