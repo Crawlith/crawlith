@@ -279,7 +279,7 @@ export class Crawler {
         // KICK OFF BACKGROUND TASK (Un-awaited)
         (async () => {
           try {
-            this.context.emit({ type: 'info', message: 'Fetching sitemap in background', context: { url: sitemapUrl } });
+            this.context.emit({ type: 'debug', message: 'Fetching sitemap in background', context: { url: sitemapUrl } });
             const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
 
             if (sitemapUrls.length > 0) {

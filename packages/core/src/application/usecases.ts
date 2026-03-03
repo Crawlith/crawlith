@@ -179,12 +179,22 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
   constructor(private readonly context?: EngineContext) { }
 
   async execute(input: PageAnalysisInput): Promise<AnalysisResult> {
+    // When running a live single-page analysis, enable all content modules
+    // by default (they all work well on a single page). Callers can still
+    // explicitly pass false to disable any of them.
+    const isLive = !!input.live;
+    const seo = input.seo ?? (isLive ? true : undefined);
+    const content = input.content ?? (isLive ? true : undefined);
+    const accessibility = input.accessibility ?? (isLive ? true : undefined);
+    const health = input.health ?? (isLive ? true : undefined);
+    const heading = input.heading ?? (isLive ? true : undefined);
+
     const result = await analyzeSite(input.url, {
       live: input.live,
       snapshotId: input.snapshotId,
-      seo: input.seo,
-      content: input.content,
-      accessibility: input.accessibility,
+      seo,
+      content,
+      accessibility,
       rate: input.rate,
       proxyUrl: input.proxyUrl,
       userAgent: input.userAgent,
@@ -194,8 +204,8 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       clusterThreshold: input.clusterThreshold,
       minClusterSize: input.minClusterSize,
       sitemap: input.sitemap,
-      heading: input.heading,
-      health: input.health,
+      heading,
+      health,
       failOnCritical: input.failOnCritical,
       scoreBreakdown: input.scoreBreakdown,
       computeHits: input.computeHits,
