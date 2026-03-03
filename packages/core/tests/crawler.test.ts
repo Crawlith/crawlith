@@ -362,3 +362,48 @@ test('incremental crawl uses etags', async () => {
   const node2 = graph2.nodes.get('https://incremental.com/');
   expect(node2?.incrementalStatus).toBe('unchanged');
 });
+
+import { getDb } from '../src/db/index.js';
+
+test('Crawler Extended Coverage: should handle URL strings properly returning 404 string status or exceptions', async () => {
+    const db = getDb();
+    db.exec('DELETE FROM pages; DELETE FROM edges; DELETE FROM snapshots;');
+
+    const client = mockAgent.get('http://error.com');
+    client.intercept({ path: '/robots.txt', method: 'GET' }).reply(404, '');
+    client.intercept({ path: '/', method: 'GET' }).reply(500, 'Internal Error');
+
+    const snapshotId = await crawl('http://error.com', {
+        limit: 1,
+        depth: 1,
+        ignoreRobots: true,
+        rate: 1000
+    }, mockContext);
+
+    const graph = loadGraphFromSnapshot(snapshotId);
+    const node = graph.nodes.get('http://error.com/');
+    expect(node).toBeDefined();
+    expect(node?.status).toBe(0);
+});
+
+test('Crawler Extended Coverage: should ignore robots block if ignoreRobots is true but still hit the block logic', async () => {
+    const db = getDb();
+    db.exec('DELETE FROM pages; DELETE FROM edges; DELETE FROM snapshots;');
+
+    const client = mockAgent.get('http://example.com');
+    client.intercept({ path: '/robots.txt', method: 'GET' }).reply(200, 'User-agent: *\nDisallow: /blocked');
+    client.intercept({ path: '/blocked', method: 'GET' }).reply(200, '<html>OK</html>', { headers: { 'content-type': 'text/html' } });
+
+    const snapshotId = await crawl('http://example.com/blocked', {
+        limit: 10,
+        depth: 2,
+        ignoreRobots: true,
+        rate: 1000,
+        debug: true
+    }, mockContext);
+
+    const graph = loadGraphFromSnapshot(snapshotId);
+
+    const blockedNode = graph.nodes.get('http://example.com/blocked');
+    expect(blockedNode?.status).toBe(200);
+});

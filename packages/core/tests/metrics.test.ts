@@ -224,3 +224,34 @@ test('calculateMetrics on large graphs (Performance Test)', { timeout: 15000 }, 
   // We just want to ensure it finishes without errors
   expect(duration).toBeGreaterThan(0);
 });
+
+test('calculateMetrics includes topPageRankPages correctly', () => {
+  const g = new Graph();
+  g.addNode('A', 0, 200);
+  g.addNode('B', 1, 200);
+  g.addNode('C', 1, 200);
+
+  // Set pageRank manually
+  g.nodes.get('A')!.pageRank = 0.5;
+  g.nodes.get('B')!.pageRank = 0.8;
+  g.nodes.get('C')!.pageRank = 0.2;
+
+  const metrics = calculateMetrics(g, 5);
+
+  expect(metrics.topPageRankPages).toHaveLength(3);
+  expect(metrics.topPageRankPages[0].url).toBe('B');
+  expect(metrics.topPageRankPages[1].url).toBe('A');
+  expect(metrics.topPageRankPages[2].url).toBe('C');
+});
+
+test('calculateMetrics sessionStats fallback', () => {
+    const g = new Graph();
+    // If graph has no sessionStats natively, it handles it
+    const metrics = calculateMetrics(g, 5);
+    expect(metrics.sessionStats).toEqual({
+        pagesCached: 0,
+        pagesFetched: 0,
+        pagesSkipped: 0,
+        totalFound: 0
+    });
+});
