@@ -1,87 +1,62 @@
 import { PageSpeedService } from './PageSpeedService.js';
 import { PageSpeedOutput } from './PageSpeedOutput.js';
 import { PageSpeedRow } from './types.js';
-import type { PluginContext } from '@crawlith/core';
+import type { PluginContext, PageInput } from '@crawlith/core';
 
 const STRATEGY = 'mobile';
 
 /**
  * PageSpeed Plugin Hooks implementation.
+ * Schema registration is handled declaratively via plugin.storage — no onInit needed.
  */
 export const PageSpeedHooks = {
     /**
-     * Initialization hook: Registers the persistent database schema for PageSpeed metrics.
-     */
-    onInit: async (ctx: PluginContext) => {
-        if (!ctx.db) return;
-
-        ctx.db.schema.define({
-            strategy: "TEXT CHECK(strategy IN ('mobile', 'desktop')) NOT NULL",
-            performance_score: "INTEGER",
-            lcp: "REAL",
-            cls: "REAL",
-            tbt: "REAL",
-            raw_json: "TEXT NOT NULL"
-        });
-    },
-
-    /**
-     * Report hook: Executes after a page analysis to perform performance auditing.
+     * Page hook: Executes for a single URL to perform performance auditing.
      * Implements smart caching and persists results to the database.
      */
-    onReport: async (ctx: PluginContext, result: any) => {
+    onPage: async (ctx: PluginContext, page: PageInput) => {
         const flags = ctx.flags || {};
-        if (ctx.command !== 'page' || !flags.pagespeed) return;
+        if (!flags.pagespeed) return;
         if (!ctx.db || !ctx.config) return;
 
-        result.plugins = result.plugins || {};
         const service = new PageSpeedService();
 
         try {
-            const pageUrl = ctx.targetUrl;
+            const pageUrl = page.url;
             if (!pageUrl || !URL.canParse(pageUrl)) {
                 throw new Error('PageSpeed requires an absolute target URL.');
             }
 
             const apiKey = ctx.config.require();
 
-            // Smart Caching: Look globally across snapshots for this URL within last 24h
-            let raw: any = null;
-            if (!flags.force) {
-                const cached = ctx.db.data.find<PageSpeedRow>(pageUrl, {
-                    maxAge: '24h',
-                    global: true
-                });
-                if (cached) raw = cached.raw_json;
-            }
-
-            let summary;
-
-            if (raw) {
-                summary = service.summarize(raw, 'cache', STRATEGY);
-            } else {
-                raw = await service.fetch(pageUrl, apiKey, STRATEGY);
-                summary = service.summarize(raw, 'api', STRATEGY);
-
-                ctx.db.data.save({
-                    url: pageUrl,
-                    data: {
+            const row = await ctx.db.data.getOrFetch<PageSpeedRow>(
+                pageUrl,
+                async () => {
+                    const freshRaw = await service.fetch(pageUrl, apiKey, STRATEGY);
+                    const freshSummary = service.summarize(freshRaw, 'api', STRATEGY);
+                    return {
                         strategy: STRATEGY,
-                        performance_score: summary.score,
-                        lcp: summary.lcp,
-                        cls: summary.cls,
-                        tbt: summary.tbt,
-                        raw_json: raw
-                    }
-                });
+                        performance_score: freshSummary.score,
+                        lcp: freshSummary.lcp,
+                        cls: freshSummary.cls,
+                        tbt: freshSummary.tbt,
+                        raw_json: freshRaw
+                    } as PageSpeedRow;
+                }
+            );
+
+            if (!row) {
+                ctx.cli?.info(`[plugin:pagespeed] No local cache for ${pageUrl}. Run with --live to fetch from API.`);
+                return;
             }
 
-            // Only attach summary to the result object (prevents raw JSON leakage)
-            result.plugins.pagespeed = { summary };
+            // Summarize the data that was retrieved (either cached or freshly fetched above)
+            const summary = service.summarize(row.raw_json, row.created_at ? 'cache' : 'api', STRATEGY);
+
             PageSpeedOutput.emit(ctx, { summary });
+
         } catch (error) {
             const message = (error as Error).message;
-            result.plugins.pagespeed = { error: message };
             PageSpeedOutput.emit(ctx, { error: message });
             ctx.logger?.error(`[plugin:pagespeed] ${message}`);
         }

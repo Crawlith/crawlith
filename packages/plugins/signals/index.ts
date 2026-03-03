@@ -208,6 +208,7 @@ const SignalsPlugin: CrawlithPlugin = {
       });
       insertTx(buffer);
 
+      ctx.metadata = ctx.metadata ?? {};
       ctx.metadata.signalsReport = computeSignalsReport(snapshotId);
       ctx.metadata.signalsBuffer = [];
     },
@@ -216,8 +217,8 @@ const SignalsPlugin: CrawlithPlugin = {
       const snapshotId = report?.snapshotId || ctx.snapshotId;
       let signalsReport = ctx.metadata?.signalsReport;
 
-      if (!signalsReport && ctx.metadata?.signalsBuffer?.length > 0) {
-        const buffer = ctx.metadata.signalsBuffer as BufferedSignal[];
+      if (!signalsReport && (ctx.metadata?.signalsBuffer?.length ?? 0) > 0) {
+        const buffer = (ctx.metadata?.signalsBuffer ?? []) as BufferedSignal[];
         const coverage = {
           og: buffer.every(s => s.hasOg) ? 100 : (buffer.some(s => s.hasOg) ? 50 : 0),
           jsonld: buffer.every(s => s.hasJsonld) ? 100 : (buffer.some(s => s.hasJsonld) ? 50 : 0),

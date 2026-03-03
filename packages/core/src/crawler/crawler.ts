@@ -487,7 +487,6 @@ export class Crawler {
       nofollow: parseResult.nofollow ? 1 : 0,
       content_hash: parseResult.contentHash,
       simhash: parseResult.simhash,
-      soft404_score: parseResult.soft404Score,
       etag: res.etag,
       last_modified: res.lastModified,
       retries: res.retries

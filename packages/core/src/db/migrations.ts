@@ -26,6 +26,10 @@ export function runBaseMigrations(db: Database) {
       health_score REAL,
       orphan_count INTEGER,
       thin_content_count INTEGER,
+      total_score REAL,
+      score_count INTEGER,
+      score_weight_sum REAL,
+      score_calculated_at TEXT,
       FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
     );
   `);
@@ -45,7 +49,6 @@ export function runBaseMigrations(db: Database) {
       etag TEXT,
       last_modified TEXT,
       html TEXT,
-      soft404_score REAL,
       noindex INTEGER DEFAULT 0,
       nofollow INTEGER DEFAULT 0,
       security_error TEXT,
@@ -68,7 +71,6 @@ export function runBaseMigrations(db: Database) {
 
   // Migrations for existing tables
   try { db.exec(`ALTER TABLE pages ADD COLUMN discovered_via_sitemap INTEGER DEFAULT 0;`); } catch (_e) { /* ignore */ }
-  try { db.exec(`ALTER TABLE pages ADD COLUMN soft404_score REAL;`); } catch (_e) { /* ignore */ }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_pages_site_last_seen ON pages(site_id, last_seen_snapshot_id);`);
 
@@ -157,6 +159,10 @@ export function runBaseMigrations(db: Database) {
       snapshot_id INTEGER NOT NULL,
       plugin_name TEXT NOT NULL,
       data TEXT NOT NULL,
+      total_score REAL,
+      score_count INTEGER,
+      score_weight_sum REAL,
+      score_calculated_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE
     );

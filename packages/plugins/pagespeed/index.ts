@@ -4,7 +4,7 @@ import { PageSpeedHooks } from './src/plugin.js';
 
 /**
  * PageSpeed Insights Plugin for Crawlith.
- * 
+ *
  * Provides automated performance auditing for scanned URLs using the Google PageSpeed Insights API.
  * Features:
  * - 24h Global Persistent Caching (via ctx.db)
@@ -13,22 +13,37 @@ import { PageSpeedHooks } from './src/plugin.js';
 export const PageSpeedPlugin: CrawlithPlugin = {
   name: 'pagespeed',
 
-  /**
-   * Registers CLI commands and options for the PageSpeed plugin.
-   * This acts as the visual manifest of what the plugin adds to the CLI.
-   */
-  register: (cli) => {
-    registerConfigCommand(cli);
+  cli: {
+    flag: '--pagespeed',
+    description: 'Attach Google PageSpeed Insights report (mobile strategy)',
+    for: ['page'],
+    options: [
+      { flag: '--force', description: 'Force a fresh PageSpeed API request and bypass 24h cache' }
+    ]
+  },
 
-    if (cli.name() === 'page') {
-      cli.option('--pagespeed', 'Attach Google PageSpeed Insights report (mobile strategy)');
-      cli.option('--force', 'Force a fresh PageSpeed API request and bypass 24h cache');
+  scoreProvider: true,
+
+  storage: {
+    perPage: {
+      columns: {
+        strategy: 'TEXT',
+        performance_score: 'INTEGER',
+        lcp: 'REAL',
+        cls: 'REAL',
+        tbt: 'REAL',
+        raw_json: 'TEXT'
+      }
     }
   },
 
   /**
-   * Internal logic implementation is delegated to src/plugin.js
+   * Keeps the `pagespeed config` subcommand — not replaceable by declarative cli.
    */
+  register: (cli) => {
+    registerConfigCommand(cli);
+  },
+
   hooks: PageSpeedHooks
 };
 

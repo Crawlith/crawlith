@@ -215,47 +215,9 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     crawledAt
   };
 
-  if (options.plugins && options.plugins.length > 0) {
-    const { PluginRegistry } = await import('../plugin-system/plugin-registry.js');
-    const { getCrawlithDB } = await import('../db/index.js');
-    const registry = new PluginRegistry(options.plugins);
-    const pluginCtx = options.pluginContext || { command: 'page' };
-    if (!pluginCtx.db) pluginCtx.db = getCrawlithDB();
-
-    await registry.runHook('onInit', pluginCtx);
-    await registry.runHook('onMetrics', pluginCtx, crawlData.graph);
-
-    // Map graph node plugin data back to the results
-    for (const page of result.pages) {
-      const node = crawlData.graph.nodes.get(page.url);
-      if (node) {
-        const extra: Record<string, any> = {};
-        // Common node properties to exclude
-        const internalKeys = [
-          'url', 'status', 'html', 'depth', 'crawlStatus', 'metadata',
-          'inLinks', 'outLinks', 'metrics', 'rank', 'hub', 'authority',
-          'canonical', 'noindex', 'nofollow', 'brokenLinks', 'redirectChain',
-          'incrementalStatus', 'etag', 'lastModified', 'contentHash',
-          'isCollapsed', 'collapseInto', 'simhash', 'uniqueTokenRatio',
-          'securityError', 'retries', 'bytesReceived', 'wordCount',
-          'thinContentScore', 'externalLinkRatio', 'h1Count', 'h2Count', 'title'
-        ];
-        for (const [key, value] of Object.entries(node)) {
-          if (value !== undefined && !internalKeys.includes(key)) {
-            extra[key] = value;
-          }
-        }
-        if (Object.keys(extra).length > 0) {
-          page.plugins = { ...(page.plugins || {}), ...extra };
-        }
-      }
-    }
-
-    await registry.runHook('onReport', pluginCtx, result);
-  }
-
   return result;
 }
+
 
 export function analyzePages(rootUrl: string, pages: Iterable<CrawlPage> | CrawlPage[], robots?: any, options: AnalyzeOptions = {}): PageAnalysis[] {
   const titleCounts = new Map<string, number>();

@@ -12,7 +12,18 @@ describe('Soft 404 Detection Plugin', () => {
         node.html = html;
         node.outLinks = outLinks;
 
-        await Soft404DetectorPlugin.hooks!.onMetrics!({ flags: { detectSoft404: true } } as any, graph);
+        const ctx: any = {
+            flags: { detectSoft404: true },
+            db: {
+                data: {
+                    getOrFetch: async (url: string, fetchFn: Function) => {
+                        return await fetchFn();
+                    }
+                }
+            }
+        };
+
+        await Soft404DetectorPlugin.hooks!.onMetrics!(ctx, graph);
         return node as any;
     };
 

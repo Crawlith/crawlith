@@ -78,11 +78,40 @@ For data tied to specific pages/URLs.
     *   `global`: Boolean. If `true`, looks across **all snapshots** instead of just the current one.
 *   `ctx.db.data.all<T>(): T[]` - Get all rows for your plugin in current snapshot.
 
-**Example (24h Global Cache):**
+*   `ctx.db.data.all<T>(): T[]` - Get all rows for your plugin in current snapshot.
+
+### 3. Declarative Storage (`scoreProvider` & `fetchMode`)
+Plugins should use declarative storage to define their caching and scoring strategies natively:
+
 ```typescript
-const cached = ctx.db.data.find<MyRow>(url, { maxAge: '24h', global: true });
-if (cached) return cached.data;
+export const MyPlugin: CrawlithPlugin = {
+  name: 'my-plugin',
+  scoreProvider: true, // Enables automatic weighting & aggregation in the core
+  storage: {
+    fetchMode: 'local', // 'network' | 'local'
+    perPage: {
+      columns: {
+        score: 'REAL',
+        weight: 'REAL',
+        reason: 'TEXT'
+      }
+    }
+  }
+};
 ```
+Note: `score` and `weight` are reserved columns managed automatically if omitted, but you can explicitly use them to define defaults.
+
+### 4. Smart Caching (`getOrFetch`)
+Replaces `db.data.find()` and `db.data.save()`. The core handles the `--live` flag logic natively:
+
+**Example:**
+```typescript
+const row = await ctx.db.data.getOrFetch<MyRow>(
+  page.url,
+  async () => myService.compute(page.html) // Only executes if cache is stale or --live flag is passed
+);
+```
+
 
 ---
 

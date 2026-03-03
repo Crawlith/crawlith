@@ -45,7 +45,6 @@ export function initSchema(db: Database) {
       etag TEXT,
       last_modified TEXT,
       html TEXT,
-      soft404_score REAL,
       noindex INTEGER DEFAULT 0,
       nofollow INTEGER DEFAULT 0,
       security_error TEXT,
