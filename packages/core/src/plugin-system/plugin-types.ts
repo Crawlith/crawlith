@@ -65,7 +65,43 @@ export interface PluginContext {
     /** Legacy logger alias — kept for backwards compatibility. */
     logger?: CLIWriter;
     metadata?: Record<string, any>;
+    /** MCP discovery registry available during MCP startup discovery. */
+    mcpDiscovery?: PluginMcpDiscovery;
     [key: string]: any;
+}
+
+// ─── MCP Discovery ───────────────────────────────────────────────────────────
+
+export interface PluginMcpTool {
+    name: string;
+    description: string;
+    /** Zod-like shape object interpreted by the MCP server package. */
+    inputSchema?: Record<string, unknown>;
+    execute: (input: Record<string, unknown>, ctx: PluginContext) => unknown | Promise<unknown>;
+}
+
+export interface PluginMcpPrompt {
+    name: string;
+    description: string;
+    /** Zod-like shape object interpreted by the MCP server package. */
+    argumentsSchema?: Record<string, unknown>;
+    buildMessages: (
+        input: Record<string, unknown>,
+        ctx: PluginContext
+    ) => {
+        messages: Array<{
+            role: 'user' | 'assistant' | 'system';
+            content: {
+                type: 'text';
+                text: string;
+            };
+        }>;
+    };
+}
+
+export interface PluginMcpDiscovery {
+    registerTool(tool: PluginMcpTool): void;
+    registerPrompt(prompt: PluginMcpPrompt): void;
 }
 
 // ─── CLI option declaration ───────────────────────────────────────────────────
@@ -139,6 +175,12 @@ export interface CrawlithPlugin {
      */
     register?: (cli: any) => void;
 
+    /** Declarative MCP definitions discovered by @crawlith/mcp at startup. */
+    mcp?: {
+        tools?: PluginMcpTool[];
+        prompts?: PluginMcpPrompt[];
+    };
+
     hooks?: {
         /**
          * Runs on both `page` and `crawl` scopes.
@@ -191,5 +233,11 @@ export interface CrawlithPlugin {
          * Attach snapshot-level summary data to the result object.
          */
         onReport?: (ctx: PluginContext, report: any) => void | Promise<void>;
+
+        /**
+         * MCP discovery phase — executed by @crawlith/mcp server startup.
+         * Plugins can register MCP tools/prompts through `ctx.mcpDiscovery`.
+         */
+        onMcpDiscovery?: (ctx: PluginContext) => void | Promise<void>;
     };
 }
