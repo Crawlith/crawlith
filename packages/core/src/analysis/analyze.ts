@@ -3,7 +3,7 @@ import { crawl } from '../crawler/crawl.js';
 import { UrlResolver } from '../crawler/resolver.js';
 import { Fetcher } from '../crawler/fetcher.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
-import { normalizeUrl } from '../crawler/normalize.js';
+import { normalizeUrl, UrlUtil } from '../crawler/normalize.js';
 import { calculateMetrics, Metrics } from '../graph/metrics.js';
 import { Graph } from '../graph/graph.js';
 import { analyzeContent, calculateThinContentScore } from './content.js';
@@ -23,6 +23,7 @@ import { PageRepository } from '../db/repositories/PageRepository.js';
 import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { ANALYSIS_LIST_TEMPLATE, ANALYSIS_PAGE_TEMPLATE } from './templates.js';
 import { EngineContext } from '../events.js';
+import { DEFAULTS } from '../constants.js';
 
 import { PageRankService } from '../graph/pagerank.js';
 import { HITSService } from '../graph/hits.js';
@@ -131,22 +132,23 @@ interface CrawlData {
  */
 export async function analyzeSite(url: string, options: AnalyzeOptions, context?: EngineContext): Promise<AnalysisResult> {
   // 1. Resolve URL (SSL, WWW) if it's a live crawl or we need to identify the site
-  let workingUrl = url;
+  let rootOrigin = url;
   if (options.live !== false) {
     const resolver = new UrlResolver();
     const fetcher = new Fetcher({ rate: options.rate, proxyUrl: options.proxyUrl, userAgent: options.userAgent });
     try {
       const resolved = await resolver.resolve(url, fetcher);
-      workingUrl = resolved.url;
-    } catch (e) {
+      rootOrigin = resolved.url;
+    } catch {
       // Fallback to basic normalization if resolution fails
     }
   }
 
-  const normalizedRoot = normalizeUrl(workingUrl, '', { stripQuery: false });
-  if (!normalizedRoot) {
+  const normalizedAbs = normalizeUrl(url, rootOrigin, { stripQuery: false });
+  if (!normalizedAbs) {
     throw new Error('Invalid URL for analysis');
   }
+  const normalizedPath = UrlUtil.toPath(normalizedAbs, rootOrigin);
 
   const start = Date.now();
   let crawlData: CrawlData;
@@ -155,10 +157,10 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   // 1. Robots fetch (live-mode only to keep snapshot analysis deterministic and fast)
   if (options.live) {
     try {
-      const robotsUrl = new URL('/robots.txt', normalizedRoot).toString();
+      const robotsUrl = new URL('/robots.txt', rootOrigin).toString();
       const { Fetcher } = await import('../crawler/fetcher.js');
       const fetcher = new Fetcher({
-        rate: 10,
+        rate: DEFAULTS.RATE_LIMIT,
         proxyUrl: options.proxyUrl,
         userAgent: options.userAgent
       });
@@ -177,25 +179,25 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   // 2. Data Acquisition
   if (options.live) {
     const crawlStart = Date.now();
-    crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
+    crawlData = await runLiveCrawl(normalizedAbs, rootOrigin, options, context, robots);
     if (context) context.emit({ type: 'debug', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
   } else {
     try {
       const loadStart = Date.now();
-      crawlData = await loadCrawlData(normalizedRoot, options.snapshotId);
+      crawlData = await loadCrawlData(normalizedAbs, options.snapshotId);
       if (context) context.emit({ type: 'debug', message: `[analyze] loadCrawlData took ${Date.now() - loadStart}ms` });
 
       const allPages = Array.from(crawlData.pages);
       crawlData.pages = allPages;
 
-      const exists = allPages.some(p => p.url === normalizedRoot);
+      const exists = allPages.some(p => p.url === normalizedPath);
       if (!exists) {
-        if (context) context.emit({ type: 'info', message: `URL ${normalizedRoot} not found. Fetching live...` });
-        crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
+        if (context) context.emit({ type: 'info', message: `URL ${normalizedAbs} not found. Fetching live...` });
+        crawlData = await runLiveCrawl(normalizedAbs, rootOrigin, options, context, robots);
       }
     } catch (_error: any) {
       if (context) context.emit({ type: 'info', message: 'No local crawl data found. Switching to live...' });
-      crawlData = await runLiveCrawl(normalizedRoot, options, context, robots);
+      crawlData = await runLiveCrawl(normalizedAbs, rootOrigin, options, context, robots);
     }
   }
 
@@ -205,7 +207,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
 
   const pagesStart = Date.now();
-  const pages = analyzePages(normalizedRoot, crawlData.pages, robots, options);
+  const pages = analyzePages(normalizedAbs, crawlData.pages, robots, options);
   if (context) context.emit({ type: 'debug', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
 
   // Sync basic page analysis results back to graph nodes for persistence
@@ -229,7 +231,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const hasFilters = activeModules.seo || activeModules.content || activeModules.accessibility;
   const filteredPages = hasFilters ? pages.map((page) => filterPageModules(page, activeModules)) : pages;
 
-  const targetPage = filteredPages.find(p => p.url === normalizedRoot);
+  const targetPage = filteredPages.find(p => p.url === normalizedPath || p.url === normalizedAbs);
   let resultPages: PageAnalysis[];
 
   if (options.allPages) {
@@ -282,7 +284,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
       severityEnabled: !!options.orphanSeverity,
       includeSoftOrphans: !!options.includeSoftOrphans,
       minInbound: options.minInbound || 2,
-      rootUrl: normalizedRoot
+      rootUrl: normalizedAbs
     });
   }
 
@@ -516,7 +518,7 @@ async function loadCrawlData(rootUrl: string, snapshotId?: number): Promise<Craw
   return { pages: pagesGenerator(), metrics, graph, snapshotId: snapshot.id, crawledAt: snapshot.created_at };
 }
 
-async function runLiveCrawl(url: string, options: AnalyzeOptions, context?: EngineContext, robots?: any): Promise<CrawlData> {
+async function runLiveCrawl(url: string, origin: string, options: AnalyzeOptions, context?: EngineContext, robots?: any): Promise<CrawlData> {
   const snapshotId = await crawl(url, {
     limit: 1,
     depth: 0,

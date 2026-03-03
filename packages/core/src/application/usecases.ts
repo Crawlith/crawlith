@@ -1,4 +1,5 @@
 import { crawl } from '../crawler/crawl.js';
+import { DEFAULTS } from '../constants.js';
 import { runPostCrawlMetrics } from '../crawler/metricsRunner.js';
 import { analyzeSite, type AnalyzeOptions, type AnalysisResult } from '../analysis/analyze.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
@@ -70,8 +71,8 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
 
     // Map the unified DTO into the underlying CrawlOptions
     const crawlOpts: any = { // Temporary any to avoid mismatch until crawl() is updated
-      limit: input.limit ?? 500,
-      depth: input.depth ?? 5,
+      limit: input.limit ?? DEFAULTS.CRAWL_LIMIT,
+      depth: input.depth ?? DEFAULTS.MAX_DEPTH,
       concurrency: input.concurrency,
       stripQuery: input.stripQuery,
       ignoreRobots: policy.ignoreRobots !== undefined ? policy.ignoreRobots : input.ignoreRobots,

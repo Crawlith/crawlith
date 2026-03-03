@@ -3,6 +3,7 @@
  */
 export interface NormalizeOptions {
   stripQuery?: boolean;
+  toPath?: boolean;
 }
 
 const TRACKING_PARAMS = new Set([
@@ -18,7 +19,7 @@ const TRACKING_PARAMS = new Set([
 
 const SKIP_EXTENSIONS = new Set([
   '.pdf', '.jpg', '.png', '.svg', '.webp', '.gif',
-  '.zip', '.xml', '.json', '.mp4'
+  '.zip', '.xml', '.json', '.mp4', '.avif', '.ics'
 ]);
 
 export function normalizeUrl(input: string, base: string, options: NormalizeOptions = {}): string | null {
@@ -89,6 +90,7 @@ export function normalizeUrl(input: string, base: string, options: NormalizeOpti
     }
 
     u.pathname = pathname;
+    const finalUrl = u.toString();
 
     // 9. Skip non-HTML assets by extension
     const lastDotIndex = u.pathname.lastIndexOf('.');
@@ -99,10 +101,68 @@ export function normalizeUrl(input: string, base: string, options: NormalizeOpti
       }
     }
 
-    // 10. Return final string
-    return u.toString();
+    // 10. Return path if requested
+    if (options.toPath) {
+      return u.pathname + u.search;
+    }
+
+    // 11. Return final string
+    return finalUrl;
 
   } catch (_e) {
     return null;
+  }
+}
+
+/**
+ * Utility for converting between absolute URLs and relative paths
+ * primarily used for database storage.
+ */
+export class UrlUtil {
+  /**
+   * Converts a full URL to a root-relative path if it matches the origin.
+   * If it doesn't match the origin, it's considered external and kept absolute.
+   */
+  static toPath(urlStr: string, origin: string): string {
+    try {
+      const url = new URL(urlStr);
+      const originUrl = new URL(origin);
+
+      if (url.origin === originUrl.origin) {
+        return url.pathname + url.search;
+      }
+      return urlStr;
+    } catch {
+      return urlStr;
+    }
+  }
+
+  /**
+   * Converts a root-relative path back to an absolute URL relative to the origin.
+   * If the input is already an absolute URL, it is returned as-is.
+   */
+  static toAbsolute(pathOrUrl: string, origin: string): string {
+    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+      return pathOrUrl;
+    }
+    try {
+      return new URL(pathOrUrl, origin).toString();
+    } catch {
+      return pathOrUrl;
+    }
+  }
+
+  /**
+   * Determines if a URL (or path) is internal relative to the origin.
+   */
+  static isInternal(pathOrUrl: string, origin: string): boolean {
+    if (!pathOrUrl.startsWith('http')) return true;
+    try {
+      const url = new URL(pathOrUrl);
+      const originUrl = new URL(origin);
+      return url.origin === originUrl.origin;
+    } catch {
+      return false;
+    }
   }
 }

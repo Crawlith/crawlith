@@ -5,7 +5,7 @@ import { Graph, GraphNode } from '../graph/graph.js';
 import { Fetcher, FetchResult } from './fetcher.js';
 import { Parser } from './parser.js';
 import { Sitemap } from './sitemap.js';
-import { normalizeUrl } from './normalize.js';
+import { normalizeUrl, UrlUtil } from './normalize.js';
 import { UrlResolver } from './resolver.js';
 import { ScopeManager } from '../core/scope/scopeManager.js';
 import { getDb } from '../db/index.js';
@@ -18,6 +18,7 @@ import { analyzeContent, calculateThinContentScore } from '../analysis/content.j
 import { analyzeLinks } from '../analysis/links.js';
 import { EngineContext } from '../events.js';
 import { PluginRegistry } from '../plugin-system/plugin-registry.js';
+import { DEFAULTS } from '../constants.js';
 
 export interface CrawlOptions {
   limit: number;
@@ -117,8 +118,8 @@ export class Crawler {
     this.active = 0;
     this.pagesCrawled = 0;
     this.reachedLimit = false;
-    this.maxDepthInCrawl = Math.min(options.depth, 10);
-    this.concurrency = Math.min(options.concurrency || 2, 10);
+    this.maxDepthInCrawl = Math.min(options.depth || DEFAULTS.MAX_DEPTH, DEFAULTS.MAX_DEPTH_LIMIT);
+    this.concurrency = Math.min(options.concurrency || DEFAULTS.CONCURRENCY, DEFAULTS.CONCURRENCY_LIMIT);
     this.limitConcurrency = pLimit(this.concurrency);
   }
 
@@ -130,13 +131,28 @@ export class Crawler {
     this.edgeRepo = new EdgeRepository(db);
     this.metricsRepo = new MetricsRepository(db);
 
-    const rootUrl = normalizeUrl(this.startUrl, '', { stripQuery: this.options.stripQuery });
+    // Use resolver to find canonical origin and SSL
+    const resolver = new UrlResolver();
+    const tempFetcher = new Fetcher({ userAgent: this.options.userAgent, rate: this.options.rate });
+    const resolved = await resolver.resolve(this.startUrl, tempFetcher);
+    this.rootOrigin = resolved.url;
+
+    const rootUrl = normalizeUrl(this.startUrl, this.rootOrigin, { stripQuery: this.options.stripQuery });
     if (!rootUrl) throw new Error('Invalid start URL');
 
-    const urlObj = new URL(rootUrl);
+    const urlObj = new URL(this.rootOrigin);
     const domain = urlObj.hostname.replace('www.', '');
     const site = this.siteRepo.firstOrCreateSite(domain);
     this.siteId = site.id;
+
+    // Persist the resolved preferred URL and SSL status
+    this.siteRepo.updateSitePreference(this.siteId, {
+      preferred_url: this.rootOrigin,
+      ssl: this.rootOrigin.startsWith('https') ? 1 : 0
+    });
+
+    // Update normalized start URL as a path
+    this.startUrl = UrlUtil.toPath(rootUrl, this.rootOrigin);
 
     // For partial snapshots (page --live), reuse the latest partial snapshot
     // instead of creating a new one each time
@@ -183,10 +199,9 @@ export class Crawler {
     this.parser = new Parser();
     this.sitemapFetcher = new Sitemap(this.context, this.fetcher!);
   }
-
-  async fetchRobots(): Promise<void> {
+  private async fetchRobots(): Promise<void> {
+    const robotsUrl = new URL('/robots.txt', this.rootOrigin).toString();
     try {
-      const robotsUrl = new URL('/robots.txt', this.rootOrigin).toString();
       const res = await this.fetcher!.fetch(robotsUrl, { maxBytes: 500000 });
       if (res && typeof res.status === 'number' && res.status >= 200 && res.status < 300) {
         this.robots = (robotsParser as any)(robotsUrl, res.body);
@@ -250,7 +265,7 @@ export class Crawler {
     if (this.options.sitemap !== false && (this.options.sitemap || isFirstCrawl) && this.robots) {
       const robotsSitemaps = this.robots.getSitemaps();
       for (const s of robotsSitemaps) {
-        sitemapsToFetch.add(s);
+        if (s) sitemapsToFetch.add(s);
       }
     }
 
@@ -267,11 +282,12 @@ export class Crawler {
             if (sitemapUrls.length > 0) {
               this.context.emit({ type: 'info', message: `Mapping ${sitemapUrls.length} URLs from sitemap... (Background)` });
               const sitemapEntries = sitemapUrls.map(u => {
-                const normalized = normalizeUrl(u, '', this.options);
+                const normalized = normalizeUrl(u, this.rootOrigin, this.options);
                 if (!normalized) return null;
+                const path = UrlUtil.toPath(normalized, this.rootOrigin);
                 return {
                   site_id: this.siteId!,
-                  normalized_url: normalized,
+                  normalized_url: path,
                   first_seen_snapshot_id: this.snapshotId!,
                   last_seen_snapshot_id: this.snapshotId!,
                   discovered_via_sitemap: 1,
@@ -471,33 +487,41 @@ export class Crawler {
   }
 
   private handleCachedResponse(url: string, finalUrl: string, depth: number, prevNode: GraphNode): void {
-    this.bufferPage(finalUrl, depth, 200, {
+    const path = UrlUtil.toPath(url, this.rootOrigin);
+    const finalPath = UrlUtil.toPath(finalUrl, this.rootOrigin);
+    this.bufferPage(finalPath, depth, prevNode.status, {
       html: prevNode.html,
       canonical_url: prevNode.canonical,
+      noindex: prevNode.noindex ? 1 : 0,
+      nofollow: prevNode.nofollow ? 1 : 0,
       content_hash: prevNode.contentHash,
       simhash: prevNode.simhash,
       etag: prevNode.etag,
-      last_modified: prevNode.lastModified,
-      noindex: prevNode.noindex ? 1 : 0,
-      nofollow: prevNode.nofollow ? 1 : 0
-    });
-    this.bufferMetrics(finalUrl, {
-      crawl_status: 'cached'
+      last_modified: prevNode.lastModified
     });
 
+    this.bufferMetrics(finalPath, {
+      crawl_status: 'cached',
+      word_count: prevNode.wordCount,
+      thin_content_score: prevNode.thinContentScore,
+      external_link_ratio: prevNode.externalLinkRatio
+    });
     // Re-discovery links from previous graph to continue crawling if needed
     const prevLinks = this.options.previousGraph?.getEdges()
-      .filter(e => e.source === url)
+      .filter(e => e.source === path)
       .map(e => e.target);
 
     if (prevLinks) {
       for (const link of prevLinks) {
-        const normalizedLink = normalizeUrl(link, '', this.options);
-        if (normalizedLink && normalizedLink !== finalUrl) {
-          this.bufferPage(normalizedLink, depth + 1, 0);
-          this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
-          if (this.shouldEnqueue(normalizedLink, depth + 1)) {
-            this.addToQueue(normalizedLink, depth + 1);
+        const normalizedLink = normalizeUrl(link, this.rootOrigin, this.options);
+        if (normalizedLink) {
+          const path = UrlUtil.toPath(normalizedLink, this.rootOrigin);
+          if (path !== url) {
+            this.bufferPage(path, depth + 1, 0);
+            this.bufferEdge(url, path, 1.0, 'internal');
+            if (this.shouldEnqueue(path, depth + 1)) {
+              this.addToQueue(path, depth + 1);
+            }
           }
         }
       }
@@ -506,12 +530,14 @@ export class Crawler {
 
   private handleRedirects(chain: FetchResult['redirectChain'], depth: number): void {
     for (const step of chain) {
-      const source = normalizeUrl(step.url, '', this.options);
-      const target = normalizeUrl(step.target, '', this.options);
-      if (source && target) {
-        this.bufferPage(source, depth, step.status);
-        this.bufferPage(target, depth, 0);
-        this.bufferEdge(source, target);
+      const sourceAbs = normalizeUrl(step.url, this.rootOrigin, this.options);
+      const targetAbs = normalizeUrl(step.target, this.rootOrigin, this.options);
+      if (sourceAbs && targetAbs) {
+        const sourcePath = UrlUtil.toPath(sourceAbs, this.rootOrigin);
+        const targetPath = UrlUtil.toPath(targetAbs, this.rootOrigin);
+        this.bufferPage(sourcePath, depth, step.status);
+        this.bufferPage(targetPath, depth, 0);
+        this.bufferEdge(sourcePath, targetPath);
       }
     }
   }
@@ -564,12 +590,19 @@ export class Crawler {
     }
 
     for (const linkItem of parseResult.links) {
-      const normalizedLink = normalizeUrl(linkItem.url, '', this.options);
-      if (normalizedLink && normalizedLink !== finalUrl) {
-        this.bufferPage(normalizedLink, depth + 1, 0);
-        this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
-        if (this.shouldEnqueue(normalizedLink, depth + 1)) {
-          this.addToQueue(normalizedLink, depth + 1);
+      const normalizedLink = normalizeUrl(linkItem.url, finalUrl, this.options);
+      if (normalizedLink) {
+        const targetPath = UrlUtil.toPath(normalizedLink, this.rootOrigin);
+        const sourcePath = UrlUtil.toPath(finalUrl, this.rootOrigin);
+
+        if (targetPath !== sourcePath) {
+          const isInternal = UrlUtil.isInternal(normalizedLink, this.rootOrigin);
+          this.bufferPage(targetPath, depth + 1, 0);
+          this.bufferEdge(sourcePath, targetPath, 1.0, isInternal ? 'internal' : 'external');
+
+          if (isInternal && this.shouldEnqueue(targetPath, depth + 1)) {
+            this.addToQueue(targetPath, depth + 1);
+          }
         }
       }
     }
@@ -588,8 +621,11 @@ export class Crawler {
 
       if (!res) return;
 
-      const finalUrl = normalizeUrl(res.finalUrl, '', this.options);
+      const finalUrl = normalizeUrl(res.finalUrl, this.rootOrigin, this.options);
       if (!finalUrl) return;
+
+      const fullUrl = finalUrl; // Already absolute
+      const finalPath = UrlUtil.toPath(finalUrl, this.rootOrigin);
 
       if (res.status === 304 && prevNode) {
         this.handleCachedResponse(url, finalUrl, depth, prevNode);
@@ -601,18 +637,18 @@ export class Crawler {
       const isStringStatus = typeof res.status === 'string';
       if (isStringStatus || (typeof res.status === 'number' && res.status >= 300)) {
         const statusNum = typeof res.status === 'number' ? res.status : 0;
-        this.bufferPage(finalUrl, depth, statusNum, {
+        this.bufferPage(finalPath, depth, statusNum, {
           security_error: isStringStatus ? res.status : undefined,
           retries: res.retries
         });
-        this.bufferMetrics(finalUrl, {
+        this.bufferMetrics(finalPath, {
           crawl_status: isStringStatus ? res.status : 'fetched_error'
         });
         return;
       }
 
       if (res.status === 200) {
-        this.handleSuccessResponse(res, finalUrl, depth, isBlocked);
+        this.handleSuccessResponse(res, fullUrl, depth, isBlocked);
       }
     } catch (e) {
       this.context.emit({ type: 'crawl:error', url, error: String(e), depth });
@@ -620,21 +656,10 @@ export class Crawler {
   }
 
   async run(): Promise<number> {
-    // 1. Setup fetcher and basic modules for resolution
+    // 1. Setup fetcher and basic modules
     this.setupModules();
 
-    // 2. Resolve URL preference (SSL, WWW)
-    const resolver = new UrlResolver();
-    try {
-      const resolved = await resolver.resolve(this.startUrl, this.fetcher!);
-      this.startUrl = resolved.url;
-      this.context.emit({ type: 'debug', message: `Resolved start URL: ${this.startUrl}` });
-    } catch (e) {
-      this.context.emit({ type: 'error', message: `URL Resolution failed: ${String(e)}` });
-      return 0;
-    }
-
-    // 3. Initialize repositories and Site context
+    // 2. Initialize repositories, resolve URL (SSL/WWW), and set up site context
     await this.initialize();
 
     if (this.options.robots) {

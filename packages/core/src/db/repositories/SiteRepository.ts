@@ -31,9 +31,9 @@ export class SiteRepository {
     return info.lastInsertRowid as number;
   }
 
-  updateSitePreference(id: number, preferredUrl: string, ssl: boolean): void {
+  updateSitePreference(id: number, prefs: { preferred_url: string; ssl: number }): void {
     const stmt = this.db.prepare('UPDATE sites SET preferred_url = ?, ssl = ? WHERE id = ?');
-    stmt.run(preferredUrl, ssl ? 1 : 0, id);
+    stmt.run(prefs.preferred_url, prefs.ssl, id);
   }
 
   firstOrCreateSite(domain: string): Site {

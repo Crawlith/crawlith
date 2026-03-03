@@ -15,8 +15,8 @@ export class UrlResolver {
     }
 
     async resolve(inputUrl: string, fetcher: Fetcher): Promise<ResolvedUrl> {
-        let hasProtocol = inputUrl.startsWith('http://') || inputUrl.startsWith('https://');
-        let workingUrl = hasProtocol ? inputUrl : `https://${inputUrl}`;
+        const hasProtocol = inputUrl.startsWith('http://') || inputUrl.startsWith('https://');
+        const workingUrl = hasProtocol ? inputUrl : `https://${inputUrl}`;
 
         let hostname: string;
         try {
@@ -41,8 +41,8 @@ export class UrlResolver {
             try {
                 const res = await fetcher.fetch(`https://${hostname}/`);
                 if (typeof res.status === 'number' && res.status >= 200 && res.status < 400) {
-                    const isSsl = res.finalUrl.startsWith('https:');
-                    this.siteRepo.updateSitePreference(site.id, res.finalUrl, isSsl);
+                    const isSsl = res.finalUrl.startsWith('https:') ? 1 : 0;
+                    this.siteRepo.updateSitePreference(site.id, { preferred_url: res.finalUrl, ssl: isSsl });
 
                     // Refresh site object
                     site = this.siteRepo.getSiteById(site.id)!;
@@ -56,8 +56,8 @@ export class UrlResolver {
             try {
                 const res = await fetcher.fetch(`http://${hostname}/`);
                 if (typeof res.status === 'number' && res.status >= 200 && res.status < 400) {
-                    const isSsl = res.finalUrl.startsWith('https:');
-                    this.siteRepo.updateSitePreference(site.id, res.finalUrl, isSsl);
+                    const isSsl = res.finalUrl.startsWith('https:') ? 1 : 0;
+                    this.siteRepo.updateSitePreference(site.id, { preferred_url: res.finalUrl, ssl: isSsl });
 
                     site = this.siteRepo.getSiteById(site.id)!;
                     return { url: res.finalUrl, site };
@@ -70,7 +70,10 @@ export class UrlResolver {
 
         // Protocol was provided, we just return it but ensure site is in sync if it's the first time
         if (site.ssl === null) {
-            this.siteRepo.updateSitePreference(site.id, inputUrl, inputUrl.startsWith('https:'));
+            this.siteRepo.updateSitePreference(site.id, {
+                preferred_url: inputUrl,
+                ssl: inputUrl.startsWith('https:') ? 1 : 0
+            });
             site = this.siteRepo.getSiteById(site.id)!;
         }
 
