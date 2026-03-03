@@ -13,5 +13,5 @@
     "test": "vitest run"
   },
   "exports": "./index.ts",
-  "description": "Crawlith plugin for snapshot diff"
+  "description": "Crawlith plugin for snapshot-to-snapshot graph diffing and incremental baselines"
 }
