@@ -43,7 +43,6 @@ export function getCrawlithDB(): CrawlithDB {
 
   // Migrations for existing tables
   try { dbInstance.exec(`ALTER TABLE pages ADD COLUMN discovered_via_sitemap INTEGER DEFAULT 0;`); } catch (_e) { /* ignore */ }
-  try { dbInstance.exec(`ALTER TABLE pages ADD COLUMN soft404_score REAL;`); } catch (_e) { /* ignore */ }
 
   // Security controls: Ensure file permissions are 600 (user read/write only)
   if (dbPath !== ':memory:') {

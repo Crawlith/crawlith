@@ -13,7 +13,6 @@ export interface Page {
   etag: string | null;
   last_modified: string | null;
   html: string | null;
-  soft404_score: number | null;
   noindex: number;
   nofollow: number;
   security_error: string | null;
@@ -38,13 +37,13 @@ export class PageRepository {
       INSERT INTO pages (
         site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id,
         http_status, canonical_url, content_hash, simhash, etag, last_modified, html,
-        soft404_score, noindex, nofollow, security_error, retries, depth,
+        noindex, nofollow, security_error, retries, depth,
         discovered_via_sitemap, redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
         updated_at
       ) VALUES (
         @site_id, @normalized_url, @first_seen_snapshot_id, @last_seen_snapshot_id,
         @http_status, @canonical_url, @content_hash, @simhash, @etag, @last_modified, @html,
-        @soft404_score, @noindex, @nofollow, @security_error, @retries, @depth,
+        @noindex, @nofollow, @security_error, @retries, @depth,
         @discovered_via_sitemap, @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
         datetime('now')
       )
@@ -57,7 +56,6 @@ export class PageRepository {
         etag = COALESCE(excluded.etag, pages.etag),
         last_modified = COALESCE(excluded.last_modified, pages.last_modified),
         html = COALESCE(excluded.html, pages.html),
-        soft404_score = COALESCE(excluded.soft404_score, pages.soft404_score),
         noindex = CASE WHEN excluded.http_status != 0 THEN excluded.noindex ELSE pages.noindex END,
         nofollow = CASE WHEN excluded.http_status != 0 THEN excluded.nofollow ELSE pages.nofollow END,
         security_error = COALESCE(excluded.security_error, pages.security_error),
@@ -88,7 +86,6 @@ export class PageRepository {
       etag: page.etag ?? null,
       last_modified: page.last_modified ?? null,
       html: page.html ?? null,
-      soft404_score: page.soft404_score ?? null,
       noindex: page.noindex ?? 0,
       nofollow: page.nofollow ?? 0,
       security_error: page.security_error ?? null,
@@ -142,13 +139,13 @@ export class PageRepository {
       INSERT INTO pages (
         site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id,
         http_status, canonical_url, content_hash, simhash, etag, last_modified, html,
-        soft404_score, noindex, nofollow, security_error, retries, depth,
+        noindex, nofollow, security_error, retries, depth,
         discovered_via_sitemap, redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
         updated_at
       ) VALUES (
         @site_id, @normalized_url, @first_seen_snapshot_id, @last_seen_snapshot_id,
         @http_status, @canonical_url, @content_hash, @simhash, @etag, @last_modified, @html,
-        @soft404_score, @noindex, @nofollow, @security_error, @retries, @depth,
+        @noindex, @nofollow, @security_error, @retries, @depth,
         @discovered_via_sitemap, @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
         datetime('now')
       )
@@ -161,7 +158,6 @@ export class PageRepository {
         etag = COALESCE(excluded.etag, pages.etag),
         last_modified = COALESCE(excluded.last_modified, pages.last_modified),
         html = COALESCE(excluded.html, pages.html),
-        soft404_score = COALESCE(excluded.soft404_score, pages.soft404_score),
         noindex = CASE WHEN excluded.http_status != 0 THEN excluded.noindex ELSE pages.noindex END,
         nofollow = CASE WHEN excluded.http_status != 0 THEN excluded.nofollow ELSE pages.nofollow END,
         security_error = COALESCE(excluded.security_error, pages.security_error),
@@ -192,7 +188,6 @@ export class PageRepository {
           etag: page.etag ?? null,
           last_modified: page.last_modified ?? null,
           html: page.html ?? null,
-          soft404_score: page.soft404_score ?? null,
           noindex: page.noindex ?? 0,
           nofollow: page.nofollow ?? 0,
           security_error: page.security_error ?? null,

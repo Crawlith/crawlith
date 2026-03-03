@@ -49,7 +49,6 @@ export function runBaseMigrations(db: Database) {
       etag TEXT,
       last_modified TEXT,
       html TEXT,
-      soft404_score REAL,
       noindex INTEGER DEFAULT 0,
       nofollow INTEGER DEFAULT 0,
       security_error TEXT,
@@ -72,7 +71,6 @@ export function runBaseMigrations(db: Database) {
 
   // Migrations for existing tables
   try { db.exec(`ALTER TABLE pages ADD COLUMN discovered_via_sitemap INTEGER DEFAULT 0;`); } catch (_e) { /* ignore */ }
-  try { db.exec(`ALTER TABLE pages ADD COLUMN soft404_score REAL;`); } catch (_e) { /* ignore */ }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_pages_site_last_seen ON pages(site_id, last_seen_snapshot_id);`);
 

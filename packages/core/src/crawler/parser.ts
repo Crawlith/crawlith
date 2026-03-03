@@ -17,8 +17,6 @@ export interface ParseResult {
   contentHash: string;
   simhash?: string;
   uniqueTokenRatio?: number;
-  soft404Score: number;
-  soft404Signals: string[];
 }
 
 export class Parser {
@@ -121,10 +119,6 @@ export class Parser {
     const uniqueTokenRatio = tokens.length > 0 ? (uniqueTokens.size / tokens.length) : 0;
     const simhash = SimHash.generate(tokens).toString();
 
-    // 5. Soft 404 Detection (Migrated to Soft404DetectorPlugin)
-    const soft404Score = 0;
-    const soft404Signals: string[] = [];
-
     return {
       links: Array.from(links.entries()).map(([url, weight]) => ({ url, weight })),
       html: html, // pass raw HTML for analysis
@@ -133,9 +127,7 @@ export class Parser {
       nofollow,
       contentHash,
       simhash,
-      uniqueTokenRatio,
-      soft404Score,
-      soft404Signals
+      uniqueTokenRatio
     }
   }
 }

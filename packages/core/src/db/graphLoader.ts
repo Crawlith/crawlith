@@ -64,7 +64,6 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             etag: p.etag || undefined,
             lastModified: p.last_modified || undefined,
             html: p.html || undefined,
-            soft404Score: p.soft404_score || undefined,
             noindex: !!p.noindex,
             nofollow: !!p.nofollow,
             incrementalStatus,
