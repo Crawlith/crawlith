@@ -144,7 +144,9 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     }
   }
 
-  const normalizedAbs = normalizeUrl(url, rootOrigin, { stripQuery: false });
+  // Normalize the resolved origin — use rootOrigin (always absolute after resolution),
+  // not the raw 'url' input which may be a bare domain like 'callforpaper.org'.
+  const normalizedAbs = normalizeUrl(rootOrigin, '', { stripQuery: false });
   if (!normalizedAbs) {
     throw new Error('Invalid URL for analysis');
   }

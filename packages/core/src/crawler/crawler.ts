@@ -137,7 +137,10 @@ export class Crawler {
     const resolved = await resolver.resolve(this.startUrl, tempFetcher);
     this.rootOrigin = resolved.url;
 
-    const rootUrl = normalizeUrl(this.startUrl, this.rootOrigin, { stripQuery: this.options.stripQuery });
+    // Use the resolved absolute URL as the base — NOT this.startUrl which may be
+    // a bare domain (e.g. 'callforpaper.org') that would be treated as a relative
+    // path when passed to normalizeUrl, producing '/callforpaper.org'.
+    const rootUrl = normalizeUrl(this.rootOrigin, '', { stripQuery: this.options.stripQuery });
     if (!rootUrl) throw new Error('Invalid start URL');
 
     const urlObj = new URL(this.rootOrigin);
