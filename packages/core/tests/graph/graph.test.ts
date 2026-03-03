@@ -70,16 +70,14 @@ describe('Graph', () => {
     graph.addNode('http://a.com', 0, 200);
     graph.addNode('http://b.com', 1, 200);
     graph.addEdge('http://a.com', 'http://b.com', 1.0);
-    graph.duplicateClusters = [{ id: '1', type: 'exact', size: 2, representative: 'http://a.com', severity: 'high' }];
-    graph.contentClusters = [{ id: 1, count: 2, primaryUrl: 'http://a.com', risk: 'high' }];
+
 
     const json = graph.toJSON();
     const newGraph = Graph.fromJSON(json);
 
     expect(newGraph.nodes.size).toBe(2);
     expect(newGraph.edges.size).toBe(1);
-    expect(newGraph.duplicateClusters).toHaveLength(1);
-    expect(newGraph.contentClusters).toHaveLength(1);
+
 
     const nodeA = newGraph.nodes.get('http://a.com');
     expect(nodeA?.status).toBe(200);

@@ -123,7 +123,8 @@ export class ClusteringService {
                 count: memberUrls.length,
                 primaryUrl,
                 risk,
-                sharedPathPrefix
+                sharedPathPrefix,
+                nodes: memberUrls
             });
         });
 

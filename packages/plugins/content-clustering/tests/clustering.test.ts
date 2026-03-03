@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Graph, SimHash } from '@crawlith/core';
+import { Graph } from '@crawlith/core';
 import { ClusteringService } from '../src/Service.js';
 
 describe('ClusteringService', () => {
@@ -11,55 +11,118 @@ describe('ClusteringService', () => {
         graph = new Graph();
     });
 
-    it('should detect clusters of near-duplicate pages', () => {
-        // Create 3 pages with very similar simhashes
-        // SimHash 64-bit integer
-        const hash1 = 0b1111111111111111000000000000000011111111111111110000000000000000n;
-        const hash2 = 0b1111111111111111000000000000000011111111111111110000000000000001n; // Hamming dist 1
-        const hash3 = 0b1111111111111111000000000000000011111111111111110000000000000011n; // Hamming dist 2
+    it('should detect clusters from nodes with similar simhashes', () => {
+        const h1 = 0b101010n.toString();
+        const h2 = 0b101011n.toString(); // distance 1
+        const h3 = (0b1111111111111111n << 32n).toString(); // distance far
 
-        graph.addNode('https://example.com/p1', 1, 200);
-        graph.addNode('https://example.com/p2', 1, 200);
-        graph.addNode('https://example.com/p3', 1, 200);
-        graph.addNode('https://example.com/p4', 1, 200); // Unique
+        graph.addNode('https://a.com', 0, 200);
+        graph.addNode('https://b.com', 0, 200);
+        graph.addNode('https://c.com', 0, 200);
 
-        graph.updateNodeData('https://example.com/p1', { simhash: hash1.toString(), inLinks: 10 });
-        graph.updateNodeData('https://example.com/p2', { simhash: hash2.toString(), inLinks: 5 });
-        graph.updateNodeData('https://example.com/p3', { simhash: hash3.toString(), inLinks: 2 });
-        graph.updateNodeData('https://example.com/p4', { simhash: (hash1 ^ 0xFFFFFFFFFFFFFFFFn).toString(), inLinks: 1 });
+        graph.updateNodeData('https://a.com', { simhash: h1 });
+        graph.updateNodeData('https://b.com', { simhash: h2 });
+        graph.updateNodeData('https://c.com', { simhash: h3 });
 
-        const clusters = service.detectContentClusters(graph, 5, 3);
+        const clusters = service.detectContentClusters(graph, 3, 2);
 
-        expect(clusters).toHaveLength(1);
-        expect(clusters[0].count).toBe(3);
-        expect(clusters[0].primaryUrl).toBe('https://example.com/p1'); // Highest inLinks
+        expect(clusters.length).toBe(1);
+        expect(clusters[0].nodes).toContain('https://a.com');
+        expect(clusters[0].nodes).toContain('https://b.com');
+        expect(clusters[0].nodes).not.toContain('https://c.com');
+        expect(clusters[0].count).toBe(2);
     });
 
-    it('should ignore pages below minSize', () => {
-        const hash1 = 123456789n;
-        const hash2 = 123456788n;
+    it('should calculate shared path prefix correctly', () => {
+        const h = 0b111111n.toString();
+        graph.addNode('https://example.com/blog/p1', 0, 200);
+        graph.addNode('https://example.com/blog/p2', 0, 200);
+        graph.addNode('https://example.com/blog/p3', 0, 200);
 
-        graph.addNode('https://example.com/p1', 1, 200);
-        graph.addNode('https://example.com/p2', 1, 200);
+        graph.updateNodeData('https://example.com/blog/p1', { simhash: h });
+        graph.updateNodeData('https://example.com/blog/p2', { simhash: h });
+        graph.updateNodeData('https://example.com/blog/p3', { simhash: h });
 
-        graph.updateNodeData('https://example.com/p1', { simhash: hash1.toString() });
-        graph.updateNodeData('https://example.com/p2', { simhash: hash2.toString() });
-
-        const clusters = service.detectContentClusters(graph, 10, 3);
-        expect(clusters).toHaveLength(0);
-    });
-
-    it('should calculate shared path prefix', () => {
-        graph.addNode('https://example.com/blog/p1', 1, 200);
-        graph.addNode('https://example.com/blog/p2', 1, 200);
-        graph.addNode('https://example.com/blog/p3', 1, 200);
-
-        const h = 100n;
-        graph.updateNodeData('https://example.com/blog/p1', { simhash: h.toString() });
-        graph.updateNodeData('https://example.com/blog/p2', { simhash: h.toString() });
-        graph.updateNodeData('https://example.com/blog/p3', { simhash: h.toString() });
-
-        const clusters = service.detectContentClusters(graph, 5, 3);
+        const clusters = service.detectContentClusters(graph, 3, 3);
         expect(clusters[0].sharedPathPrefix).toBe('/blog');
+    });
+
+    it('should identify the best primary URL based on in-links', () => {
+        const h = 0b111111n.toString();
+        graph.addNode('https://example.com/p1', 0, 200);
+        graph.addNode('https://example.com/p2', 0, 200);
+
+        graph.updateNodeData('https://example.com/p1', { simhash: h });
+        graph.updateNodeData('https://example.com/p2', { simhash: h });
+
+        // Give p2 more in-links
+        graph.nodes.get('https://example.com/p2')!.inLinks = 5;
+
+        const clusters = service.detectContentClusters(graph, 3, 2);
+        expect(clusters[0].primaryUrl).toBe('https://example.com/p2');
+    });
+
+    describe('Cluster Risk Heuristic', () => {
+        it('should assign HIGH risk to clusters with identical titles', () => {
+            const html = '<html><head><title>Duplicate Title</title></head><body>Content</body></html>';
+            const h = 0b101010n.toString();
+
+            graph.addNode('https://example.com/p1', 0, 200);
+            graph.addNode('https://example.com/p2', 0, 200);
+            graph.addNode('https://example.com/p3', 0, 200);
+
+            graph.updateNodeData('https://example.com/p1', { simhash: h, html });
+            graph.updateNodeData('https://example.com/p2', { simhash: h, html });
+            graph.updateNodeData('https://example.com/p3', { simhash: h, html });
+
+            const clusters = service.detectContentClusters(graph, 2, 2);
+
+            expect(clusters.length).toBe(1);
+            expect(clusters[0].risk).toBe('high');
+        });
+
+        it('should assign HIGH risk to clusters with identical H1s', () => {
+            const h = 0b101010n.toString();
+
+            graph.addNode('https://example.com/p1', 0, 200);
+            graph.addNode('https://example.com/p2', 0, 200);
+            graph.addNode('https://example.com/p3', 0, 200);
+
+            graph.updateNodeData('https://example.com/p1', {
+                simhash: h,
+                html: '<html><head><title>Page 1</title></head><body><h1>Duplicate Header</h1></body></html>'
+            });
+            graph.updateNodeData('https://example.com/p2', {
+                simhash: h,
+                html: '<html><head><title>Page 2</title></head><body><h1>Duplicate Header</h1></body></html>'
+            });
+            graph.updateNodeData('https://example.com/p3', {
+                simhash: h,
+                html: '<html><head><title>Page 3</title></head><body><h1>Duplicate Header</h1></body></html>'
+            });
+
+            const clusters = service.detectContentClusters(graph, 2, 2);
+
+            expect(clusters.length).toBe(1);
+            expect(clusters[0].risk).toBe('high');
+        });
+
+        it('should assign MEDIUM risk to large clusters even with unique titles', () => {
+            const h = 0b101010n.toString();
+
+            for (let i = 0; i < 12; i++) {
+                const url = `https://example.com/p${i}`;
+                graph.addNode(url, 0, 200);
+                graph.updateNodeData(url, {
+                    simhash: h,
+                    html: `<html><head><title>Page ${i}</title></head><body><h1>Header ${i}</h1></body></html>`
+                });
+            }
+
+            const clusters = service.detectContentClusters(graph, 2, 2);
+
+            expect(clusters.length).toBe(1);
+            expect(clusters[0].risk).toBe('medium');
+        });
     });
 });

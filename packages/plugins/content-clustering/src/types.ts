@@ -4,6 +4,7 @@ export interface ClusterInfo {
     primaryUrl: string;
     risk: 'low' | 'medium' | 'high';
     sharedPathPrefix?: string;
+    nodes?: string[];
 }
 
 export interface ClusteringOptions {

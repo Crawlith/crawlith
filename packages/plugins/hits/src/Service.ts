@@ -1,4 +1,4 @@
-import { Graph, GraphNode } from '@crawlith/core';
+import { Graph } from '@crawlith/core';
 import { HITSOptions, HITSRow, LinkRole } from './types.js';
 
 /**

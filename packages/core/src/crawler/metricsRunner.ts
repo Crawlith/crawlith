@@ -7,10 +7,9 @@ import { calculateMetrics } from '../graph/metrics.js';
 import { EngineContext } from '../events.js';
 import { Graph } from '../graph/graph.js';
 
-export interface PostCrawlMetricOptions {
-}
 
-export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph, options: PostCrawlMetricOptions = {}) {
+
+export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, context?: EngineContext, limitReached: boolean = false, graphInstance?: Graph) {
     const db = getDb();
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);

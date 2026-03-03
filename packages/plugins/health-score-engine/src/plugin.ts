@@ -1,6 +1,5 @@
-import { PluginContext, Graph, scorePageSeo, analyzePages } from '@crawlith/core';
+import { PluginContext, Graph, analyzePages } from '@crawlith/core';
 import { HealthService, DEFAULT_HEALTH_WEIGHTS } from './Service.js';
-import { HealthRow } from './types.js';
 
 const service = new HealthService();
 

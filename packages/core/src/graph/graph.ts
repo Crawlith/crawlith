@@ -17,12 +17,12 @@ export interface GraphNode {
   html?: string;
   simhash?: string;
   uniqueTokenRatio?: number;
-  soft404Score?: number;
-  soft404Signals?: string[];
+
   crawlTrapFlag?: boolean;
   crawlTrapRisk?: number;
   trapType?: string;
   securityError?: string;
+
   retries?: number;
   bytesReceived?: number;
   crawlStatus?: string;
@@ -32,7 +32,7 @@ export interface GraphNode {
   orphanScore?: number;
   h1Count?: number;
   h2Count?: number;
-  headingHealthScore?: number;
+
   title?: string;
 }
 
@@ -60,7 +60,7 @@ export class Graph {
     pagesSkipped: 0,
     totalFound: 0
   };
-  trapClusters: { pattern: string; type: string; count: number }[] = [];
+
 
   /**
    * Generates a unique key for an edge.

@@ -1,4 +1,4 @@
-import { PluginContext } from '@crawlith/core';
+import { PluginContext, Graph } from '@crawlith/core';
 import { PageRankService } from './Service.js';
 import { PageRankRow } from './types.js';
 
@@ -7,7 +7,7 @@ export const PageRankHooks = {
      * Called during `crawl` execution. Analyzes the fully formed graph.
      * Caches results into SQLite natively via `ctx.db.data.getOrFetch`.
      */
-    onMetrics: async (ctx: PluginContext, graph: any) => {
+    onMetrics: async (ctx: PluginContext, graph: Graph) => {
         // We only execute PageRank if there's actually a DB session connected (crawl context)
         // and if the crawler explicitly loaded the graph structure.
         if (!ctx.db) return;
@@ -28,8 +28,8 @@ export const PageRankHooks = {
             // We still update graph node natively because downstream clustering/scoring processes depend on it
             // in memory before getting into the CLI reporter.
             if (payload) {
-                node.pageRank = payload.raw_rank;
-                node.pageRankScore = payload.score;
+                (node as any).pageRank = payload.raw_rank;
+                (node as any).pageRankScore = payload.score;
                 evaluatedCount++;
 
                 // Cache internally against `<snapshotId>, <url_id>` into `pagerank_plugin`
@@ -58,12 +58,12 @@ export const PageRankHooks = {
             // Inject directly back to final JSON pages footprint 
             if (Array.isArray(result.pages)) {
                 for (const page of result.pages) {
-                    if (page.pageRankScore !== undefined) {
+                    if ((page as any).pageRankScore !== undefined) {
                         // Usually already injected if doing stringification, but ensuring strict format
                         page.plugins = page.plugins || {};
                         page.plugins.pagerank = {
-                            score: page.pageRankScore,
-                            raw_rank: page.pageRank
+                            score: (page as any).pageRankScore,
+                            raw_rank: (page as any).pageRank
                         };
                     }
                 }

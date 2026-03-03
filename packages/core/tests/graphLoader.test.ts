@@ -44,19 +44,11 @@ describe('GraphLoader', () => {
         metricsRepo.insertMetrics({
             snapshot_id: snapshotId,
             page_id: page.id,
-            authority_score: 0.5,
-            hub_score: 0.2,
-            pagerank: 0.8,
-            pagerank_score: 80.0,
-            link_role: 'authority',
             crawl_status: 'fetched',
             word_count: 500,
             thin_content_score: 10,
             external_link_ratio: 0.1,
-            orphan_score: 5,
-            duplicate_cluster_id: null,
-            duplicate_type: null,
-            is_cluster_primary: 1
+            orphan_score: 5
         });
 
         // Load Graph
@@ -64,9 +56,7 @@ describe('GraphLoader', () => {
         const node = graph.nodes.get(url);
 
         expect(node).toBeDefined();
-        expect(node?.authorityScore).toBe(0.5);
-        expect(node?.hubScore).toBe(0.2);
-        // Verify new fields
+        // Verify fields
         expect(node?.crawlStatus).toBe('fetched');
         expect(node?.wordCount).toBe(500);
         expect(node?.thinContentScore).toBe(10);
@@ -97,19 +87,11 @@ describe('GraphLoader', () => {
         metricsRepo.insertMetrics({
             snapshot_id: snapshotId,
             page_id: page.id,
-            authority_score: null,
-            hub_score: null,
-            pagerank: null,
-            pagerank_score: null,
-            link_role: null,
             crawl_status: null,
             word_count: null,
             thin_content_score: null,
             external_link_ratio: null,
-            orphan_score: null,
-            duplicate_cluster_id: null,
-            duplicate_type: null,
-            is_cluster_primary: 0
+            orphan_score: null
         });
 
         const graph = loadGraphFromSnapshot(snapshotId);
