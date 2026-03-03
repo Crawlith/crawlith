@@ -4,7 +4,7 @@ export interface DbMetrics {
   snapshot_id: number;
   page_id: number;
 
-  link_role: 'hub' | 'authority' | 'power' | 'balanced' | 'peripheral' | null;
+
   crawl_status: string | null;
   word_count: number | null;
   thin_content_score: number | null;
@@ -22,11 +22,11 @@ export class MetricsRepository {
     this.insertStmt = this.db.prepare(`
       INSERT OR REPLACE INTO metrics (
         snapshot_id, page_id,
-        link_role, crawl_status, word_count, thin_content_score, external_link_ratio,
+        crawl_status, word_count, thin_content_score, external_link_ratio,
         orphan_score
       ) VALUES (
         @snapshot_id, @page_id,
-        @link_role, @crawl_status, @word_count, @thin_content_score, @external_link_ratio,
+        @crawl_status, @word_count, @thin_content_score, @external_link_ratio,
         @orphan_score
       )
     `);

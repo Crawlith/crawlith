@@ -20,9 +20,9 @@ describe('HITS Scoring', () => {
         const results = service.evaluate(graph, { iterations: 10 });
         for (const [url, res] of results) {
             const node = graph.nodes.get(url)!;
-            node.authorityScore = res.authority_score;
-            node.hubScore = res.hub_score;
-            node.linkRole = res.link_role;
+            (node as any).authorityScore = res.authority_score;
+            (node as any).hubScore = res.hub_score;
+            (node as any).linkRole = res.link_role;
         }
 
         const hub = graph.nodes.get('http://hub.com')!;
@@ -31,11 +31,11 @@ describe('HITS Scoring', () => {
         // In a star topology:
         // Hub should have max hub score
         // Authorities should have max authority scores
-        expect(hub.hubScore).toBeGreaterThan(0.9);
-        expect(hub.authorityScore).toBe(0); // No one links to hub
+        expect((hub as any).hubScore).toBeGreaterThan(0.9);
+        expect((hub as any).authorityScore).toBe(0); // No one links to hub
 
-        expect(auth1.authorityScore).toBeGreaterThan(0.5);
-        expect(auth1.hubScore).toBe(0); // Auth1 links to no one
+        expect((auth1 as any).authorityScore).toBeGreaterThan(0.5);
+        expect((auth1 as any).hubScore).toBe(0); // Auth1 links to no one
     });
 
     it('should handle exclusion rules', () => {
@@ -56,14 +56,14 @@ describe('HITS Scoring', () => {
         const results = service.evaluate(graph);
         for (const [url, res] of results) {
             const node = graph.nodes.get(url)!;
-            node.authorityScore = res.authority_score;
-            node.hubScore = res.hub_score;
-            node.linkRole = res.link_role;
+            (node as any).authorityScore = res.authority_score;
+            (node as any).hubScore = res.hub_score;
+            (node as any).linkRole = res.link_role;
         }
 
-        expect(graph.nodes.get('http://noindex.com')?.hubScore).toBeUndefined();
-        expect(graph.nodes.get('http://redirect.com')?.hubScore).toBeUndefined();
-        expect(graph.nodes.get('http://valid.com')?.hubScore).toBe(0); // Valid hub but its targets are ineligible
+        expect((graph.nodes.get('http://noindex.com') as any)?.hubScore).toBeUndefined();
+        expect((graph.nodes.get('http://redirect.com') as any)?.hubScore).toBeUndefined();
+        expect((graph.nodes.get('http://valid.com') as any)?.hubScore).toBe(0); // Valid hub but its targets are ineligible
     });
 
     it('should respect edge weights', () => {
@@ -79,15 +79,15 @@ describe('HITS Scoring', () => {
         const results = service.evaluate(graph, { iterations: 10 });
         for (const [url, res] of results) {
             const node = graph.nodes.get(url)!;
-            node.authorityScore = res.authority_score;
-            node.hubScore = res.hub_score;
-            node.linkRole = res.link_role;
+            (node as any).authorityScore = res.authority_score;
+            (node as any).hubScore = res.hub_score;
+            (node as any).linkRole = res.link_role;
         }
 
         const authHigh = graph.nodes.get('http://auth-high.com')!;
         const authLow = graph.nodes.get('http://auth-low.com')!;
 
-        expect(authHigh.authorityScore).toBeGreaterThan(authLow.authorityScore!);
+        expect((authHigh as any).authorityScore).toBeGreaterThan((authLow as any).authorityScore!);
     });
 
     it('should classify link roles correctly', () => {
@@ -120,12 +120,12 @@ describe('HITS Scoring', () => {
         const results = service.evaluate(graph, { iterations: 20 });
         for (const [url, res] of results) {
             const node = graph.nodes.get(url)!;
-            node.authorityScore = res.authority_score;
-            node.hubScore = res.hub_score;
-            node.linkRole = res.link_role;
+            (node as any).authorityScore = res.authority_score;
+            (node as any).hubScore = res.hub_score;
+            (node as any).linkRole = res.link_role;
         }
 
-        const roles = graph.getNodes().map(n => n.linkRole).filter(Boolean);
+        const roles = graph.getNodes().map(n => (n as any).linkRole).filter(Boolean);
         expect(roles).toContain('authority');
         expect(roles).toContain('hub');
         expect(roles).toContain('power');
@@ -156,14 +156,14 @@ describe('HITS Scoring', () => {
         const results = service.evaluate(graph, { iterations: 20 });
         for (const [url, res] of results) {
             const node = graph.nodes.get(url)!;
-            node.authorityScore = res.authority_score;
-            node.hubScore = res.hub_score;
-            node.linkRole = res.link_role;
+            (node as any).authorityScore = res.authority_score;
+            (node as any).hubScore = res.hub_score;
+            (node as any).linkRole = res.link_role;
         }
         const duration = Date.now() - start;
 
         console.log(`HITS on 5000 nodes took ${duration}ms`);
         expect(duration).toBeLessThan(2000); // Should be very fast, but allow buffer for CI environments
-        expect(graph.nodes.get('http://page0.com')?.hubScore).toBeDefined();
+        expect((graph.nodes.get('http://page0.com') as any)?.hubScore).toBeDefined();
     });
 });

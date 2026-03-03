@@ -67,7 +67,6 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
                 snapshot_id: snapshotId,
                 page_id: pageId,
 
-                link_role: node.linkRole ?? null,
                 crawl_status: node.crawlStatus ?? null,
                 word_count: node.wordCount ?? null,
                 thin_content_score: node.thinContentScore ?? null,

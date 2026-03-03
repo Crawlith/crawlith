@@ -25,7 +25,6 @@ export interface GraphNode {
   securityError?: string;
   retries?: number;
   bytesReceived?: number;
-  linkRole?: 'hub' | 'authority' | 'power' | 'balanced' | 'peripheral';
   crawlStatus?: string;
   wordCount?: number;
   thinContentScore?: number;

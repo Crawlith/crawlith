@@ -1,4 +1,4 @@
-import { PluginContext } from '@crawlith/core';
+import { PluginContext, Graph } from '@crawlith/core';
 import { HITSService } from './Service.js';
 import { HITSRow } from './types.js';
 
@@ -6,7 +6,7 @@ export const HitsHooks = {
     /**
      * Called on the fully built graph during post-crawl metrics.
      */
-    onMetrics: async (ctx: PluginContext, graph: any) => {
+    onMetrics: async (ctx: PluginContext, graph: Graph) => {
         const flags = ctx.flags || {};
         if (!flags.computeHits || !ctx.db) return;
 
@@ -20,19 +20,19 @@ export const HitsHooks = {
             const res = hitsResults.get(node.url);
             if (res) {
                 // Mutate node for downstream in-memory use (core metrics might still look at these)
-                node.authorityScore = res.authority_score;
-                node.hubScore = res.hub_score;
-                node.linkRole = res.link_role;
+                (node as any).authorityScore = res.authority_score;
+                (node as any).hubScore = res.hub_score;
+                (node as any).linkRole = res.link_role;
 
                 // Save to plugin scoped table
-                await ctx.db.data.getOrFetch<HITSRow & { score: number; weight: number }>(
-                    node.url,
-                    async () => ({
+                await ctx.db.data.save({
+                    url: node.url,
+                    data: {
                         ...res,
                         score: res.authority_score * 100, // Normalized for aggregator (0-100 range)
                         weight: 1.0
-                    })
-                );
+                    }
+                });
                 count++;
             }
         }
