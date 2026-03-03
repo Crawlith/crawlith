@@ -8,6 +8,7 @@ import type { CrawlithPlugin, PluginContext } from '../plugin-system/plugin-type
 import type { UseCase } from './usecase.js';
 import type { Graph } from '../graph/graph.js';
 import type { EngineContext } from '../events.js';
+import { getCrawlithDB } from '../db/index.js';
 
 export interface CrawlSitegraphResult {
   snapshotId: number;
@@ -39,11 +40,15 @@ export interface SiteCrawlInput {
 
 export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphResult> {
   async execute(input: SiteCrawlInput): Promise<CrawlSitegraphResult> {
-    const ctx = input.context ?? { command: 'crawl' };
+    const ctx = input.context ?? { command: 'crawl', scope: 'crawl' as const };
+    ctx.scope = 'crawl';
+    ctx.db = getCrawlithDB();
     const registry = new PluginRegistry(input.plugins ?? []);
 
+    await registry.applyStorage(ctx);
     await registry.runHook('onInit', ctx);
     if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
+
 
     await registry.runHook('onCrawlStart', ctx);
     if (ctx.terminate) return { snapshotId: 0, graph: undefined as any };
@@ -78,10 +83,11 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     await registry.runHook('onGraphBuilt', ctx, graph);
     await registry.runHook('onMetrics', ctx, graph);
 
-    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph, {
-      computePageRank: false,
-      computeHITS: false
-    });
+    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph);
+
+    if (ctx.db) {
+      ctx.db.aggregateScoreProviders(snapshotId, registry.pluginsList);
+    }
 
     await registry.runHook('onReport', ctx, { snapshotId, graph });
     return { snapshotId, graph };
@@ -94,7 +100,12 @@ export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeO
 
     if (input.plugins && input.plugins.length > 0) {
       const registry = new PluginRegistry(input.plugins);
-      const ctx = input.context ?? { command: 'analyze' };
+      const ctx: PluginContext = {
+        command: 'analyze',
+        scope: 'crawl',
+        ...(input.context || {}),
+        db: getCrawlithDB()
+      };
       await registry.runHook('onInit', ctx);
       await registry.runHook('onReport', ctx, result);
     }
@@ -140,9 +151,35 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       minClusterSize: input.minClusterSize,
       debug: input.debug,
       allPages: input.allPages,
-      plugins: input.plugins,
-      pluginContext: input.context
     }, this.context);
+
+    // Run plugins with page scope — only onInit + onPage are called
+    if (input.plugins && input.plugins.length > 0) {
+      const { PluginRegistry } = await import('../plugin-system/plugin-registry.js');
+      const registry = new PluginRegistry(input.plugins);
+
+      const pluginCtx: PluginContext = {
+        command: 'page',
+        scope: 'page',
+        targetUrl: input.url,
+        snapshotId: result.snapshotId,
+        live: input.live || !!(input.context?.flags?.live),
+        ...(input.context || {}),
+        db: getCrawlithDB(),
+      };
+
+      await registry.applyStorage(pluginCtx);
+      await registry.runHook('onInit', pluginCtx);
+
+      // Fire onPage once per analyzed page (normally just 1 for the page command)
+      for (const page of result.pages) {
+        await registry.runHook('onPage', pluginCtx, {
+          url: page.url,
+          html: (page as any).html ?? '',
+          status: page.status,
+        });
+      }
+    }
 
     return result;
   }

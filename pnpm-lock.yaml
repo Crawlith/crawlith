@@ -191,6 +191,9 @@ importers:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../../core
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
 
   packages/plugins/crawl-policy:
     dependencies:
@@ -227,9 +230,6 @@ importers:
       '@crawlith/core':
         specifier: workspace:*
         version: link:../../core
-      cheerio:
-        specifier: ^1.2.0
-        version: 1.2.0
 
   packages/plugins/health-score-engine:
     dependencies:
@@ -253,6 +253,12 @@ importers:
         version: link:../../core
 
   packages/plugins/pagerank:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/plugins/pagespeed:
     dependencies:
       '@crawlith/core':
         specifier: workspace:*

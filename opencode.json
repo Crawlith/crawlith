@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "crawlith": {
+      "type": "local",
+      "command": "npx",
+      "args": ["tsx", "./packages/mcp/src/mcp-server.ts"]
+    }
+  }
+}

@@ -2,12 +2,14 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { initSchema } from './schema.js';
+import { CrawlithDB } from './CrawlithDB.js';
 
 let dbInstance: Database.Database | null = null;
+let crawlithDbInstance: CrawlithDB | null = null;
 
 export * from './repositories/SiteRepository.js';
 export * from './repositories/SnapshotRepository.js';
+export * from './CrawlithDB.js';
 export { initSchema } from './schema.js';
 
 export function getDbPath(): string {
@@ -27,48 +29,52 @@ export function getDbPath(): string {
   return path.join(crawlithDir, 'crawlith.db');
 }
 
+/**
+ * Returns the higher-level CrawlithDB wrapper for plugins and new code.
+ */
+export function getCrawlithDB(): CrawlithDB {
+  if (crawlithDbInstance) {
+    return crawlithDbInstance;
+  }
+
+  const dbPath = getDbPath();
+  crawlithDbInstance = new CrawlithDB(dbPath);
+  dbInstance = crawlithDbInstance.unsafeGetRawDb();
+
+  // Migrations for existing tables
+  try { dbInstance.exec(`ALTER TABLE pages ADD COLUMN discovered_via_sitemap INTEGER DEFAULT 0;`); } catch (_e) { /* ignore */ }
+
+  // Security controls: Ensure file permissions are 600 (user read/write only)
+  if (dbPath !== ':memory:') {
+    try {
+      fs.chmodSync(dbPath, 0o600);
+    } catch (_e) {
+      // might fail if file doesn't exist yet but better-sqlite3 should have created it
+    }
+  }
+
+  return crawlithDbInstance;
+}
+
+/**
+ * Returns the raw better-sqlite3 Database instance for legacy repositories.
+ */
 export function getDb(): Database.Database {
   if (dbInstance) {
     return dbInstance;
   }
 
-  const dbPath = getDbPath();
-  const db = new Database(dbPath);
-
-  // Hardening & Performance Configuration
-  db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = NORMAL');
-  db.pragma('foreign_keys = ON');
-  db.pragma('temp_store = MEMORY');
-  db.pragma('mmap_size = 30000000000');
-  db.pragma('cache_size = -20000');
-  db.pragma('busy_timeout = 5000');
-
-  // Security controls
-  // Ensure file permissions are 600 (user read/write only)
-  try {
-    fs.chmodSync(dbPath, 0o600);
-  } catch (_e) {
-    // might fail on first creation if file doesn't exist yet, but better-sqlite3 creates it
-    // so we can try again or ignore if it's new
-  }
-
-  // Integrity check on startup
-  const integrity = db.pragma('integrity_check', { simple: true });
-  if (integrity !== 'ok') {
-    // Reverted to console.warn to avoid breaking change
-    console.warn('Database integrity check failed:', integrity);
-  }
-
-  // Initialize schema
-  initSchema(db);
-
-  dbInstance = db;
-  return db;
+  // Initializing via getCrawlithDB ensures consistent configuration
+  getCrawlithDB();
+  return dbInstance!;
 }
 
 export function closeDb() {
-  if (dbInstance) {
+  if (crawlithDbInstance) {
+    crawlithDbInstance.close();
+    crawlithDbInstance = null;
+    dbInstance = null;
+  } else if (dbInstance) {
     dbInstance.close();
     dbInstance = null;
   }

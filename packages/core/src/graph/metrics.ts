@@ -12,7 +12,6 @@ export interface Metrics {
   crawlEfficiencyScore: number;
   averageDepth: number;
   structuralEntropy: number;
-  topPageRankPages: { url: string; score: number }[];
   limitReached: boolean;
   sessionStats?: {
     pagesFetched: number;
@@ -103,15 +102,8 @@ export function calculateMetrics(graph: Graph, _maxDepth: number): Metrics {
 
   // topAuthorityPages: Top 10 by authority
   const topAuthorityPages = [...nodes]
-    .map(n => ({ url: n.url, authority: n.authorityScore ?? getAuthority(n) }))
+    .map(n => ({ url: n.url, authority: getAuthority(n) }))
     .sort((a, b) => b.authority - a.authority)
-    .slice(0, 10);
-
-  // topPageRankPages: Top 10 by raw PageRank
-  const topPageRankPages = [...nodes]
-    .filter(n => n.pageRank !== undefined)
-    .map(n => ({ url: n.url, score: n.pageRank! }))
-    .sort((a, b) => b.score - a.score)
     .slice(0, 10);
 
   const averageOutDegree = totalPages > 0 ? totalEdges / totalPages : 0;
@@ -129,7 +121,6 @@ export function calculateMetrics(graph: Graph, _maxDepth: number): Metrics {
     crawlEfficiencyScore,
     averageDepth,
     structuralEntropy,
-    topPageRankPages,
     limitReached: graph.limitReached,
     sessionStats: graph.sessionStats
   };

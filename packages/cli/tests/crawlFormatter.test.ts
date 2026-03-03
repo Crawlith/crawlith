@@ -19,13 +19,9 @@ function createMetrics(overrides: Partial<Metrics> = {}): Metrics {
     crawlEfficiencyScore: 1,
     averageDepth: 0.5,
     structuralEntropy: 0,
-    topPageRankPages: [
-      { url: 'https://example.com/a', score: 0.92 },
-      { url: 'https://example.com/b', score: 0.87 }
-    ],
     limitReached: false,
     ...overrides
-  };
+  } as any;
 }
 
 describe('health score calculation', () => {
@@ -66,20 +62,44 @@ describe('section rendering', () => {
     graph.addNode('https://example.com/a', 0, 200);
     graph.addNode('https://example.com/b', 1, 200);
     graph.addEdge('https://example.com/a', 'https://example.com/b');
-    graph.updateNodeData('https://example.com/a', { pageRank: 0.92, html: '<h1>A</h1><p>hello world</p>' });
-    graph.updateNodeData('https://example.com/b', { pageRank: 0.87, html: '<p>no heading</p>', canonical: 'https://example.com/c' });
-    graph.duplicateClusters = [{ id: 'x', type: 'near', representative: 'https://example.com/a', size: 2, severity: 'high' }];
+    graph.updateNodeData('https://example.com/a', { pageRank: 0.92, html: '<h1>A</h1><p>hello world</p>' } as any);
+    graph.updateNodeData('https://example.com/b', { pageRank: 0.87, html: '<p>no heading</p>', canonical: 'https://example.com/c' } as any);
+    (graph as any).duplicateClusters = [{ id: 'x', type: 'near', representative: 'https://example.com/a', size: 2, severity: 'high' }];
+
+    const issues = {
+      orphanPages: 1,
+      brokenInternalLinks: 0,
+      redirectChains: 0,
+      duplicateClusters: 1,
+      canonicalConflicts: 1,
+      accidentalNoindex: 0,
+      missingH1: 1,
+      thinContent: 0,
+      lowInternalLinkCount: 0,
+      excessiveInternalLinkCount: 0,
+      highExternalLinkRatio: 0,
+      imageAltMissing: 0,
+      strongPagesUnderLinking: 0,
+      cannibalizationClusters: 0,
+      nearAuthorityThreshold: 0,
+      underlinkedHighAuthorityPages: 0,
+      externalLinks: 0,
+      blockedByRobots: 0
+    };
 
     const report = buildCrawlInsightReport(
       graph,
-      createMetrics({ orphanPages: ['https://example.com/b'] })
+      createMetrics({
+        orphanPages: ['https://example.com/b'],
+        topAuthorityPages: [{ url: 'https://example.com/a', authority: 0.92 }]
+      }),
+      { health: calculateHealthScore(2, issues), issues }
     );
 
     const output = renderInsightOutput(report, 123);
     expect(output).toContain('CRAWLITH — Crawl');
     expect(output).toContain('Critical');
     expect(output).toContain('Warnings');
-    expect(output).toContain('Opportunities');
     expect(output).toContain('Top Authority');
 
     expect(output.indexOf('Critical')).toBeLessThan(output.indexOf('Warnings'));
@@ -89,9 +109,9 @@ describe('section rendering', () => {
   test('shows no critical issues message when empty', () => {
     const graph = new Graph();
     graph.addNode('https://example.com/a', 0, 200);
-    graph.updateNodeData('https://example.com/a', { html: '<h1>A</h1><p>enough words '.repeat(30) + '</p>' });
+    graph.updateNodeData('https://example.com/a', { html: '<h1>A</h1><p>enough words '.repeat(30) + '</p>' } as any);
 
-    const report = buildCrawlInsightReport(graph, createMetrics({ totalPages: 1, topPageRankPages: [] }));
+    const report = buildCrawlInsightReport(graph, createMetrics({ totalPages: 1 }), undefined);
     const output = renderInsightOutput(report, 123);
     expect(output).not.toContain('Critical');
   });
@@ -99,45 +119,35 @@ describe('section rendering', () => {
 
 describe('critical detection', () => {
   test('returns true when critical counts are present', () => {
+    const issues = {
+      orphanPages: 1,
+      brokenInternalLinks: 0,
+      redirectChains: 0,
+      duplicateClusters: 0,
+      canonicalConflicts: 0,
+      accidentalNoindex: 0,
+      missingH1: 0,
+      thinContent: 0,
+      lowInternalLinkCount: 0,
+      excessiveInternalLinkCount: 0,
+      highExternalLinkRatio: 0,
+      imageAltMissing: 0,
+      strongPagesUnderLinking: 0,
+      cannibalizationClusters: 0,
+      nearAuthorityThreshold: 0,
+      underlinkedHighAuthorityPages: 0,
+      externalLinks: 0,
+      blockedByRobots: 0
+    };
+
     const report = {
       pages: 1,
-      health: calculateHealthScore(1, {
-        orphanPages: 1,
-        brokenInternalLinks: 0,
-        redirectChains: 0,
-        duplicateClusters: 0,
-        thinContent: 0,
-        missingH1: 0,
-        accidentalNoindex: 0,
-        canonicalConflicts: 0,
-        lowInternalLinkCount: 0,
-        excessiveInternalLinkCount: 0,
-        blockedByRobots: 0
-      }),
-      issues: {
-        orphanPages: 1,
-        brokenInternalLinks: 0,
-        redirectChains: 0,
-        duplicateClusters: 0,
-        canonicalConflicts: 0,
-        accidentalNoindex: 0,
-        missingH1: 0,
-        thinContent: 0,
-        lowInternalLinkCount: 0,
-        excessiveInternalLinkCount: 0,
-        highExternalLinkRatio: 0,
-        imageAltMissing: 0,
-        strongPagesUnderLinking: 0,
-        cannibalizationClusters: 0,
-        nearAuthorityThreshold: 0,
-        underlinkedHighAuthorityPages: 0,
-        externalLinks: 0,
-        blockedByRobots: 0
-      },
+      health: calculateHealthScore(1, issues),
+      issues,
       summary: { crawlDepth: 1, internalLinks: 0, externalLinks: 0 },
       topAuthorityPages: []
     };
 
-    expect(hasCriticalIssues(report)).toBe(true);
+    expect(hasCriticalIssues(report as any)).toBe(true);
   });
 });

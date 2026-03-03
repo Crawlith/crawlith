@@ -12,3 +12,5 @@ Use the pages below to get started quickly:
 - [Common Workflows](./workflows/common-workflows)
 - [Troubleshooting](./troubleshooting)
 - [FAQ](./faq)
+- [Plugin Development](./plugins/database-and-config)
+- [AI Agent Guide](./plugins/ai-agent-guide)
