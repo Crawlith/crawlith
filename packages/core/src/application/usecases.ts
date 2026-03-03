@@ -8,6 +8,7 @@ import type { CrawlithPlugin, PluginContext } from '../plugin-system/plugin-type
 import type { UseCase } from './usecase.js';
 import type { Graph } from '../graph/graph.js';
 import type { EngineContext } from '../events.js';
+import { getCrawlithDB } from '../db/index.js';
 
 export interface CrawlSitegraphResult {
   snapshotId: number;
@@ -40,6 +41,7 @@ export interface SiteCrawlInput {
 export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphResult> {
   async execute(input: SiteCrawlInput): Promise<CrawlSitegraphResult> {
     const ctx = input.context ?? { command: 'crawl' };
+    ctx.db = getCrawlithDB();
     const registry = new PluginRegistry(input.plugins ?? []);
 
     await registry.runHook('onInit', ctx);
@@ -95,6 +97,7 @@ export class AnalyzeSnapshot implements UseCase<{ url: string; options: AnalyzeO
     if (input.plugins && input.plugins.length > 0) {
       const registry = new PluginRegistry(input.plugins);
       const ctx = input.context ?? { command: 'analyze' };
+      ctx.db = getCrawlithDB();
       await registry.runHook('onInit', ctx);
       await registry.runHook('onReport', ctx, result);
     }
@@ -141,7 +144,10 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       debug: input.debug,
       allPages: input.allPages,
       plugins: input.plugins,
-      pluginContext: input.context
+      pluginContext: {
+        ...(input.context || { command: 'page' }),
+        db: getCrawlithDB()
+      }
     }, this.context);
 
     return result;

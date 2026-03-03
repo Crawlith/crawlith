@@ -217,8 +217,10 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
   if (options.plugins && options.plugins.length > 0) {
     const { PluginRegistry } = await import('../plugin-system/plugin-registry.js');
+    const { getCrawlithDB } = await import('../db/index.js');
     const registry = new PluginRegistry(options.plugins);
     const pluginCtx = options.pluginContext || { command: 'page' };
+    if (!pluginCtx.db) pluginCtx.db = getCrawlithDB();
 
     await registry.runHook('onInit', pluginCtx);
     await registry.runHook('onMetrics', pluginCtx, crawlData.graph);

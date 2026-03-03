@@ -96,6 +96,9 @@ importers:
       '@crawlith/plugin-reporter':
         specifier: workspace:*
         version: link:../plugins/reporter
+      '@crawlith/plugin-signals':
+        specifier: workspace:*
+        version: link:../plugins/signals
       '@crawlith/plugin-simhash':
         specifier: workspace:*
         version: link:../plugins/simhash
@@ -250,6 +253,12 @@ importers:
         version: link:../../core
 
   packages/plugins/pagerank:
+    dependencies:
+      '@crawlith/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/plugins/pagespeed:
     dependencies:
       '@crawlith/core':
         specifier: workspace:*

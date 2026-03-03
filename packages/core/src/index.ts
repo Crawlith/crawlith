@@ -40,6 +40,7 @@ export * from './events.js';
 export * from './plugin-system/plugin-types.js';
 export * from './plugin-system/plugin-loader.js';
 export * from './plugin-system/plugin-registry.js';
+export * from './plugin-system/plugin-cli.js';
 export * from './ports/index.js';
 export * from './application/usecase.js';
 export * from './application/usecases.js';
