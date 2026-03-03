@@ -542,19 +542,19 @@ export class Crawler {
     }
   }
 
-  private handleSuccessResponse(res: FetchResult, finalUrl: string, depth: number, isBlocked: boolean = false): void {
+  private handleSuccessResponse(res: FetchResult, path: string, absoluteUrl: string, depth: number, isBlocked: boolean = false): void {
     const contentTypeHeader = res.headers['content-type'];
     const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : (contentTypeHeader || '');
     if (!contentType || !contentType.toLowerCase().includes('text/html')) {
-      this.bufferPage(finalUrl, depth, typeof res.status === 'number' ? res.status : 0);
+      this.bufferPage(path, depth, typeof res.status === 'number' ? res.status : 0);
       return;
     }
 
-    const parseResult = this.parser!.parse(res.body, finalUrl, res.status as number);
+    const parseResult = this.parser!.parse(res.body, absoluteUrl, res.status as number);
 
     if (this.registry) {
       this.registry.runHook('onPageParsed', this.context as any, {
-        url: finalUrl,
+        url: absoluteUrl,
         status: res.status,
         depth: depth,
         headers: res.headers,
@@ -562,7 +562,7 @@ export class Crawler {
       });
     }
 
-    this.bufferPage(finalUrl, depth, res.status as number, {
+    this.bufferPage(path, depth, res.status as number, {
       html: parseResult.html,
       canonical_url: parseResult.canonical || undefined,
       noindex: parseResult.noindex ? 1 : 0,
@@ -576,29 +576,28 @@ export class Crawler {
 
     try {
       const contentAnalysis = analyzeContent(parseResult.html);
-      const linkAnalysis = analyzeLinks(parseResult.html, finalUrl, this.rootOrigin);
+      const linkAnalysis = analyzeLinks(parseResult.html, absoluteUrl, this.rootOrigin);
       const thinScore = calculateThinContentScore(contentAnalysis, 0);
 
-      this.bufferMetrics(finalUrl, {
+      this.bufferMetrics(path, {
         crawl_status: isBlocked ? 'blocked_by_robots' : 'fetched',
         word_count: contentAnalysis.wordCount,
         thin_content_score: thinScore,
         external_link_ratio: linkAnalysis.externalRatio
       });
     } catch (e) {
-      this.context.emit({ type: 'error', message: 'Error calculating per-page metrics', error: e, context: { url: finalUrl } });
+      this.context.emit({ type: 'error', message: 'Error calculating per-page metrics', error: e, context: { url: absoluteUrl } });
     }
 
     for (const linkItem of parseResult.links) {
-      const normalizedLink = normalizeUrl(linkItem.url, finalUrl, this.options);
+      const normalizedLink = normalizeUrl(linkItem.url, absoluteUrl, this.options);
       if (normalizedLink) {
         const targetPath = UrlUtil.toPath(normalizedLink, this.rootOrigin);
-        const sourcePath = UrlUtil.toPath(finalUrl, this.rootOrigin);
 
-        if (targetPath !== sourcePath) {
+        if (targetPath !== path) {
           const isInternal = UrlUtil.isInternal(normalizedLink, this.rootOrigin);
           this.bufferPage(targetPath, depth + 1, 0);
-          this.bufferEdge(sourcePath, targetPath, 1.0, isInternal ? 'internal' : 'external');
+          this.bufferEdge(path, targetPath, 1.0, isInternal ? 'internal' : 'external');
 
           if (isInternal && this.shouldEnqueue(targetPath, depth + 1)) {
             this.addToQueue(targetPath, depth + 1);
@@ -648,7 +647,7 @@ export class Crawler {
       }
 
       if (res.status === 200) {
-        this.handleSuccessResponse(res, fullUrl, depth, isBlocked);
+        this.handleSuccessResponse(res, finalPath, fullUrl, depth, isBlocked);
       }
     } catch (e) {
       this.context.emit({ type: 'crawl:error', url, error: String(e), depth });
