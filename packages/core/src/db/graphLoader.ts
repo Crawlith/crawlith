@@ -75,8 +75,6 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             crawlTrapRisk: p.crawl_trap_risk || undefined,
             trapType: p.trap_type || undefined,
             // Metrics
-            pageRank: m?.pagerank ?? undefined,
-            pageRankScore: m?.pagerank_score ?? m?.pagerank ?? undefined,
             authorityScore: m?.authority_score ?? undefined,
             hubScore: m?.hub_score ?? undefined,
             linkRole: m?.link_role ?? undefined,

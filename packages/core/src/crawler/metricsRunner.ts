@@ -3,7 +3,6 @@ import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { MetricsRepository } from '../db/repositories/MetricsRepository.js';
 import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PageRepository } from '../db/repositories/PageRepository.js';
-import { computePageRank } from '../graph/pagerank.js';
 import { calculateMetrics } from '../graph/metrics.js';
 import { computeHITS } from '../scoring/hits.js';
 import { EngineContext } from '../events.js';
@@ -12,7 +11,6 @@ import { calculateHealthScore, collectCrawlIssues } from '../scoring/health.js';
 import { Graph } from '../graph/graph.js';
 
 export interface PostCrawlMetricOptions {
-    computePageRank?: boolean;
     computeHITS?: boolean;
 }
 
@@ -47,10 +45,6 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
         emit({ type: 'metrics:start', phase: 'Loading graph' });
     }
 
-    if (options.computePageRank !== false) {
-        emit({ type: 'metrics:start', phase: 'Computing PageRank' });
-        computePageRank(graph);
-    }
 
     if (options.computeHITS !== false) {
         emit({ type: 'metrics:start', phase: 'Computing HITS' });
@@ -89,8 +83,6 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, contex
                 page_id: pageId,
                 authority_score: node.authorityScore ?? null,
                 hub_score: node.hubScore ?? null,
-                pagerank: node.pageRank ?? null,
-                pagerank_score: node.pageRankScore ?? null,
                 link_role: node.linkRole ?? null,
                 crawl_status: node.crawlStatus ?? null,
                 word_count: node.wordCount ?? null,

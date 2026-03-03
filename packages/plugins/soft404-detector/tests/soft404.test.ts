@@ -16,7 +16,7 @@ describe('Soft 404 Detection Plugin', () => {
             flags: { detectSoft404: true },
             db: {
                 data: {
-                    getOrFetch: async (url: string, fetchFn: Function) => {
+                    getOrFetch: async (url: string, fetchFn: () => Promise<string>): Promise<string> => {
                         return await fetchFn();
                     }
                 }

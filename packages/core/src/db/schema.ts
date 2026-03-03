@@ -94,8 +94,6 @@ export function initSchema(db: Database) {
       page_id INTEGER NOT NULL,
       authority_score REAL,
       hub_score REAL,
-      pagerank REAL,
-      pagerank_score REAL,
       link_role TEXT CHECK(link_role IN ('hub', 'authority', 'power', 'balanced', 'peripheral')),
       crawl_status TEXT,
       word_count INTEGER,
@@ -179,7 +177,6 @@ function migrateSchema(db: Database) {
 
   // Add missing columns to metrics
   const metricsColumns = [
-    ['pagerank_score', 'REAL'],
     ['link_role', 'TEXT'],
     ['duplicate_cluster_id', 'TEXT'],
     ['duplicate_type', 'TEXT'],
