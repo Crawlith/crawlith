@@ -12,7 +12,10 @@ export function scorePageSeo(page: PageAnalysis): number {
     return 0;
   }
   const titleMeta = (scoreTextStatus(page.title.status) + scoreTextStatus(page.metaDescription.status)) / 2;
-  const h1 = page.h1.status === 'ok' ? 100 : page.h1.status === 'warning' ? 60 : 10;
+  let h1 = page.h1.status === 'ok' ? 100 : page.h1.status === 'warning' ? 60 : 10;
+  if (page.headingScore !== undefined && page.headingScore !== null) {
+    h1 = page.headingScore;
+  }
   const wordQuality = Math.min(100, (page.content.wordCount / 600) * 100) * 0.7 + Math.min(100, page.content.textHtmlRatio * 500) * 0.3;
   const thin = 100 - page.thinScore;
   const imageDen = Math.max(1, page.images.totalImages);

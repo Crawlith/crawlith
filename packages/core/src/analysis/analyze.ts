@@ -92,6 +92,7 @@ export interface PageAnalysis {
     crawlStatus?: string;
   };
   soft404?: { score: number; reason: string };
+  headingScore?: number;
   plugins?: Record<string, any>;
 }
 
@@ -252,10 +253,6 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     resultPages = targetPage ? [targetPage] : (options.live ? filteredPages.slice(0, 1) : []);
   }
 
-  const duplicateTitles = pages.filter((page) => page.title.status === 'duplicate').length;
-  const thinPages = pages.filter((page) => page.thinScore >= 70).length;
-  const siteScores = aggregateSiteScore(crawlData.metrics, resultPages.length === 1 ? resultPages : pages);
-  if (context) context.emit({ type: 'debug', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
 
   let clusters: any[] = [];
   let duplicates: any[] = [];
@@ -326,6 +323,20 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
       node.headingData = JSON.stringify(heading);
     }
   }
+
+  // Synchronize graph-level final scores back to PageAnalysis models
+  for (const page of pages) {
+    const node = crawlData.graph.nodes.get(page.url);
+    if (node) {
+      if (node.headingScore !== undefined) page.headingScore = node.headingScore;
+      page.seoScore = scorePageSeo(page);
+    }
+  }
+
+  const duplicateTitles = pages.filter((page) => page.title.status === 'duplicate').length;
+  const thinPages = pages.filter((page) => page.thinScore >= 70).length;
+  const siteScores = aggregateSiteScore(crawlData.metrics, resultPages.length === 1 ? resultPages : pages);
+  if (context) context.emit({ type: 'debug', message: `[analyze] Total analysis completed in ${Date.now() - start}ms` });
 
 
 

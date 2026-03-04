@@ -486,12 +486,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.2 GET /api/page/inlinks
     api.get('/page/inlinks', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -527,12 +528,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.3 GET /api/page/outlinks
     api.get('/page/outlinks', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -567,9 +569,10 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.4 GET /api/page/cluster
     api.get('/page/cluster', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      let url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare(`
         SELECT p.id, m.duplicate_cluster_id
