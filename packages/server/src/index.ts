@@ -17,6 +17,7 @@ export interface ServerOptions {
   staticPath: string;
   siteId: number;
   snapshotId: number;
+  plugins?: any[];
 }
 
 /**
@@ -734,9 +735,9 @@ export function startServer(options: ServerOptions): Promise<void> {
     });
 
     // 5.1 GET /api/page
-    api.get('/page', async (req, res) => {
+    api.get('/page', validateSnapshot, async (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
       const url = req.query.url as string;
-      const snapshotParam = undefined;
 
       if (!url) {
         return res.status(400).json({ error: 'URL parameter is required' });
@@ -754,7 +755,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         const useCase = new PageAnalysisUseCase();
         const result = await useCase.execute({
           url: urlForAnalysis,
-          snapshotId: snapshotParam ? parseInt(snapshotParam, 10) : undefined,
+          snapshotId: currentSnapshotId,
           seo: true,
           content: true,
           accessibility: true,
@@ -778,6 +779,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         `).get(targetSnapshotId, siteId, urlForLookup) as any;
 
         let inlinks = 0, outlinks = 0;
+        let latestSnapshotIdForPage: number | undefined = undefined;
         if (dbPage) {
           const inlinksCount = db.prepare(`
             SELECT COUNT(*) as count FROM edges
@@ -787,8 +789,14 @@ export function startServer(options: ServerOptions): Promise<void> {
             SELECT COUNT(*) as count FROM edges
             WHERE snapshot_id = ? AND source_page_id = ? AND rel = 'internal'
           `).get(targetSnapshotId, dbPage.id) as { count: number };
+
+          const latestSnapResult = db.prepare(`
+            SELECT MAX(snapshot_id) as maxId FROM metrics WHERE page_id = ?
+          `).get(dbPage.id) as { maxId: number | null };
+
           inlinks = inlinksCount.count;
           outlinks = outlinksCount.count;
+          latestSnapshotIdForPage = latestSnapResult.maxId ?? undefined;
         }
 
         // Health assessment
@@ -796,6 +804,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         const warningCount = (page.title.status === 'too_long' || page.title.status === 'too_short' || page.content.wordCount < 300 || page.h1.status === 'warning') ? 1 : 0;
 
         res.json({
+          latestSnapshotIdForPage,
           identity: {
             url: page.url,
             status: page.status,
@@ -837,7 +846,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.2 GET /api/page/inlinks
     api.get('/page/inlinks', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
       let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
@@ -879,7 +888,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.3 GET /api/page/outlinks
     api.get('/page/outlinks', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
       let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
@@ -920,7 +929,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.4 GET /api/page/cluster
     api.get('/page/cluster', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
       let url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -983,7 +992,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.6 GET /api/page/graph-context
     api.get('/page/graph-context', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
       const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -1092,6 +1101,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           seo: true,
           content: true,
           accessibility: true,
+          plugins: options.plugins
         });
 
         console.log(chalk.green(`   ✅ Live crawl completed in ${Date.now() - start}ms`));

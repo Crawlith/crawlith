@@ -161,6 +161,7 @@ export interface PageDetails {
   };
   headingData?: any;
   snapshotId: number;
+  latestSnapshotIdForPage?: number;
 }
 
 export interface Inlink {

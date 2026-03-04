@@ -268,6 +268,10 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
           status: page.status,
         });
       }
+
+      if (pluginCtx.db && result.snapshotId) {
+        pluginCtx.db.aggregateScoreProviders(result.snapshotId, registry.pluginsList);
+      }
     }
 
     return result;

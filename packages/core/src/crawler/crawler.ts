@@ -572,7 +572,8 @@ export class Crawler {
       simhash: parseResult.simhash,
       etag: res.etag,
       last_modified: res.lastModified,
-      retries: res.retries
+      retries: res.retries,
+      bytes_received: res.bytesReceived
     });
 
     try {

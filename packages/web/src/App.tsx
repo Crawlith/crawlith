@@ -47,7 +47,7 @@ function App() {
         setContext(ctx);
 
         // Default Boot
-        setCurrentSnapshotId(ctx.snapshotId);
+        setCurrentSnapshotId(ctx.latestSnapshotId);
       } catch (e) {
         setError('Failed to initialize dashboard. Is the server running?');
         console.error(e);

@@ -74,7 +74,8 @@ export const getUiCommand = (registry: PluginRegistry) => {
         host,
         staticPath: distPath,
         siteId: site.id,
-        snapshotId: snapshot.id
+        snapshotId: snapshot.id,
+        plugins: registry.getPlugins()
       });
 
       const displayHost = host === '0.0.0.0' ? 'localhost' : host;
