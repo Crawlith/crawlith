@@ -132,26 +132,35 @@ interface CrawlData {
  * Supports live crawling or loading from a database snapshot.
  */
 export async function analyzeSite(url: string, options: AnalyzeOptions, context?: EngineContext): Promise<AnalysisResult> {
-  // 1. Resolve URL (SSL, WWW) if it's a live crawl or we need to identify the site
-  let rootOrigin = url;
+  // 1. Parse siteOrigin (e.g. https://example.com) and targetPath (e.g. /stats) from the URL.
+  //    We resolve the *origin* — not the full page URL — so rootOrigin is always just the
+  //    scheme+host and normalizedPath is always the pathname.
+  let parsedUrl: URL | null = null;
+  try { parsedUrl = new URL(url); } catch { /* bare domain fallback below */ }
+
+  const inputOrigin = parsedUrl ? `${parsedUrl.protocol}//${parsedUrl.host}` : url;
+  const inputPath = parsedUrl?.pathname || '/';
+
+  let rootOrigin = inputOrigin;
   if (options.live !== false) {
     const resolver = new UrlResolver();
     const fetcher = new Fetcher({ rate: options.rate, proxyUrl: options.proxyUrl, userAgent: options.userAgent });
     try {
-      const resolved = await resolver.resolve(url, fetcher);
+      const resolved = await resolver.resolve(inputOrigin, fetcher);
       rootOrigin = resolved.url;
     } catch {
       // Fallback to basic normalization if resolution fails
     }
   }
 
-  // Normalize the resolved origin — use rootOrigin (always absolute after resolution),
-  // not the raw 'url' input which may be a bare domain like 'callforpaper.org'.
+  // Normalize the resolved origin
   const normalizedAbs = normalizeUrl(rootOrigin, '', { stripQuery: false });
   if (!normalizedAbs) {
     throw new Error('Invalid URL for analysis');
   }
-  const normalizedPath = UrlUtil.toPath(normalizedAbs, rootOrigin);
+
+  // normalizedPath: use the input pathname (e.g. '/stats'), falling back to '/' for root
+  const normalizedPath = inputPath && inputPath !== '/' ? inputPath : UrlUtil.toPath(normalizedAbs, rootOrigin);
 
   const start = Date.now();
   let crawlData: CrawlData;
