@@ -1,5 +1,5 @@
 import { load } from 'cheerio';
-import { normalizeUrl } from '../crawler/normalize.js';
+import { normalizeUrl, UrlUtil } from '../crawler/normalize.js';
 
 export interface LinkRatioAnalysis {
   internalLinks: number;
@@ -11,7 +11,6 @@ export interface LinkRatioAnalysis {
 export function analyzeLinks($: any, pageUrl: string, rootUrl: string): LinkRatioAnalysis {
   const isString = typeof $ === 'string';
   const cheerioObj = isString ? load($ || '<html></html>') : $;
-  const rootOrigin = new URL(rootUrl).origin;
 
   let internalLinks = 0;
   let externalLinks = 0;
@@ -28,13 +27,9 @@ export function analyzeLinks($: any, pageUrl: string, rootUrl: string): LinkRati
       nofollowCount += 1;
     }
 
-    try {
-      if (new URL(normalized).origin === rootOrigin) {
-        internalLinks += 1;
-      } else {
-        externalLinks += 1;
-      }
-    } catch {
+    if (UrlUtil.isInternal(normalized, rootUrl)) {
+      internalLinks += 1;
+    } else {
       externalLinks += 1;
     }
   });

@@ -59,6 +59,47 @@ export const ContentTab = ({ details }: { details: PageDetails }) => {
                     />
                 </div>
             </div>
+
+            {details.headingData && details.headingData.map && details.headingData.map.length > 0 && (
+                <div className="border-t border-slate-200 dark:border-slate-800">
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">Heading Structure</h3>
+                            <span className={`text-xs font-bold px-2 py-1 rounded ${details.headingData.status === 'Healthy' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                details.headingData.status === 'Moderate' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                }`}>
+                                {details.headingData.status} Score: {details.headingData.score}
+                            </span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-3 font-mono text-sm max-h-[400px] overflow-y-auto">
+                            {details.headingData.map.map((node: any, idx: number) => (
+                                <div key={idx} className="flex gap-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors pr-4" style={{ paddingLeft: `${(node.level - 1) * 1.5 + 1}rem` }}>
+                                    <span className="text-blue-500 dark:text-blue-400 font-bold shrink-0 w-6">H{node.level}</span>
+                                    <span className="text-slate-700 dark:text-slate-300 text-sm whitespace-normal" title={node.text}>
+                                        {node.text}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {details.headingData.issues && details.headingData.issues.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider">Structural Issues Found</h4>
+                                <ul className="space-y-2">
+                                    {details.headingData.issues.map((issue: string, idx: number) => (
+                                        <li key={idx} className="text-amber-700 dark:text-amber-400 text-sm flex items-start gap-2 bg-amber-50 dark:bg-amber-900/10 p-2 rounded border border-amber-100 dark:border-amber-900/20">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></div>
+                                            <span>{issue}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
