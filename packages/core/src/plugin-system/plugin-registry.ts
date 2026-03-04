@@ -33,7 +33,12 @@ export class PluginRegistry {
                 if (plugin.cli) {
                     const targets = plugin.cli.for ?? ['page', 'crawl'];
                     if (targets.includes(cmdName)) {
-                        cmd.option(plugin.cli.flag, plugin.cli.description);
+                        const defaultValue = plugin.cli.defaultValue;
+                        if (defaultValue !== undefined && defaultValue !== null) {
+                            cmd.option(plugin.cli.flag, plugin.cli.description, defaultValue as any);
+                        } else {
+                            cmd.option(plugin.cli.flag, plugin.cli.description);
+                        }
                         for (const opt of plugin.cli.options ?? []) {
                             const dv = opt.defaultValue;
                             if (dv !== undefined && dv !== null) {

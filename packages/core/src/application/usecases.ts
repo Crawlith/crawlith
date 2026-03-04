@@ -1,8 +1,11 @@
 import { crawl } from '../crawler/crawl.js';
+import { DEFAULTS } from '../constants.js';
 import { runPostCrawlMetrics } from '../crawler/metricsRunner.js';
 import { analyzeSite, type AnalyzeOptions, type AnalysisResult } from '../analysis/analyze.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { compareGraphs } from '../diff/compare.js';
+import { SiteRepository } from '../db/repositories/SiteRepository.js';
+import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PluginRegistry } from '../plugin-system/plugin-registry.js';
 import type { CrawlithPlugin, PluginContext } from '../plugin-system/plugin-types.js';
 import type { UseCase } from './usecase.js';
@@ -22,7 +25,7 @@ export interface SiteCrawlInput {
   concurrency?: number;
   stripQuery?: boolean;
   ignoreRobots?: boolean;
-  sitemap?: string;
+  sitemap?: string | boolean;
   debug?: boolean;
   detectSoft404?: boolean;
   detectTraps?: boolean;
@@ -34,6 +37,19 @@ export interface SiteCrawlInput {
   proxyUrl?: string;
   maxRedirects?: number;
   userAgent?: string;
+  clustering?: boolean;
+  clusterThreshold?: number;
+  minClusterSize?: number;
+  heading?: boolean;
+  health?: boolean;
+  failOnCritical?: boolean;
+  scoreBreakdown?: boolean;
+  computeHits?: boolean;
+  computePagerank?: boolean;
+  orphans?: boolean;
+  orphanSeverity?: 'low' | 'medium' | 'high';
+  includeSoftOrphans?: boolean;
+  minInbound?: number;
   plugins?: CrawlithPlugin[];
   context?: PluginContext;
 }
@@ -57,8 +73,8 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
 
     // Map the unified DTO into the underlying CrawlOptions
     const crawlOpts: any = { // Temporary any to avoid mismatch until crawl() is updated
-      limit: input.limit ?? 500,
-      depth: input.depth ?? 5,
+      limit: input.limit ?? DEFAULTS.CRAWL_LIMIT,
+      depth: input.depth ?? DEFAULTS.MAX_DEPTH,
       concurrency: input.concurrency,
       stripQuery: input.stripQuery,
       ignoreRobots: policy.ignoreRobots !== undefined ? policy.ignoreRobots : input.ignoreRobots,
@@ -77,13 +93,48 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       registry: registry
     };
 
-    const snapshotId = await crawl(input.url, crawlOpts as any);
+    // Build an EngineContext from the plugin context's emit so per-page logs reach OutputController
+    const engineContext: EngineContext | undefined = ctx.emit
+      ? { emit: (e: any) => ctx.emit!(e) }
+      : undefined;
+
+    const snapshotId = await crawl(input.url, crawlOpts as any, engineContext);
     const graph = loadGraphFromSnapshot(snapshotId);
 
     await registry.runHook('onGraphBuilt', ctx, graph);
     await registry.runHook('onMetrics', ctx, graph);
 
-    runPostCrawlMetrics(snapshotId, crawlOpts.depth, undefined, false, graph);
+    const db = getCrawlithDB().unsafeGetRawDb();
+    const siteRepo = new SiteRepository(db);
+    const snapshotRepo = new SnapshotRepository(db);
+    const snapshot = snapshotRepo.getSnapshot(snapshotId);
+    let resolvedOrigin = '';
+    if (snapshot) {
+      const site = siteRepo.getSiteById(snapshot.site_id);
+      if (site?.preferred_url) {
+        try {
+          resolvedOrigin = new URL(site.preferred_url).origin;
+        } catch { /* ignore */ }
+      }
+    }
+
+    runPostCrawlMetrics(snapshotId, crawlOpts.depth, {
+      context: undefined,
+      limitReached: false,
+      graphInstance: graph,
+      clustering: input.clustering ?? true,
+      clusterThreshold: input.clusterThreshold,
+      minClusterSize: input.minClusterSize,
+      heading: input.heading ?? true,
+      health: input.health ?? true,
+      computeHits: input.computeHits ?? true,
+      computePagerank: input.computePagerank ?? true,
+      orphans: input.orphans ?? true,
+      orphanSeverity: input.orphanSeverity ?? true,
+      includeSoftOrphans: input.includeSoftOrphans ?? true,
+      minInbound: input.minInbound,
+      rootOrigin: resolvedOrigin || (input.url.startsWith('http') ? new URL(input.url).origin : `https://${input.url}`)
+    });
 
     if (ctx.db) {
       ctx.db.aggregateScoreProviders(snapshotId, registry.pluginsList);
@@ -125,10 +176,23 @@ export interface PageAnalysisInput {
   proxyUrl?: string;
   userAgent?: string;
   maxRedirects?: number;
+  maxBytes?: number;
+  clustering?: boolean;
   clusterThreshold?: number;
   minClusterSize?: number;
   debug?: boolean;
   allPages?: boolean;
+  sitemap?: string | boolean;
+  heading?: boolean;
+  health?: boolean;
+  failOnCritical?: boolean;
+  scoreBreakdown?: boolean;
+  computeHits?: boolean;
+  computePagerank?: boolean;
+  orphans?: boolean;
+  orphanSeverity?: 'low' | 'medium' | 'high';
+  includeSoftOrphans?: boolean;
+  minInbound?: number;
   plugins?: CrawlithPlugin[];
   context?: PluginContext;
 }
@@ -137,18 +201,41 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
   constructor(private readonly context?: EngineContext) { }
 
   async execute(input: PageAnalysisInput): Promise<AnalysisResult> {
+    // When running a live single-page analysis, enable all content modules
+    // by default (they all work well on a single page). Callers can still
+    // explicitly pass false to disable any of them.
+    const isLive = !!input.live;
+    const seo = input.seo ?? (isLive ? true : undefined);
+    const content = input.content ?? (isLive ? true : undefined);
+    const accessibility = input.accessibility ?? (isLive ? true : undefined);
+    const health = input.health ?? (isLive ? true : undefined);
+    const heading = input.heading ?? (isLive ? true : undefined);
+
     const result = await analyzeSite(input.url, {
       live: input.live,
       snapshotId: input.snapshotId,
-      seo: input.seo,
-      content: input.content,
-      accessibility: input.accessibility,
+      seo,
+      content,
+      accessibility,
       rate: input.rate,
       proxyUrl: input.proxyUrl,
       userAgent: input.userAgent,
       maxRedirects: input.maxRedirects,
+      maxBytes: input.maxBytes,
+      clustering: input.clustering,
       clusterThreshold: input.clusterThreshold,
       minClusterSize: input.minClusterSize,
+      sitemap: input.sitemap,
+      heading,
+      health,
+      failOnCritical: input.failOnCritical,
+      scoreBreakdown: input.scoreBreakdown,
+      computeHits: input.computeHits,
+      computePagerank: input.computePagerank,
+      orphans: input.orphans,
+      orphanSeverity: input.orphanSeverity,
+      includeSoftOrphans: input.includeSoftOrphans,
+      minInbound: input.minInbound,
       debug: input.debug,
       allPages: input.allPages,
     }, this.context);
@@ -172,12 +259,18 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       await registry.runHook('onInit', pluginCtx);
 
       // Fire onPage once per analyzed page (normally just 1 for the page command)
+      const inputOrigin = new URL(input.url).origin;
       for (const page of result.pages) {
+        const absoluteUrl = page.url.startsWith('/') ? `${inputOrigin}${page.url}` : page.url;
         await registry.runHook('onPage', pluginCtx, {
-          url: page.url,
+          url: absoluteUrl,
           html: (page as any).html ?? '',
           status: page.status,
         });
+      }
+
+      if (pluginCtx.db && result.snapshotId) {
+        pluginCtx.db.aggregateScoreProviders(result.snapshotId, registry.pluginsList);
       }
     }
 

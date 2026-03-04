@@ -6,6 +6,7 @@ import * as API from './api';
 import { Dashboard } from './pages/Dashboard';
 import { SinglePage } from './pages/SinglePage';
 import { HistoryView } from './components/History/HistoryView';
+import { GraphPage } from './pages/GraphPage';
 
 export const DashboardContext = React.createContext<{
   overview: API.OverviewData | null;
@@ -46,7 +47,7 @@ function App() {
         setContext(ctx);
 
         // Default Boot
-        setCurrentSnapshotId(ctx.snapshotId);
+        setCurrentSnapshotId(ctx.latestSnapshotId);
       } catch (e) {
         setError('Failed to initialize dashboard. Is the server running?');
         console.error(e);
@@ -106,6 +107,7 @@ function App() {
                 </div>
               } />
               <Route path="/page" element={<SinglePage />} />
+              <Route path="/graph" element={<GraphPage />} />
             </Routes>
           </main>
         </BrowserRouter>

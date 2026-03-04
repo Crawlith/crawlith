@@ -5,7 +5,8 @@ import { Graph, GraphNode } from '../graph/graph.js';
 import { Fetcher, FetchResult } from './fetcher.js';
 import { Parser } from './parser.js';
 import { Sitemap } from './sitemap.js';
-import { normalizeUrl } from './normalize.js';
+import { normalizeUrl, UrlUtil } from './normalize.js';
+import { UrlResolver } from './resolver.js';
 import { ScopeManager } from '../core/scope/scopeManager.js';
 import { getDb } from '../db/index.js';
 import { SiteRepository } from '../db/repositories/SiteRepository.js';
@@ -17,6 +18,7 @@ import { analyzeContent, calculateThinContentScore } from '../analysis/content.j
 import { analyzeLinks } from '../analysis/links.js';
 import { EngineContext } from '../events.js';
 import { PluginRegistry } from '../plugin-system/plugin-registry.js';
+import { DEFAULTS } from '../constants.js';
 
 export interface CrawlOptions {
   limit: number;
@@ -25,7 +27,7 @@ export interface CrawlOptions {
   ignoreRobots?: boolean;
   stripQuery?: boolean;
   previousGraph?: Graph;
-  sitemap?: string;
+  sitemap?: string | boolean;
   debug?: boolean;
   detectSoft404?: boolean;
   detectTraps?: boolean;
@@ -37,7 +39,7 @@ export interface CrawlOptions {
   proxyUrl?: string;
   maxRedirects?: number;
   userAgent?: string;
-  snapshotType?: 'full' | 'partial' | 'incremental';
+  snapshotRunType?: 'completed' | 'incremental' | 'single';
   registry?: PluginRegistry;
   plugins?: any[];
   robots?: any;
@@ -87,6 +89,7 @@ export class Crawler {
   private siteId: number | null = null;
   private snapshotId: number | null = null;
   private reusingSnapshot: boolean = false;
+  private runType: 'completed' | 'incremental' | 'single' = 'completed';
   private rootOrigin: string = '';
 
   // Discovery tracking
@@ -96,6 +99,7 @@ export class Crawler {
   private pageBuffer: Map<string, any> = new Map();
   private edgeBuffer: { sourceUrl: string; targetUrl: string; weight: number; rel: string }[] = [];
   private metricsBuffer: any[] = [];
+  private pendingSitemaps: number = 0;
 
   // Modules
   private scopeManager: ScopeManager | null = null;
@@ -115,8 +119,8 @@ export class Crawler {
     this.active = 0;
     this.pagesCrawled = 0;
     this.reachedLimit = false;
-    this.maxDepthInCrawl = Math.min(options.depth, 10);
-    this.concurrency = Math.min(options.concurrency || 2, 10);
+    this.maxDepthInCrawl = Math.min(options.depth || DEFAULTS.MAX_DEPTH, DEFAULTS.MAX_DEPTH_LIMIT);
+    this.concurrency = Math.min(options.concurrency || DEFAULTS.CONCURRENCY, DEFAULTS.CONCURRENCY_LIMIT);
     this.limitConcurrency = pLimit(this.concurrency);
   }
 
@@ -128,30 +132,49 @@ export class Crawler {
     this.edgeRepo = new EdgeRepository(db);
     this.metricsRepo = new MetricsRepository(db);
 
-    const rootUrl = normalizeUrl(this.startUrl, '', { stripQuery: this.options.stripQuery });
+    // Use resolver to find canonical origin and SSL
+    const resolver = new UrlResolver();
+    const tempFetcher = new Fetcher({ userAgent: this.options.userAgent, rate: this.options.rate });
+    const resolved = await resolver.resolve(this.startUrl, tempFetcher);
+    this.rootOrigin = resolved.url;
+
+    // Use the resolved absolute URL as the base — NOT this.startUrl which may be
+    // a bare domain (e.g. 'callforpaper.org') that would be treated as a relative
+    // path when passed to normalizeUrl, producing '/callforpaper.org'.
+    const rootUrl = normalizeUrl(this.rootOrigin, '', { stripQuery: this.options.stripQuery });
     if (!rootUrl) throw new Error('Invalid start URL');
 
-    const urlObj = new URL(rootUrl);
+    const urlObj = new URL(this.rootOrigin);
     const domain = urlObj.hostname.replace('www.', '');
     const site = this.siteRepo.firstOrCreateSite(domain);
     this.siteId = site.id;
 
-    // For partial snapshots (page --live), reuse the latest partial snapshot
-    // instead of creating a new one each time
-    if (this.options.snapshotType === 'partial') {
-      const existing = this.snapshotRepo.getLatestPartialSnapshot(this.siteId);
-      if (existing) {
-        this.snapshotId = existing.id;
-        this.reusingSnapshot = true;
-        this.context.emit({ type: 'debug', message: `Reusing partial snapshot #${existing.id}` });
-      } else {
-        this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, 'partial');
-      }
-    } else {
-      const type = this.options.snapshotType || (this.options.previousGraph ? 'incremental' : 'full');
-      this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, type);
+    // Persist the resolved preferred URL and SSL status
+    this.siteRepo.updateSitePreference(this.siteId, {
+      preferred_url: this.rootOrigin,
+      ssl: this.rootOrigin.startsWith('https') ? 1 : 0
+    });
+
+    // Update normalized start URL as a path
+    this.startUrl = UrlUtil.toPath(rootUrl, this.rootOrigin);
+
+    // Now that rootOrigin is resolved, initialize ScopeManager with the correct absolute origin
+    this.scopeManager = new ScopeManager({
+      allowedDomains: this.options.allowedDomains || [],
+      deniedDomains: this.options.deniedDomains || [],
+      includeSubdomains: this.options.includeSubdomains || false,
+      rootUrl: this.rootOrigin
+    });
+    // Update fetcher with the now-initialized scopeManager
+    if (this.fetcher) {
+      (this.fetcher as any).scopeManager = this.scopeManager;
     }
 
+    // Every scan now creates a new snapshot (no reuse)
+    const runType = this.options.snapshotRunType || (this.options.previousGraph ? 'incremental' : 'completed');
+    this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, runType);
+
+    this.runType = runType;
     this.rootOrigin = urlObj.origin;
     this.startUrl = rootUrl;
 
@@ -163,28 +186,20 @@ export class Crawler {
   }
 
   setupModules(): void {
-    this.scopeManager = new ScopeManager({
-      allowedDomains: this.options.allowedDomains || [],
-      deniedDomains: this.options.deniedDomains || [],
-      includeSubdomains: this.options.includeSubdomains || false,
-      rootUrl: this.startUrl
-    });
-
     this.fetcher = new Fetcher({
       rate: this.options.rate,
       proxyUrl: this.options.proxyUrl,
-      scopeManager: this.scopeManager,
+      scopeManager: this.scopeManager ?? undefined,
       maxRedirects: this.options.maxRedirects,
       userAgent: this.options.userAgent
     });
 
     this.parser = new Parser();
-    this.sitemapFetcher = new Sitemap(this.context);
+    this.sitemapFetcher = new Sitemap(this.context, this.fetcher!);
   }
-
-  async fetchRobots(): Promise<void> {
+  private async fetchRobots(): Promise<void> {
+    const robotsUrl = new URL('/robots.txt', this.rootOrigin).toString();
     try {
-      const robotsUrl = new URL('/robots.txt', this.rootOrigin).toString();
       const res = await this.fetcher!.fetch(robotsUrl, { maxBytes: 500000 });
       if (res && typeof res.status === 'number' && res.status >= 200 && res.status < 300) {
         this.robots = (robotsParser as any)(robotsUrl, res.body);
@@ -226,25 +241,76 @@ export class Crawler {
   }
 
   async seedQueue(): Promise<void> {
-    // Seed from Sitemap
-    if (this.options.sitemap) {
-      try {
-        const sitemapUrl = this.options.sitemap === 'true' ? new URL('/sitemap.xml', this.rootOrigin).toString() : this.options.sitemap;
-        if (sitemapUrl.startsWith('http')) {
-          this.context.emit({ type: 'info', message: 'Fetching sitemap', context: { url: sitemapUrl } });
-          const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
-          for (const u of sitemapUrls) {
-            const normalized = normalizeUrl(u, '', this.options);
-            if (normalized) this.addToQueue(normalized, 0, { discovered_via_sitemap: 1 });
-          }
-        }
-      } catch (e) {
-        this.context.emit({ type: 'warn', message: 'Sitemap fetch failed', context: e });
+    // Seed from startUrl first to ensure it's prioritized in the queue
+    this.addToQueue(this.startUrl, 0);
+
+    const sitemapsToFetch = new Set<string>();
+
+    // 1. Explicitly configured sitemap
+    if (this.options.sitemap && this.runType !== 'single') {
+      const explicitUrl = this.options.sitemap === 'true' || (this.options.sitemap as any) === true
+        ? new URL('/sitemap.xml', this.rootOrigin).toString()
+        : this.options.sitemap;
+
+      if (typeof explicitUrl === 'string' && explicitUrl.startsWith('http')) {
+        sitemapsToFetch.add(explicitUrl);
       }
     }
 
-    // Seed from startUrl
-    this.addToQueue(this.startUrl, 0);
+    // 2. Discover sitemaps from robots.txt (unless explicitly disabled)
+    // Only auto-fetch on the FIRST real crawl (full/incremental).
+    // page --live reuses snapshots and should NOT trigger sitemap fetch.
+    const isFirstFullCrawl = this.runType !== 'single' && !this.snapshotRepo?.hasFullCrawl(this.siteId!);
+    if (this.options.sitemap !== false && (this.options.sitemap || isFirstFullCrawl) && this.robots && this.runType !== 'single') {
+      const robotsSitemaps = this.robots.getSitemaps();
+      for (const s of robotsSitemaps) {
+        if (s) sitemapsToFetch.add(s);
+      }
+    }
+
+    // Process all discovered sitemaps in background
+    if (sitemapsToFetch.size > 0) {
+      for (const sitemapUrl of sitemapsToFetch) {
+        this.pendingSitemaps++;
+        // KICK OFF BACKGROUND TASK (Un-awaited)
+        (async () => {
+          try {
+            this.context.emit({ type: 'debug', message: 'Fetching sitemap in background', context: { url: sitemapUrl } });
+            const sitemapUrls = await this.sitemapFetcher!.fetch(sitemapUrl);
+
+            if (sitemapUrls.length > 0) {
+              this.context.emit({ type: 'debug', message: `Mapping ${sitemapUrls.length} URLs from sitemap... (Background)` });
+              const sitemapEntries = sitemapUrls.map(u => {
+                const normalized = normalizeUrl(u, this.rootOrigin, this.options);
+                if (!normalized) return null;
+                const path = UrlUtil.toPath(normalized, this.rootOrigin);
+                return {
+                  site_id: this.siteId!,
+                  normalized_url: path,
+                  first_seen_snapshot_id: this.snapshotId!,
+                  last_seen_snapshot_id: this.snapshotId!,
+                  discovered_via_sitemap: 1,
+                  depth: 0,
+                  http_status: 0
+                };
+              }).filter((p): p is any => p !== null);
+
+              // Bulk register to DB
+              this.pageRepo!.upsertMany(sitemapEntries);
+
+              // Add to queue for Actual Crawling
+              for (const entry of sitemapEntries) {
+                this.addToQueue(entry.normalized_url, 0, { discovered_via_sitemap: 1 });
+              }
+            }
+          } catch (e) {
+            this.context.emit({ type: 'warn', message: 'Sitemap fetch failed', context: { url: sitemapUrl, error: String(e) } });
+          } finally {
+            this.pendingSitemaps--;
+          }
+        })();
+      }
+    }
   }
 
   private bufferPage(url: string, depth: number, status: number, data: any = {}): void {
@@ -357,18 +423,23 @@ export class Crawler {
       return {
         snapshot_id: this.snapshotId!,
         page_id: pageId,
-        authority_score: null,
-        hub_score: null,
-        pagerank: null,
-        pagerank_score: null,
-        link_role: null,
         crawl_status: null,
         word_count: null,
         thin_content_score: null,
         external_link_ratio: null,
-        orphan_score: null,
+        pagerank_score: null,
+        hub_score: null,
+        auth_score: null,
+        link_role: null,
         duplicate_cluster_id: null,
         duplicate_type: null,
+        cluster_id: null,
+        soft404_score: null,
+        heading_score: null,
+        orphan_score: null,
+        orphan_type: null,
+        impact_level: null,
+        heading_data: null,
         is_cluster_primary: 0,
         ...item.data
       };
@@ -415,33 +486,41 @@ export class Crawler {
   }
 
   private handleCachedResponse(url: string, finalUrl: string, depth: number, prevNode: GraphNode): void {
-    this.bufferPage(finalUrl, depth, 200, {
+    const path = UrlUtil.toPath(url, this.rootOrigin);
+    const finalPath = UrlUtil.toPath(finalUrl, this.rootOrigin);
+    this.bufferPage(finalPath, depth, prevNode.status, {
       html: prevNode.html,
       canonical_url: prevNode.canonical,
+      noindex: prevNode.noindex ? 1 : 0,
+      nofollow: prevNode.nofollow ? 1 : 0,
       content_hash: prevNode.contentHash,
       simhash: prevNode.simhash,
       etag: prevNode.etag,
-      last_modified: prevNode.lastModified,
-      noindex: prevNode.noindex ? 1 : 0,
-      nofollow: prevNode.nofollow ? 1 : 0
-    });
-    this.bufferMetrics(finalUrl, {
-      crawl_status: 'cached'
+      last_modified: prevNode.lastModified
     });
 
+    this.bufferMetrics(finalPath, {
+      crawl_status: 'cached',
+      word_count: prevNode.wordCount,
+      thin_content_score: prevNode.thinContentScore,
+      external_link_ratio: prevNode.externalLinkRatio
+    });
     // Re-discovery links from previous graph to continue crawling if needed
     const prevLinks = this.options.previousGraph?.getEdges()
-      .filter(e => e.source === url)
+      .filter(e => e.source === path)
       .map(e => e.target);
 
     if (prevLinks) {
       for (const link of prevLinks) {
-        const normalizedLink = normalizeUrl(link, '', this.options);
-        if (normalizedLink && normalizedLink !== finalUrl) {
-          this.bufferPage(normalizedLink, depth + 1, 0);
-          this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
-          if (this.shouldEnqueue(normalizedLink, depth + 1)) {
-            this.addToQueue(normalizedLink, depth + 1);
+        const normalizedLink = normalizeUrl(link, this.rootOrigin, this.options);
+        if (normalizedLink) {
+          const path = UrlUtil.toPath(normalizedLink, this.rootOrigin);
+          if (path !== url) {
+            this.bufferPage(path, depth + 1, 0);
+            this.bufferEdge(url, path, 1.0, 'internal');
+            if (this.shouldEnqueue(path, depth + 1)) {
+              this.addToQueue(path, depth + 1);
+            }
           }
         }
       }
@@ -450,29 +529,33 @@ export class Crawler {
 
   private handleRedirects(chain: FetchResult['redirectChain'], depth: number): void {
     for (const step of chain) {
-      const source = normalizeUrl(step.url, '', this.options);
-      const target = normalizeUrl(step.target, '', this.options);
-      if (source && target) {
-        this.bufferPage(source, depth, step.status);
-        this.bufferPage(target, depth, 0);
-        this.bufferEdge(source, target);
+      const sourceAbs = normalizeUrl(step.url, this.rootOrigin, this.options);
+      const targetAbs = normalizeUrl(step.target, this.rootOrigin, this.options);
+      if (sourceAbs && targetAbs) {
+        const sourcePath = UrlUtil.toPath(sourceAbs, this.rootOrigin);
+        const targetPath = UrlUtil.toPath(targetAbs, this.rootOrigin);
+        const sourceInternal = UrlUtil.isInternal(sourceAbs, this.rootOrigin);
+        const targetInternal = UrlUtil.isInternal(targetAbs, this.rootOrigin);
+        this.bufferPage(sourcePath, depth, step.status, { is_internal: sourceInternal ? 1 : 0 });
+        this.bufferPage(targetPath, depth, 0, { is_internal: targetInternal ? 1 : 0 });
+        this.bufferEdge(sourcePath, targetPath, 1.0, targetInternal ? 'internal' : 'external');
       }
     }
   }
 
-  private handleSuccessResponse(res: FetchResult, finalUrl: string, depth: number, isBlocked: boolean = false): void {
+  private handleSuccessResponse(res: FetchResult, path: string, absoluteUrl: string, depth: number, isBlocked: boolean = false): void {
     const contentTypeHeader = res.headers['content-type'];
     const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : (contentTypeHeader || '');
     if (!contentType || !contentType.toLowerCase().includes('text/html')) {
-      this.bufferPage(finalUrl, depth, typeof res.status === 'number' ? res.status : 0);
+      this.bufferPage(path, depth, typeof res.status === 'number' ? res.status : 0);
       return;
     }
 
-    const parseResult = this.parser!.parse(res.body, finalUrl, res.status as number);
+    const parseResult = this.parser!.parse(res.body, absoluteUrl, res.status as number);
 
     if (this.registry) {
       this.registry.runHook('onPageParsed', this.context as any, {
-        url: finalUrl,
+        url: absoluteUrl,
         status: res.status,
         depth: depth,
         headers: res.headers,
@@ -480,7 +563,7 @@ export class Crawler {
       });
     }
 
-    this.bufferPage(finalUrl, depth, res.status as number, {
+    this.bufferPage(path, depth, res.status as number, {
       html: parseResult.html,
       canonical_url: parseResult.canonical || undefined,
       noindex: parseResult.noindex ? 1 : 0,
@@ -489,31 +572,38 @@ export class Crawler {
       simhash: parseResult.simhash,
       etag: res.etag,
       last_modified: res.lastModified,
-      retries: res.retries
+      retries: res.retries,
+      bytes_received: res.bytesReceived
     });
 
     try {
       const contentAnalysis = analyzeContent(parseResult.html);
-      const linkAnalysis = analyzeLinks(parseResult.html, finalUrl, this.rootOrigin);
+      const linkAnalysis = analyzeLinks(parseResult.html, absoluteUrl, this.rootOrigin);
       const thinScore = calculateThinContentScore(contentAnalysis, 0);
 
-      this.bufferMetrics(finalUrl, {
+      this.bufferMetrics(path, {
         crawl_status: isBlocked ? 'blocked_by_robots' : 'fetched',
         word_count: contentAnalysis.wordCount,
         thin_content_score: thinScore,
         external_link_ratio: linkAnalysis.externalRatio
       });
     } catch (e) {
-      this.context.emit({ type: 'error', message: 'Error calculating per-page metrics', error: e, context: { url: finalUrl } });
+      this.context.emit({ type: 'error', message: 'Error calculating per-page metrics', error: e, context: { url: absoluteUrl } });
     }
 
     for (const linkItem of parseResult.links) {
-      const normalizedLink = normalizeUrl(linkItem.url, '', this.options);
-      if (normalizedLink && normalizedLink !== finalUrl) {
-        this.bufferPage(normalizedLink, depth + 1, 0);
-        this.bufferEdge(finalUrl, normalizedLink, 1.0, 'internal');
-        if (this.shouldEnqueue(normalizedLink, depth + 1)) {
-          this.addToQueue(normalizedLink, depth + 1);
+      const normalizedLink = normalizeUrl(linkItem.url, absoluteUrl, this.options);
+      if (normalizedLink) {
+        const targetPath = UrlUtil.toPath(normalizedLink, this.rootOrigin);
+
+        if (targetPath !== path) {
+          const isInternal = UrlUtil.isInternal(normalizedLink, this.rootOrigin);
+          this.bufferPage(targetPath, depth + 1, 0, { is_internal: isInternal ? 1 : 0 });
+          this.bufferEdge(path, targetPath, 1.0, isInternal ? 'internal' : 'external');
+
+          if (isInternal && this.shouldEnqueue(targetPath, depth + 1)) {
+            this.addToQueue(targetPath, depth + 1);
+          }
         }
       }
     }
@@ -526,14 +616,21 @@ export class Crawler {
       return;
     }
 
+    // Convert stored path to absolute URL for fetching.
+    // External/subdomain URLs are already absolute (UrlUtil.toPath returns them as-is).
+    const fetchUrl = UrlUtil.toAbsolute(url, this.rootOrigin);
+
     try {
       const prevNode = this.options.previousGraph?.nodes.get(url);
-      const res = await this.fetchPage(url, depth, prevNode);
+      const res = await this.fetchPage(fetchUrl, depth, prevNode);
 
       if (!res) return;
 
-      const finalUrl = normalizeUrl(res.finalUrl, '', this.options);
+      const finalUrl = normalizeUrl(res.finalUrl, this.rootOrigin, this.options);
       if (!finalUrl) return;
+
+      const fullUrl = finalUrl; // Already absolute
+      const finalPath = UrlUtil.toPath(finalUrl, this.rootOrigin);
 
       if (res.status === 304 && prevNode) {
         this.handleCachedResponse(url, finalUrl, depth, prevNode);
@@ -545,18 +642,18 @@ export class Crawler {
       const isStringStatus = typeof res.status === 'string';
       if (isStringStatus || (typeof res.status === 'number' && res.status >= 300)) {
         const statusNum = typeof res.status === 'number' ? res.status : 0;
-        this.bufferPage(finalUrl, depth, statusNum, {
+        this.bufferPage(finalPath, depth, statusNum, {
           security_error: isStringStatus ? res.status : undefined,
           retries: res.retries
         });
-        this.bufferMetrics(finalUrl, {
+        this.bufferMetrics(finalPath, {
           crawl_status: isStringStatus ? res.status : 'fetched_error'
         });
         return;
       }
 
       if (res.status === 200) {
-        this.handleSuccessResponse(res, finalUrl, depth, isBlocked);
+        this.handleSuccessResponse(res, finalPath, fullUrl, depth, isBlocked);
       }
     } catch (e) {
       this.context.emit({ type: 'crawl:error', url, error: String(e), depth });
@@ -564,8 +661,12 @@ export class Crawler {
   }
 
   async run(): Promise<number> {
-    await this.initialize();
+    // 1. Setup fetcher and basic modules
     this.setupModules();
+
+    // 2. Initialize repositories, resolve URL (SSL/WWW), and set up site context
+    await this.initialize();
+
     if (this.options.robots) {
       this.robots = this.options.robots;
     } else {
@@ -575,7 +676,7 @@ export class Crawler {
 
     return new Promise((resolve) => {
       const checkDone = async () => {
-        if (this.queue.length === 0 && this.active === 0) {
+        if (this.queue.length === 0 && this.active === 0 && this.pendingSitemaps === 0) {
           await this.flushAll();
           this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
             limit_reached: this.reachedLimit ? 1 : 0
@@ -612,11 +713,12 @@ export class Crawler {
           const item = this.queue.shift()!;
           if (this.visited.has(item.url)) continue;
 
-          // Robust robots check: if path doesn't end in /, check both /path and /path/
-          // to handle cases where normalization stripped a slash that robots.txt relies on.
+          // Robust robots check: reconstruct absolute URL since robots-parser needs full URLs,
+          // not root-relative paths. Also check /path/ variant in case robots.txt uses trailing slash.
+          const absUrlForRobots = UrlUtil.toAbsolute(item.url, this.rootOrigin);
           const isBlocked = this.robots && (
-            !this.robots.isAllowed(item.url, 'crawlith') ||
-            (!item.url.endsWith('/') && !this.robots.isAllowed(item.url + '/', 'crawlith'))
+            !this.robots.isAllowed(absUrlForRobots, 'crawlith') ||
+            (!absUrlForRobots.endsWith('/') && !this.robots.isAllowed(absUrlForRobots + '/', 'crawlith'))
           );
 
           if (isBlocked) {

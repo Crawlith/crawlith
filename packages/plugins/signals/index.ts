@@ -15,6 +15,7 @@ export const SignalsPlugin: CrawlithPlugin = {
   cli: {
     flag: '--signals',
     description: 'Enable structured signals intelligence analysis',
+    defaultValue: true,
     for: ['page', 'crawl']
   },
 

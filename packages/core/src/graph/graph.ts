@@ -1,5 +1,6 @@
 export interface GraphNode {
   url: string;
+  isInternal?: boolean;
   depth: number;
   inLinks: number;
   outLinks: number;
@@ -29,11 +30,25 @@ export interface GraphNode {
   wordCount?: number;
   thinContentScore?: number;
   externalLinkRatio?: number;
-  orphanScore?: number;
   h1Count?: number;
   h2Count?: number;
 
   title?: string;
+  clusterId?: number;
+  duplicateClusterId?: string;
+  duplicateType?: 'exact' | 'near' | 'template_heavy';
+  pagerankScore?: number;
+  hubScore?: number;
+  authScore?: number;
+  linkRole?: string;
+  soft404Score?: number;
+  headingScore?: number;
+  orphanScore?: number;
+  orphanType?: string;
+  impactLevel?: string;
+  headingData?: string;
+  isClusterPrimary?: boolean;
+  isCollapsed?: boolean;
 }
 
 export interface GraphEdge {
@@ -66,15 +81,18 @@ export class Graph {
    * Generates a unique key for an edge.
    */
   static getEdgeKey(source: string, target: string): string {
-    return JSON.stringify([source, target]);
+    return source + '\x00' + target;
   }
 
   /**
    * Parses an edge key back into source and target.
    */
   static parseEdgeKey(key: string): { source: string; target: string } {
-    const [source, target] = JSON.parse(key);
-    return { source, target };
+    const splitIndex = key.indexOf('\x00');
+    return {
+      source: key.slice(0, splitIndex),
+      target: key.slice(splitIndex + 1)
+    };
   }
 
   /**
@@ -82,11 +100,12 @@ export class Graph {
    * If it exists, updates the status if the new status is non-zero (meaning we crawled it).
    * Depth is only set on creation (BFS guarantees shortest path first).
    */
-  addNode(url: string, depth: number, status: number = 0) {
+  addNode(url: string, depth: number, status: number = 0, isInternal: boolean = true) {
     const existing = this.nodes.get(url);
     if (!existing) {
       this.nodes.set(url, {
         url,
+        isInternal,
         depth,
         status,
         inLinks: 0,
@@ -96,6 +115,9 @@ export class Graph {
       // Update status if we have a real one now (e.g. was 0/pending, now crawled)
       if (status !== 0) {
         existing.status = status;
+      }
+      if (isInternal !== undefined) {
+        existing.isInternal = isInternal;
       }
     }
   }

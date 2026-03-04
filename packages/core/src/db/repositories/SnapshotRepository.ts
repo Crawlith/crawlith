@@ -3,11 +3,11 @@ import { Database } from 'better-sqlite3';
 export interface Snapshot {
   id: number;
   site_id: number;
-  type: 'full' | 'partial' | 'incremental';
+  run_type: 'completed' | 'incremental' | 'single';
   created_at: string;
   node_count: number;
   edge_count: number;
-  status: 'running' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   limit_reached: number;
   health_score: number | null;
   orphan_count: number | null;
@@ -17,21 +17,16 @@ export interface Snapshot {
 export class SnapshotRepository {
   constructor(private db: Database) { }
 
-  createSnapshot(siteId: number, type: 'full' | 'partial' | 'incremental', status: 'running' | 'completed' | 'failed' = 'running'): number {
-    // Basic throttling or sleep if needed for tests, but generally SQLite is fast enough to have diff timestamps if not in same ms.
-    // However, if we run in memory, created_at is default current time.
-    // If two snapshots created in same second, ORDER BY created_at DESC is unstable or equal.
-    // We should rely on ID for stability if timestamps are equal, but the query uses created_at.
-    // Let's ensure we can also order by ID as tie-breaker.
-    const stmt = this.db.prepare('INSERT INTO snapshots (site_id, type, status) VALUES (?, ?, ?)');
-    const info = stmt.run(siteId, type, status);
+  createSnapshot(siteId: number, runType: Snapshot['run_type'], status: Snapshot['status'] = 'running'): number {
+    const stmt = this.db.prepare('INSERT INTO snapshots (site_id, run_type, status) VALUES (?, ?, ?)');
+    const info = stmt.run(siteId, runType, status);
     return info.lastInsertRowid as number;
   }
 
-  getLatestSnapshot(siteId: number, status?: 'completed' | 'running' | 'failed', includePartial: boolean = false): Snapshot | undefined {
+  getLatestSnapshot(siteId: number, status?: Snapshot['status'], includeSingle: boolean = false): Snapshot | undefined {
     let sql = 'SELECT * FROM snapshots WHERE site_id = ?';
-    if (!includePartial) {
-      sql += ' AND type != \'partial\'';
+    if (!includeSingle) {
+      sql += ' AND run_type != \'single\'';
     }
     const params: any[] = [siteId];
     if (status) {
@@ -40,17 +35,6 @@ export class SnapshotRepository {
     }
     sql += ' ORDER BY created_at DESC, id DESC LIMIT 1';
     return this.db.prepare(sql).get(...params) as Snapshot | undefined;
-  }
-
-  /**
-   * Get the latest partial snapshot for a site, regardless of ordering
-   * relative to full/incremental snapshots. Used for snapshot reuse in
-   * page --live and POST /api/page/crawl.
-   */
-  getLatestPartialSnapshot(siteId: number): Snapshot | undefined {
-    return this.db.prepare(
-      `SELECT * FROM snapshots WHERE site_id = ? AND type = 'partial' ORDER BY id DESC LIMIT 1`
-    ).get(siteId) as Snapshot | undefined;
   }
 
   touchSnapshot(id: number): void {
@@ -62,7 +46,18 @@ export class SnapshotRepository {
     return result.count;
   }
 
-  updateSnapshotStatus(id: number, status: 'completed' | 'failed', stats: Partial<Snapshot> = {}) {
+  /**
+   * Returns true if the site has ever had a completed full or incremental crawl.
+   * Single snapshots (from page --live) do NOT count as a "first crawl".
+   */
+  hasFullCrawl(siteId: number): boolean {
+    const result = this.db.prepare(
+      `SELECT COUNT(*) as count FROM snapshots WHERE site_id = ? AND run_type IN ('full', 'incremental') AND status = 'completed'`
+    ).get(siteId) as { count: number };
+    return result.count > 0;
+  }
+
+  updateSnapshotStatus(id: number, status: Snapshot['status'], stats: Partial<Snapshot> = {}) {
     const sets: string[] = ['status = ?'];
     const params: any[] = [status];
 

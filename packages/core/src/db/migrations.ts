@@ -6,6 +6,8 @@ export function runBaseMigrations(db: Database) {
     CREATE TABLE IF NOT EXISTS sites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       domain TEXT UNIQUE NOT NULL,
+      preferred_url TEXT,
+      ssl INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       settings_json TEXT,
       is_active INTEGER DEFAULT 1
@@ -17,11 +19,11 @@ export function runBaseMigrations(db: Database) {
     CREATE TABLE IF NOT EXISTS snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       site_id INTEGER NOT NULL,
-      type TEXT CHECK(type IN ('full', 'partial', 'incremental')) NOT NULL,
+      run_type TEXT CHECK(run_type IN ('completed', 'incremental', 'single')) NOT NULL DEFAULT 'completed',
       created_at TEXT DEFAULT (datetime('now')),
       node_count INTEGER DEFAULT 0,
       edge_count INTEGER DEFAULT 0,
-      status TEXT CHECK(status IN ('running', 'completed', 'failed')) DEFAULT 'running',
+      status TEXT CHECK(status IN ('queued', 'running', 'completed', 'failed', 'cancelled')) DEFAULT 'running',
       limit_reached INTEGER DEFAULT 0,
       health_score REAL,
       orphan_count INTEGER,
@@ -33,6 +35,14 @@ export function runBaseMigrations(db: Database) {
       FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
     );
   `);
+
+  // Migration for snapshots: run_type and status
+  try { db.exec(`ALTER TABLE snapshots ADD COLUMN run_type TEXT CHECK(run_type IN ('completed', 'incremental', 'single')) NOT NULL DEFAULT 'completed';`); } catch (_e) { /* ignore */ }
+  try {
+    // If type column exists, populate run_type from it
+    db.exec(`UPDATE snapshots SET run_type = CASE WHEN type = 'partial' THEN 'single' ELSE 'completed' END WHERE run_type IS NULL OR run_type = 'full' OR run_type = 'completed';`);
+  } catch (_e) { /* ignore */ }
+  try { db.exec(`ALTER TABLE snapshots DROP COLUMN type;`); } catch (_e) { /* ignore */ }
 
   // Pages Table
   db.exec(`
@@ -57,6 +67,7 @@ export function runBaseMigrations(db: Database) {
       discovered_via_sitemap INTEGER DEFAULT 0,
       redirect_chain TEXT,
       bytes_received INTEGER,
+      is_internal INTEGER DEFAULT 1,
       crawl_trap_flag INTEGER DEFAULT 0,
       crawl_trap_risk REAL,
       trap_type TEXT,
@@ -70,6 +81,7 @@ export function runBaseMigrations(db: Database) {
   `);
 
   // Migrations for existing tables
+  try { db.exec(`ALTER TABLE pages ADD COLUMN is_internal INTEGER DEFAULT 1;`); } catch (_e) { /* ignore */ }
   try { db.exec(`ALTER TABLE pages ADD COLUMN discovered_via_sitemap INTEGER DEFAULT 0;`); } catch (_e) { /* ignore */ }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_pages_site_last_seen ON pages(site_id, last_seen_snapshot_id);`);
@@ -101,8 +113,18 @@ export function runBaseMigrations(db: Database) {
       thin_content_score REAL,
       external_link_ratio REAL,
       orphan_score INTEGER,
+      pagerank_score REAL,
+      hub_score REAL,
+      auth_score REAL,
+      link_role TEXT,
       duplicate_cluster_id TEXT,
       duplicate_type TEXT,
+      cluster_id INTEGER,
+      soft404_score REAL,
+      heading_score REAL,
+      orphan_type TEXT,
+      impact_level TEXT,
+      heading_data TEXT,
       is_cluster_primary INTEGER DEFAULT 0,
       PRIMARY KEY(snapshot_id, page_id),
       FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
@@ -165,4 +187,25 @@ export function runBaseMigrations(db: Database) {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_plugin_reports_snapshot ON plugin_reports(snapshot_id);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_plugin_reports_composite ON plugin_reports(snapshot_id, plugin_name);`);
+
+  // Migrations for metrics
+  const metricsCols = [
+    ['pagerank_score', 'REAL'],
+    ['hub_score', 'REAL'],
+    ['auth_score', 'REAL'],
+    ['link_role', 'TEXT'],
+    ['cluster_id', 'INTEGER'],
+    ['soft404_score', 'REAL'],
+    ['heading_score', 'REAL'],
+    ['orphan_type', 'TEXT'],
+    ['impact_level', 'TEXT'],
+    ['heading_data', 'TEXT'],
+  ];
+  for (const [col, type] of metricsCols) {
+    try { db.exec(`ALTER TABLE metrics ADD COLUMN ${col} ${type}`); } catch { /* ignore */ }
+  }
+
+  // Final site column migrations
+  try { db.exec('ALTER TABLE sites ADD COLUMN preferred_url TEXT'); } catch { /* ignore */ }
+  try { db.exec('ALTER TABLE sites ADD COLUMN ssl INTEGER'); } catch { /* ignore */ }
 }

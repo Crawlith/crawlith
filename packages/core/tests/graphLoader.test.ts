@@ -48,7 +48,20 @@ describe('GraphLoader', () => {
             word_count: 500,
             thin_content_score: 10,
             external_link_ratio: 0.1,
-            orphan_score: 5
+            orphan_score: 5,
+            pagerank_score: 0.5,
+            hub_score: 0.3,
+            auth_score: 0.2,
+            link_role: 'authority',
+            duplicate_cluster_id: null,
+            duplicate_type: null,
+            cluster_id: 1,
+            soft404_score: 0.05,
+            heading_score: 0.9,
+            orphan_type: null,
+            impact_level: 'high',
+            heading_data: null,
+            is_cluster_primary: 0
         });
 
         // Load Graph
@@ -91,7 +104,20 @@ describe('GraphLoader', () => {
             word_count: null,
             thin_content_score: null,
             external_link_ratio: null,
-            orphan_score: null
+            orphan_score: null,
+            pagerank_score: null,
+            hub_score: null,
+            auth_score: null,
+            link_role: null,
+            duplicate_cluster_id: null,
+            duplicate_type: null,
+            cluster_id: null,
+            soft404_score: null,
+            heading_score: null,
+            orphan_type: null,
+            impact_level: null,
+            heading_data: null,
+            is_cluster_primary: null
         });
 
         const graph = loadGraphFromSnapshot(snapshotId);

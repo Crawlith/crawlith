@@ -12,9 +12,9 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
 
-    const pages = pageRepo.getPagesIteratorBySnapshot(snapshotId);
-    const metrics = metricsRepo.getMetricsIterator(snapshotId);
     const snapshot = snapshotRepo.getSnapshot(snapshotId);
+    const pages = pageRepo.getPagesIteratorBySnapshot(snapshotId, snapshot?.run_type || 'completed');
+    const metrics = metricsRepo.getMetricsIterator(snapshotId);
     const metricsMap = new Map<number, DbMetrics>();
     for (const m of metrics) {
         metricsMap.set(m.page_id, m);
@@ -32,7 +32,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
 
     for (const p of pages) {
         idMap.set(p.id, p.normalized_url);
-        graph.addNode(p.normalized_url, p.depth, p.http_status || 0);
+        graph.addNode(p.normalized_url, p.depth, p.http_status || 0, !!p.is_internal);
 
         const m = metricsMap.get(p.id);
         if (m) {
@@ -57,6 +57,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
         }
 
         graph.updateNodeData(p.normalized_url, {
+            isInternal: !!p.is_internal,
             canonical: p.canonical_url || undefined,
             discoveredViaSitemap: !!p.discovered_via_sitemap,
             contentHash: p.content_hash || undefined,
@@ -81,7 +82,16 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             wordCount: m?.word_count != null ? m.word_count : undefined,
             thinContentScore: m?.thin_content_score != null ? m.thin_content_score : undefined,
             externalLinkRatio: m?.external_link_ratio != null ? m.external_link_ratio : undefined,
-            orphanScore: m?.orphan_score != null ? m.orphan_score : undefined,
+            pagerankScore: m?.pagerank_score ?? undefined,
+            hubScore: m?.hub_score ?? undefined,
+            authScore: m?.auth_score ?? undefined,
+            linkRole: m?.link_role ?? undefined,
+            soft404Score: m?.soft404_score ?? undefined,
+            headingScore: m?.heading_score ?? undefined,
+            orphanScore: m?.orphan_score ?? undefined,
+            orphanType: m?.orphan_type ?? undefined,
+            impactLevel: m?.impact_level ?? undefined,
+            headingData: m?.heading_data ?? undefined,
         });
     }
 

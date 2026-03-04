@@ -26,6 +26,9 @@ export class ScopeManager {
     }
 
     isUrlEligible(url: string): EligibilityResult {
+        // Root-relative paths (e.g. '/about', '/?q=foo') are always internal
+        if (url.startsWith('/')) return 'allowed';
+
         let hostname: string;
         try {
             hostname = new URL(url).hostname.toLowerCase();

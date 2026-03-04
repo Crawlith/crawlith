@@ -192,7 +192,8 @@ export class CrawlithDB {
     }
 
     public getPageIdByUrl(snapshotId: number | string, url: string): number | null {
-        const normalized = normalizeUrl(url, '', { stripQuery: false });
+        // Find by path. In standard crawling, we use root-relative paths like /engineering-computer-science
+        const normalized = normalizeUrl(url, '', { stripQuery: false, toPath: true });
         if (!normalized) return null;
 
         const row = this.statements.getPageIdByUrl.get(snapshotId, normalized) as { id: number } | undefined;
@@ -472,6 +473,11 @@ export class CrawlithDB {
             `).get(snapshotId) as any;
 
             if (snapshotAggregate && snapshotAggregate.overall_score_count > 0) {
+                const pluginTotal = snapshotAggregate.overall_total_score || 0;
+                const pluginWeight = snapshotAggregate.overall_weight_sum || 0;
+                const pluginCount = snapshotAggregate.overall_score_count || 0;
+
+                // 1. Update the plugin-specific aggregate columns in the snapshots table
                 this.db.prepare(`
                     UPDATE snapshots
                     SET 
@@ -480,12 +486,28 @@ export class CrawlithDB {
                         score_count = ?, 
                         score_calculated_at = datetime('now')
                     WHERE id = ?
-                `).run(
-                    snapshotAggregate.overall_total_score,
-                    snapshotAggregate.overall_weight_sum,
-                    snapshotAggregate.overall_score_count,
-                    snapshotId
-                );
+                `).run(pluginTotal, pluginWeight, pluginCount, snapshotId);
+
+                // 2. Blend with the Core Health Score
+                // We fetch the current health_score (calculated by HealthService) and treat it 
+                // as a "Core" provider with a standard weight of 100.
+                const snapshot = this.db.prepare('SELECT health_score FROM snapshots WHERE id = ?').get(snapshotId) as { health_score: number | null } | undefined;
+                const coreScore = snapshot?.health_score;
+                const CORE_WEIGHT = 100;
+
+                let blendedScore: number | null = null;
+
+                if (coreScore !== null && coreScore !== undefined) {
+                    // Weighted Average: (CoreScore * 100 + Sum(PluginScore * Weight)) / (100 + Sum(Weights))
+                    blendedScore = (coreScore * CORE_WEIGHT + pluginTotal) / (CORE_WEIGHT + pluginWeight);
+                } else {
+                    // Fallback to pure plugin average if core health isn't computed
+                    blendedScore = pluginTotal / pluginWeight;
+                }
+
+                if (blendedScore !== null) {
+                    this.db.prepare('UPDATE snapshots SET health_score = ? WHERE id = ?').run(Number(blendedScore.toFixed(1)), snapshotId);
+                }
             }
         } catch (err) {
             console.error(`[CrawlithDB.Aggregation] Failed to aggregate snapshot-level scores: ${(err as Error).message}`);

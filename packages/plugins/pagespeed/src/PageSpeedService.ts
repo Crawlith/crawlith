@@ -29,13 +29,17 @@ export class PageSpeedService {
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 const response = await fetch(`${PAGESPEED_ENDPOINT}?${params.toString()}`, {
-                    signal: AbortSignal.timeout(15000)
+                    signal: AbortSignal.timeout(60000)
                 });
                 const raw = await response.json();
 
                 if (!response.ok) {
                     const message = raw?.error?.message || `PageSpeed request failed with status ${response.status}`;
                     throw new Error(message);
+                }
+
+                if (raw?.lighthouseResult?.runtimeError) {
+                    throw new Error(`Lighthouse returned error: ${raw.lighthouseResult.runtimeError.message || 'Unknown error'}`);
                 }
 
                 return raw;

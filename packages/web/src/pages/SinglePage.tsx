@@ -8,6 +8,8 @@ import { LinkingTab } from '../components/Tabs/LinkingTab';
 import { ClusterTab } from '../components/Tabs/ClusterTab';
 import { TechnicalTab } from '../components/Tabs/TechnicalTab';
 import { GraphTab } from '../components/Tabs/GraphTab';
+import { PerformanceTab } from '../components/Tabs/PerformanceTab';
+import { SignalsTab } from '../components/Tabs/SignalsTab';
 
 export const SinglePage = () => {
     const [searchParams] = useSearchParams();
@@ -150,6 +152,17 @@ export const SinglePage = () => {
                                     <Clock size={12} />
                                     Crawled: {details.identity.crawlDate ? new Date(details.identity.crawlDate).toLocaleString() : 'N/A'}
                                 </div>
+
+                                {details.latestSnapshotIdForPage && details.latestSnapshotIdForPage > (details.snapshotId || currentSnapshot || 0) && (
+                                    <button
+                                        onClick={() => setSnapshot(details.latestSnapshotIdForPage!)}
+                                        className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded border border-amber-200 dark:border-amber-800 transition-colors animate-pulse"
+                                        title="Click to view the newer snapshot data for this page"
+                                    >
+                                        <Activity size={12} />
+                                        Newer Data Available In Snapshot #{details.latestSnapshotIdForPage}
+                                    </button>
+                                )}
                             </div>
 
                             {details.identity.crawlError && (
@@ -204,7 +217,7 @@ export const SinglePage = () => {
 
                     {/* Tabs Navigation */}
                     <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-800 scrollbar-hide">
-                        {['content', 'linking', 'cluster', 'technical', 'graph'].map((tab) => (
+                        {['content', 'linking', 'cluster', 'technical', 'graph', 'performance', 'signals'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -217,6 +230,8 @@ export const SinglePage = () => {
                                 {tab === 'linking' && ' (Internal)'}
                                 {tab === 'cluster' && ' & Duplication'}
                                 {tab === 'graph' && ' Context'}
+                                {tab === 'performance' && ' & Core Web Vitals'}
+                                {tab === 'signals' && ' & Metadata'}
                             </button>
                         ))}
                     </div>
@@ -230,6 +245,8 @@ export const SinglePage = () => {
                 {activeTab === 'cluster' && <ClusterTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
                 {activeTab === 'technical' && <TechnicalTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
                 {activeTab === 'graph' && <GraphTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'performance' && <PerformanceTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'signals' && <SignalsTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
             </main>
         </div>
     );

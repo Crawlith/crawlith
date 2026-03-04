@@ -17,6 +17,33 @@ export interface ServerOptions {
   staticPath: string;
   siteId: number;
   snapshotId: number;
+  plugins?: any[];
+}
+
+/**
+ * Lightweight graph node payload returned to the web graph explorer.
+ */
+interface SnapshotGraphNode {
+  id: string;
+  label: string;
+  nodeType: 'section' | 'cluster' | 'url';
+  clusterType: 'template' | 'duplicate' | 'content_group' | 'none';
+  url?: string;
+  depth: number;
+  pageRankScore: number;
+  inlinks: number;
+  outlinks: number;
+  health: number;
+  size: number;
+  role: string | null;
+}
+
+/**
+ * Lightweight graph edge payload returned to the web graph explorer.
+ */
+interface SnapshotGraphEdge {
+  source: string;
+  target: string;
 }
 
 export function startServer(options: ServerOptions): Promise<void> {
@@ -150,6 +177,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       `).get(currentSnapshotId) as { count: number };
 
       // Aggregates from pages & metrics table for the specific snapshot
+      const siteOrigin = site?.preferred_url ? new URL(site.preferred_url).origin : '';
       const pagesAgg = db.prepare(`
         SELECT
            COUNT(*) as total_pages,
@@ -162,13 +190,19 @@ export function startServer(options: ServerOptions): Promise<void> {
            COUNT(CASE WHEN p.http_status >= 500 THEN 1 END) as server_errors,
            COUNT(CASE WHEN p.redirect_chain IS NOT NULL AND json_array_length(p.redirect_chain) > 1 THEN 1 END) as redirect_chains,
            COUNT(CASE WHEN p.noindex = 1 THEN 1 END) as noindex_pages,
-           COUNT(CASE WHEN p.canonical_url IS NOT NULL AND p.canonical_url != p.normalized_url THEN 1 END) as canonical_issues,
+           COUNT(CASE WHEN 
+             p.canonical_url IS NOT NULL AND 
+             p.canonical_url != p.normalized_url AND 
+             p.canonical_url != (? || p.normalized_url) AND
+             p.canonical_url != (? || p.normalized_url || '/') AND
+             REPLACE(p.canonical_url, '/', '') != REPLACE(? || p.normalized_url, '/', '')
+           THEN 1 END) as canonical_issues,
            COUNT(CASE WHEN m.crawl_status = 'blocked_by_robots' THEN 1 END) as blocked_robots,
            COUNT(CASE WHEN p.crawl_trap_flag = 1 THEN 1 END) as crawl_traps
         FROM metrics m
         JOIN pages p ON m.page_id = p.id
-        WHERE m.snapshot_id = ?
-      `).get(currentSnapshotId) as any;
+        WHERE m.snapshot_id = ? AND p.is_internal = 1
+      `).get(siteOrigin, siteOrigin, siteOrigin, currentSnapshotId) as any;
 
       // Internal links count (sum of all internal edges)
       const linksCount = db.prepare('SELECT COUNT(*) as count FROM edges WHERE snapshot_id = ? AND rel = ?').get(currentSnapshotId, 'internal') as { count: number };
@@ -221,7 +255,6 @@ export function startServer(options: ServerOptions): Promise<void> {
           p.http_status,
           p.noindex,
           p.redirect_chain,
-          m.pagerank as rawPageRank,
           m.pagerank_score as pageRankScore,
           m.duplicate_type,
           m.thin_content_score,
@@ -229,11 +262,12 @@ export function startServer(options: ServerOptions): Promise<void> {
           m.link_role,
           m.crawl_status,
           p.security_error,
+          p.canonical_url,
           s.created_at as lastSeen
         FROM pages p
         JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
         JOIN snapshots s ON m.snapshot_id = s.id
-        WHERE p.site_id = ?
+        WHERE p.site_id = ? AND p.is_internal = 1
       `;
 
       const params: any[] = [currentSnapshotId, siteId];
@@ -293,6 +327,18 @@ export function startServer(options: ServerOptions): Promise<void> {
           sev = 'Warning';
           impactFactor = 20;
           isProblematic = true;
+        } else if (r.canonical_url) {
+          const siteOrigin = site?.preferred_url ? new URL(site.preferred_url).origin : '';
+          const isConflict = r.canonical_url !== r.url &&
+            r.canonical_url !== (siteOrigin + r.url) &&
+            r.canonical_url.replace(/\/$/, '') !== (siteOrigin + r.url).replace(/\/$/, '');
+
+          if (isConflict) {
+            issueType = 'Canonical Conflict';
+            sev = 'Warning';
+            impactFactor = 15;
+            isProblematic = true;
+          }
         }
 
         return {
@@ -300,7 +346,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           issueType,
           severity: sev,
           impactScore: Math.round(impactFactor * importanceMultiplier),
-          pageRank: r.rawPageRank,
+          pageRank: r.pageRankScore,
           pageRankScore: r.pageRankScore,
           lastSeen: r.lastSeen,
           isProblematic
@@ -310,7 +356,12 @@ export function startServer(options: ServerOptions): Promise<void> {
       // Filter: Only problematic ones by default, unless searching
       let filtered = allIssues;
       if (!search && (!severity || severity === 'All')) {
-        filtered = allIssues.filter(i => i.isProblematic);
+        filtered = allIssues.filter(i => {
+          if (!i.isProblematic) return false;
+          // Filter out external URLs that aren't errors from the main issues list
+          if (i.url.startsWith('http') && !i.url.includes(site.domain) && i.severity === 'Info') return false;
+          return true;
+        });
       } else if (severity && severity !== 'All') {
         filtered = allIssues.filter(i => i.severity === severity);
       }
@@ -333,7 +384,7 @@ export function startServer(options: ServerOptions): Promise<void> {
     api.get('/metrics/top-pagerank', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
       const rows = db.prepare(`
-        SELECT p.normalized_url as url, m.pagerank_score as pageRank, m.authority_score as authorityScore, m.hub_score as hubScore
+        SELECT p.normalized_url as url, m.pagerank_score as pageRank, m.auth_score as authorityScore, m.hub_score as hubScore
         FROM metrics m
         JOIN pages p ON m.page_id = p.id
         WHERE m.snapshot_id = ?
@@ -378,25 +429,333 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.7 GET /api/snapshots
     api.get('/snapshots', (req, res) => {
-      const rows = db.prepare('SELECT id, type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
+      const rows = db.prepare('SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
       res.json({ results: rows });
     });
 
+    /**
+     * Returns hierarchical graph nodes (cluster-first) for a snapshot.
+     *
+     * Levels:
+     *  - 1: section clusters (first URL path segment)
+     *  - 2: URL clusters (duplicate/content/template buckets)
+     *  - 3: individual URLs
+     *
+     * Edges are disabled by default and only returned when explicitly requested,
+     * allowing the web app to render nodes first and reveal edges on interaction.
+     */
+    api.get('/graph/snapshot', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+
+      const level = Math.min(Math.max(parseInt((req.query.level as string) || '1', 10), 1), 3);
+      const maxNodes = Math.min(parseInt((req.query.maxNodes as string) || '10000', 10), 10000);
+      const maxEdges = Math.min(parseInt((req.query.maxEdges as string) || '40000', 10), 120000);
+      const minPageRank = Math.max(parseFloat((req.query.minPageRank as string) || '0') || 0, 0);
+      const minInlinks = Math.max(parseInt((req.query.minInlinks as string) || '0', 10), 0);
+      const minOutlinks = Math.max(parseInt((req.query.minOutlinks as string) || '0', 10), 0);
+      const search = ((req.query.search as string) || '').trim();
+      const includeEdges = (req.query.includeEdges as string) === 'true';
+
+      const baseRows = db.prepare(`
+        WITH in_counts AS (
+          SELECT target_page_id AS page_id, COUNT(*) AS inlinks
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal'
+          GROUP BY target_page_id
+        ),
+        out_counts AS (
+          SELECT source_page_id AS page_id, COUNT(*) AS outlinks
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal'
+          GROUP BY source_page_id
+        )
+        SELECT
+          p.id,
+          p.normalized_url AS url,
+          COALESCE(p.depth, 0) AS depth,
+          COALESCE(m.pagerank_score, 0) AS pageRankScore,
+          COALESCE(m.link_role, NULL) AS role,
+          COALESCE(ic.inlinks, 0) AS inlinks,
+          COALESCE(oc.outlinks, 0) AS outlinks,
+          CASE
+            WHEN m.duplicate_cluster_id IS NOT NULL THEN 'duplicate'
+            WHEN m.duplicate_type IS NOT NULL AND m.duplicate_type != 'none' THEN 'content_group'
+            ELSE 'template'
+          END AS clusterType,
+          CASE
+            WHEN p.http_status >= 400 OR p.security_error IS NOT NULL THEN 0.25
+            WHEN p.noindex = 1 THEN 0.5
+            ELSE 1.0
+          END AS health,
+          CASE
+            WHEN instr(replace(replace(p.normalized_url, 'https://', ''), 'http://', ''), '/') > 0
+              THEN substr(
+                replace(replace(p.normalized_url, 'https://', ''), 'http://', ''),
+                instr(replace(replace(p.normalized_url, 'https://', ''), 'http://', ''), '/') + 1
+              )
+            ELSE ''
+          END AS pathWithoutHost,
+          COALESCE(CAST(m.duplicate_cluster_id AS TEXT), '') AS duplicateClusterId
+        FROM pages p
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        LEFT JOIN in_counts ic ON p.id = ic.page_id
+        LEFT JOIN out_counts oc ON p.id = oc.page_id
+        WHERE p.site_id = ?
+          AND COALESCE(m.pagerank_score, 0) >= ?
+          AND COALESCE(ic.inlinks, 0) >= ?
+          AND COALESCE(oc.outlinks, 0) >= ?
+          AND (? = '' OR p.normalized_url LIKE ?)
+        ORDER BY COALESCE(m.pagerank_score, 0) DESC, COALESCE(ic.inlinks, 0) DESC
+        LIMIT ?
+      `).all(
+        currentSnapshotId,
+        currentSnapshotId,
+        currentSnapshotId,
+        siteId,
+        minPageRank,
+        minInlinks,
+        minOutlinks,
+        search,
+        search ? `%${search}%` : '',
+        maxNodes
+      ) as any[];
+
+      const rows = baseRows.map((row) => {
+        const firstPath = (row.pathWithoutHost || '').split('/').filter(Boolean)[0] || 'root';
+        const prefix = firstPath.length > 32 ? firstPath.slice(0, 32) : firstPath;
+        const fallbackCluster = `${prefix}:${row.clusterType}`;
+
+        return {
+          ...row,
+          sectionKey: prefix,
+          clusterKey: row.duplicateClusterId ? `dup:${row.duplicateClusterId}` : fallbackCluster,
+        };
+      });
+
+      let nodes: SnapshotGraphNode[] = [];
+
+      if (level === 1) {
+        const groups = new Map<string, any[]>();
+        for (const row of rows) {
+          const key = row.sectionKey;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(row);
+        }
+
+        nodes = Array.from(groups.entries()).map(([sectionKey, group]) => ({
+          id: `section:${sectionKey}`,
+          label: `/${sectionKey}`,
+          nodeType: 'section',
+          clusterType: 'none',
+          depth: 1,
+          pageRankScore: group.reduce((sum, r) => sum + r.pageRankScore, 0) / Math.max(group.length, 1),
+          inlinks: group.reduce((sum, r) => sum + r.inlinks, 0),
+          outlinks: group.reduce((sum, r) => sum + r.outlinks, 0),
+          health: group.reduce((sum, r) => sum + r.health, 0) / Math.max(group.length, 1),
+          size: group.length,
+          role: null,
+        }));
+      } else if (level === 2) {
+        const groups = new Map<string, any[]>();
+        for (const row of rows) {
+          const key = `${row.sectionKey}|${row.clusterKey}`;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(row);
+        }
+
+        nodes = Array.from(groups.entries()).map(([groupKey, group]) => {
+          const [sectionKey, clusterKey] = groupKey.split('|');
+          return {
+            id: `cluster:${sectionKey}:${clusterKey}`,
+            label: `${sectionKey} · ${clusterKey}`,
+            nodeType: 'cluster',
+            clusterType: group[0].clusterType,
+            depth: 2,
+            pageRankScore: group.reduce((sum, r) => sum + r.pageRankScore, 0) / Math.max(group.length, 1),
+            inlinks: group.reduce((sum, r) => sum + r.inlinks, 0),
+            outlinks: group.reduce((sum, r) => sum + r.outlinks, 0),
+            health: group.reduce((sum, r) => sum + r.health, 0) / Math.max(group.length, 1),
+            size: group.length,
+            role: null,
+          } as SnapshotGraphNode;
+        });
+      } else {
+        nodes = rows.map((row) => ({
+          id: `url:${row.id}`,
+          label: row.url,
+          nodeType: 'url',
+          clusterType: row.clusterType,
+          url: row.url,
+          depth: Number.isFinite(row.depth) ? row.depth : 0,
+          pageRankScore: row.pageRankScore,
+          inlinks: row.inlinks,
+          outlinks: row.outlinks,
+          health: row.health,
+          size: 1,
+          role: row.role,
+        }));
+      }
+
+      nodes = nodes
+        .sort((a, b) => (b.pageRankScore - a.pageRankScore) || (b.size - a.size))
+        .slice(0, maxNodes);
+
+      let edges: SnapshotGraphEdge[] = [];
+      if (includeEdges) {
+        const urlNodes = rows.map((r) => r.id);
+        if (urlNodes.length > 1) {
+          const placeholders = urlNodes.map(() => '?').join(',');
+          const rawEdges = db.prepare(`
+            SELECT source_page_id AS sourceId, target_page_id AS targetId
+            FROM edges
+            WHERE snapshot_id = ?
+              AND rel = 'internal'
+              AND source_page_id IN (${placeholders})
+              AND target_page_id IN (${placeholders})
+            LIMIT ?
+          `).all(currentSnapshotId, ...urlNodes, ...urlNodes, maxEdges) as Array<{ sourceId: number; targetId: number }>;
+
+          edges = rawEdges.map((edge) => {
+            if (level === 1) {
+              const source = rows.find((r) => r.id === edge.sourceId);
+              const target = rows.find((r) => r.id === edge.targetId);
+              return source && target
+                ? { source: `section:${source.sectionKey}`, target: `section:${target.sectionKey}` }
+                : null;
+            }
+            if (level === 2) {
+              const source = rows.find((r) => r.id === edge.sourceId);
+              const target = rows.find((r) => r.id === edge.targetId);
+              return source && target
+                ? {
+                  source: `cluster:${source.sectionKey}:${source.clusterKey}`,
+                  target: `cluster:${target.sectionKey}:${target.clusterKey}`
+                }
+                : null;
+            }
+            return { source: `url:${edge.sourceId}`, target: `url:${edge.targetId}` };
+          }).filter(Boolean) as SnapshotGraphEdge[];
+        }
+      }
+
+      res.json({
+        snapshotId: currentSnapshotId,
+        level,
+        nodes,
+        edges,
+        meta: {
+          totalNodes: nodes.length,
+          totalEdges: edges.length,
+          truncated: includeEdges && edges.length >= maxEdges,
+        }
+      });
+    });
+
+    /**
+     * Returns only 1-hop neighbors for an interacted node so the UI can reveal
+     * local edge structure on demand instead of drawing all links.
+     */
+    api.get('/graph/neighbors', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const nodeId = (req.query.nodeId as string) || '';
+      if (!nodeId) return res.status(400).json({ error: 'nodeId is required' });
+
+      if (nodeId.startsWith('url:')) {
+        const pageId = parseInt(nodeId.replace('url:', ''), 10);
+        if (!Number.isFinite(pageId)) return res.status(400).json({ error: 'Invalid url node id' });
+
+        const incoming = db.prepare(`
+          SELECT source_page_id AS neighborId
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal' AND target_page_id = ?
+          LIMIT 250
+        `).all(currentSnapshotId, pageId) as Array<{ neighborId: number }>;
+
+        const outgoing = db.prepare(`
+          SELECT target_page_id AS neighborId
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal' AND source_page_id = ?
+          LIMIT 250
+        `).all(currentSnapshotId, pageId) as Array<{ neighborId: number }>;
+
+        const neighborIds = Array.from(new Set([...incoming, ...outgoing].map((r) => r.neighborId)));
+        if (neighborIds.length === 0) {
+          return res.json({ nodes: [], edges: [] });
+        }
+
+        const placeholders = neighborIds.map(() => '?').join(',');
+        const neighborRows = db.prepare(`
+          SELECT p.id, p.normalized_url AS url,
+                 COALESCE(p.depth, 0) AS depth,
+                 COALESCE(m.pagerank_score, 0) AS pageRankScore
+          FROM pages p
+          LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+          WHERE p.id IN (${placeholders})
+        `).all(currentSnapshotId, ...neighborIds) as any[];
+
+        const nodes = [
+          ...neighborRows.map((row) => ({
+            id: `url:${row.id}`,
+            label: row.url,
+            nodeType: 'url',
+            clusterType: 'none',
+            url: row.url,
+            depth: row.depth,
+            pageRankScore: row.pageRankScore,
+            inlinks: 0,
+            outlinks: 0,
+            health: 1,
+            size: 1,
+            role: null,
+          })),
+          {
+            id: nodeId,
+            label: nodeId,
+            nodeType: 'url',
+            clusterType: 'none',
+            depth: 0,
+            pageRankScore: 0,
+            inlinks: 0,
+            outlinks: 0,
+            health: 1,
+            size: 1,
+            role: null,
+          }
+        ];
+
+        const edges = [
+          ...incoming.map((row) => ({ source: `url:${row.neighborId}`, target: nodeId })),
+          ...outgoing.map((row) => ({ source: nodeId, target: `url:${row.neighborId}` })),
+        ];
+
+        return res.json({ nodes, edges });
+      }
+
+      return res.json({ nodes: [], edges: [] });
+    });
+
     // 5.1 GET /api/page
-    api.get('/page', async (req, res) => {
+    api.get('/page', validateSnapshot, async (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
       const url = req.query.url as string;
-      const snapshotParam = req.query.snapshot as string | undefined;
 
       if (!url) {
         return res.status(400).json({ error: 'URL parameter is required' });
       }
 
+      // URLs are stored as root-relative paths (e.g. '/stats'), but PageAnalysisUseCase
+      // needs an absolute URL to fetch/resolve. Reconstruct it from the site domain.
+      const urlForLookup = url; // path for DB normalized_url lookup
+      const urlForAnalysis = url.startsWith('/')
+        ? `https://${site!.domain}${url}`
+        : url;
+
       try {
         // Use the same PageAnalysisUseCase as the CLI's `page` command
         const useCase = new PageAnalysisUseCase();
         const result = await useCase.execute({
-          url,
-          snapshotId: snapshotParam ? parseInt(snapshotParam, 10) : undefined,
+          url: urlForAnalysis,
+          snapshotId: currentSnapshotId,
           seo: true,
           content: true,
           accessibility: true,
@@ -413,13 +772,14 @@ export function startServer(options: ServerOptions): Promise<void> {
         // These are graph-level concerns not part of the page analysis use case
         const dbPage = db.prepare(`
           SELECT p.id, p.depth,
-            m.pagerank, m.pagerank_score, m.authority_score, m.hub_score
+            m.pagerank_score, m.auth_score, m.hub_score, m.heading_data
           FROM pages p
           LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
           WHERE p.site_id = ? AND p.normalized_url = ?
-        `).get(targetSnapshotId, siteId, url) as any;
+        `).get(targetSnapshotId, siteId, urlForLookup) as any;
 
         let inlinks = 0, outlinks = 0;
+        let latestSnapshotIdForPage: number | undefined = undefined;
         if (dbPage) {
           const inlinksCount = db.prepare(`
             SELECT COUNT(*) as count FROM edges
@@ -429,8 +789,14 @@ export function startServer(options: ServerOptions): Promise<void> {
             SELECT COUNT(*) as count FROM edges
             WHERE snapshot_id = ? AND source_page_id = ? AND rel = 'internal'
           `).get(targetSnapshotId, dbPage.id) as { count: number };
+
+          const latestSnapResult = db.prepare(`
+            SELECT MAX(snapshot_id) as maxId FROM metrics WHERE page_id = ?
+          `).get(dbPage.id) as { maxId: number | null };
+
           inlinks = inlinksCount.count;
           outlinks = outlinksCount.count;
+          latestSnapshotIdForPage = latestSnapResult.maxId ?? undefined;
         }
 
         // Health assessment
@@ -438,6 +804,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         const warningCount = (page.title.status === 'too_long' || page.title.status === 'too_short' || page.content.wordCount < 300 || page.h1.status === 'warning') ? 1 : 0;
 
         res.json({
+          latestSnapshotIdForPage,
           identity: {
             url: page.url,
             status: page.status,
@@ -450,8 +817,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           },
           metrics: {
             pageRank: dbPage?.pagerank_score || 0,
-            rawPageRank: dbPage?.pagerank || 0,
-            authority: dbPage?.authority_score || 0,
+            authority: dbPage?.auth_score || 0,
             hub: dbPage?.hub_score || 0,
             depth: dbPage?.depth || 0,
             inlinks,
@@ -469,6 +835,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           images: page.images,
           links: page.links,
           structuredData: page.structuredData,
+          headingData: dbPage?.heading_data ? JSON.parse(dbPage.heading_data) : null,
           snapshotId: targetSnapshotId
         });
       } catch (error: any) {
@@ -479,13 +846,14 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.2 GET /api/page/inlinks
     api.get('/page/inlinks', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
+      let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -520,13 +888,14 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.3 GET /api/page/outlinks
     api.get('/page/outlinks', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
+      let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -560,10 +929,11 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.4 GET /api/page/cluster
     api.get('/page/cluster', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
+      let url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare(`
         SELECT p.id, m.duplicate_cluster_id
@@ -622,7 +992,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.6 GET /api/page/graph-context
     api.get('/page/graph-context', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSnapshotId = (req as any).graphSnapshotId as number;
       const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
@@ -664,10 +1034,53 @@ export function startServer(options: ServerOptions): Promise<void> {
       });
     });
 
-    // 5.7 POST /api/page/crawl (Live crawl of single page)
-    api.post('/page/crawl', express.json(), strictRateLimiter, async (req, res) => {
-      const { url } = req.body;
+    // 5.7 GET /api/page/plugins
+    api.get('/page/plugins', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      let url = req.query.url as string;
+
       if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const pageIdRow = db.prepare(`SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?`).get(siteId, url) as any;
+      if (!pageIdRow) return res.status(404).json({ error: 'Page not found' });
+      const pageId = pageIdRow.id;
+
+      const migrations = db.prepare('SELECT plugin_name FROM plugin_migrations').all() as any[];
+      const pluginData: Record<string, any> = {};
+
+      for (const migration of migrations) {
+        const pName = migration.plugin_name;
+        const tableName = `${pName.replace(/-/g, '_')}_plugin`;
+        try {
+          // Check if table exists
+          const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(tableName);
+          if (tableExists) {
+            const row = db.prepare(`SELECT * FROM ${tableName} WHERE snapshot_id = ? AND url_id = ? ORDER BY created_at DESC LIMIT 1`).get(currentSnapshotId, pageId);
+            if (row) {
+              const parsedRow: Record<string, any> = { ...row };
+              for (const key in parsedRow) {
+                if (typeof parsedRow[key] === 'string' && (parsedRow[key].startsWith('{') || parsedRow[key].startsWith('['))) {
+                  try {
+                    parsedRow[key] = JSON.parse(parsedRow[key] as string);
+                  } catch { }
+                }
+              }
+              pluginData[pName] = parsedRow;
+            }
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      res.json(pluginData);
+    });
+
+    // 5.8 POST /api/page/crawl (Live crawl of single page)
+    api.post('/page/crawl', express.json(), strictRateLimiter, async (req, res) => {
+      let { url } = req.body;
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       try {
         console.log(chalk.cyan(`   Live crawl requested: ${url}`));
@@ -688,6 +1101,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           seo: true,
           content: true,
           accessibility: true,
+          plugins: options.plugins
         });
 
         console.log(chalk.green(`   ✅ Live crawl completed in ${Date.now() - start}ms`));
@@ -710,7 +1124,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       const sql = `
         SELECT
           id,
-          type,
+          run_type as type,
           created_at as createdAt,
           node_count as pages,
           health_score as health,
@@ -733,7 +1147,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       // Actually, 'broken links' is not in snapshots table directly. We need to count.
 
       const snapshots = db.prepare(`
-        SELECT id, type, created_at, node_count, health_score, orphan_count
+        SELECT id, run_type as type, created_at, node_count, health_score, orphan_count
         FROM snapshots
         WHERE site_id = ?
         ORDER BY created_at ASC

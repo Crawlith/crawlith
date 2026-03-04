@@ -104,7 +104,7 @@ export const Header = ({ toggleSidebar, showCompare: _showCompare, setShowCompar
                   Audit History
                 </div>
                 <div className="max-h-64 overflow-y-auto">
-                  {snapshots.filter(s => s.type !== 'partial').map(snap => (
+                  {snapshots.map(snap => (
                     <button
                       key={snap.id}
                       onClick={() => {
