@@ -214,15 +214,22 @@ export class PageRepository {
     return urlToId;
   }
 
-  getPagesBySnapshot(snapshotId: number): Page[] {
+  getPagesBySnapshot(snapshotId: number, runType: string = 'completed'): Page[] {
+    if (runType === 'single') {
+      return this.db.prepare('SELECT p.* FROM pages p JOIN metrics m ON p.id = m.page_id WHERE m.snapshot_id = ?').all(snapshotId) as Page[];
+    }
     return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as Page[];
   }
 
   getPagesIdentityBySnapshot(snapshotId: number): { id: number; normalized_url: string }[] {
+    // For identities, always loading all up to this point is fine for the crawler to map URLs to IDs.
     return this.db.prepare('SELECT p.id, p.normalized_url FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as { id: number; normalized_url: string }[];
   }
 
-  getPagesIteratorBySnapshot(snapshotId: number): IterableIterator<Page> {
+  getPagesIteratorBySnapshot(snapshotId: number, runType: string = 'completed'): IterableIterator<Page> {
+    if (runType === 'single') {
+      return this.db.prepare('SELECT p.* FROM pages p JOIN metrics m ON p.id = m.page_id WHERE m.snapshot_id = ?').iterate(snapshotId) as IterableIterator<Page>;
+    }
     return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').iterate(snapshotId, snapshotId) as IterableIterator<Page>;
   }
 

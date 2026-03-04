@@ -12,9 +12,9 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
 
-    const pages = pageRepo.getPagesIteratorBySnapshot(snapshotId);
-    const metrics = metricsRepo.getMetricsIterator(snapshotId);
     const snapshot = snapshotRepo.getSnapshot(snapshotId);
+    const pages = pageRepo.getPagesIteratorBySnapshot(snapshotId, snapshot?.run_type || 'completed');
+    const metrics = metricsRepo.getMetricsIterator(snapshotId);
     const metricsMap = new Map<number, DbMetrics>();
     for (const m of metrics) {
         metricsMap.set(m.page_id, m);
