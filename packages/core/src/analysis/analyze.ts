@@ -460,7 +460,7 @@ export function analyzePages(targetPath: string, rootOrigin: string, pages: Iter
     const soft404Service = new Soft404Service();
     const soft404 = soft404Service.analyze(html, links.externalLinks + links.internalLinks);
 
-    results.push({
+    const resultPage: PageAnalysis = {
       url: page.url,
       status: page.status || 0,
       title,
@@ -479,7 +479,10 @@ export function analyzePages(targetPath: string, rootOrigin: string, pages: Iter
         crawlStatus
       },
       soft404
-    });
+    };
+
+    Object.defineProperty(resultPage, 'html', { value: html, enumerable: false });
+    results.push(resultPage);
   }
 
   for (const analysis of results) {
@@ -500,7 +503,7 @@ export function analyzePages(targetPath: string, rootOrigin: string, pages: Iter
 }
 
 function filterPageModules(page: PageAnalysis, modules: { seo: boolean; content: boolean; accessibility: boolean }): PageAnalysis {
-  return {
+  const filtered: PageAnalysis = {
     ...page,
     title: modules.seo ? page.title : { value: null, length: 0, status: 'missing' },
     metaDescription: modules.seo ? page.metaDescription : { value: null, length: 0, status: 'missing' },
@@ -511,6 +514,10 @@ function filterPageModules(page: PageAnalysis, modules: { seo: boolean; content:
     thinScore: modules.content ? page.thinScore : 0,
     images: modules.accessibility ? page.images : { totalImages: 0, missingAlt: 0, emptyAlt: 0 }
   };
+  if ((page as any).html) {
+    Object.defineProperty(filtered, 'html', { value: (page as any).html, enumerable: false });
+  }
+  return filtered;
 }
 
 async function loadCrawlData(rootUrl: string, snapshotId?: number): Promise<CrawlData> {

@@ -696,11 +696,11 @@ export function startServer(options: ServerOptions): Promise<void> {
           if (tableExists) {
             const row = db.prepare(`SELECT * FROM ${tableName} WHERE snapshot_id = ? AND url_id = ? ORDER BY created_at DESC LIMIT 1`).get(currentSnapshotId, pageId);
             if (row) {
-              const parsedRow = { ...row };
+              const parsedRow: Record<string, any> = { ...row };
               for (const key in parsedRow) {
                 if (typeof parsedRow[key] === 'string' && (parsedRow[key].startsWith('{') || parsedRow[key].startsWith('['))) {
                   try {
-                    parsedRow[key] = JSON.parse(parsedRow[key]);
+                    parsedRow[key] = JSON.parse(parsedRow[key] as string);
                   } catch { }
                 }
               }
