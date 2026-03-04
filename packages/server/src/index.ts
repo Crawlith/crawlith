@@ -679,7 +679,6 @@ export function startServer(options: ServerOptions): Promise<void> {
       let url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
-      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const pageIdRow = db.prepare(`SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?`).get(siteId, url) as any;
       if (!pageIdRow) return res.status(404).json({ error: 'Page not found' });
