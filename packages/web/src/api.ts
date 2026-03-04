@@ -285,6 +285,16 @@ export async function fetchPageDetails(url: string, snapshotId?: number): Promis
   return res.json();
 }
 
+export async function fetchPagePlugins(url: string, snapshotId?: number): Promise<Record<string, any>> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page/plugins?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch page plugins');
+  return res.json();
+}
+
 export async function fetchPageInlinks(url: string, page: number = 1, snapshotId?: number): Promise<InlinksResponse> {
   const params = new URLSearchParams();
   params.append('url', url);
