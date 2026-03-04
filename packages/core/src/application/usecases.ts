@@ -116,7 +116,8 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       orphans: input.orphans ?? true,
       orphanSeverity: input.orphanSeverity ?? true,
       includeSoftOrphans: input.includeSoftOrphans ?? true,
-      minInbound: input.minInbound
+      minInbound: input.minInbound,
+      rootOrigin: input.url.startsWith('http') ? new URL(input.url).origin : `https://${input.url}`
     });
 
     if (ctx.db) {
@@ -242,9 +243,11 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       await registry.runHook('onInit', pluginCtx);
 
       // Fire onPage once per analyzed page (normally just 1 for the page command)
+      const inputOrigin = new URL(input.url).origin;
       for (const page of result.pages) {
+        const absoluteUrl = page.url.startsWith('/') ? `${inputOrigin}${page.url}` : page.url;
         await registry.runHook('onPage', pluginCtx, {
-          url: page.url,
+          url: absoluteUrl,
           html: (page as any).html ?? '',
           status: page.status,
         });

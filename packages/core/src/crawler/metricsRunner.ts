@@ -107,10 +107,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
             insertContentTx(contentClusters);
         }
     }
-    new DuplicateService().detectDuplicates(graph, { collapse: false });
-
-    // Persist duplicate clusters to DB (populated on graph by applyClusterToGraph)
-    const duplicateClusters: any[] = (graph as any).duplicateClusters || [];
+    const duplicateClusters = new DuplicateService().detectDuplicates(graph, { collapse: false });
     if (duplicateClusters.length > 0) {
         const insertCluster = db.prepare(`
             INSERT OR REPLACE INTO duplicate_clusters (id, snapshot_id, type, size, representative, severity)
