@@ -16,6 +16,7 @@ import { DuplicateService } from '../analysis/duplicate.js';
 import { annotateOrphans } from '../analysis/orphan.js';
 import { Soft404Service } from '../analysis/soft404.js';
 import { HeadingHealthService } from '../analysis/heading.js';
+import { HealthService } from '../scoring/health.js';
 import { analyzeContent } from '../analysis/content.js';
 import { load } from 'cheerio';
 
@@ -34,6 +35,7 @@ export interface PostCrawlOptions {
     orphanSeverity?: 'low' | 'medium' | 'high' | boolean;
     includeSoftOrphans?: boolean;
     minInbound?: number;
+    rootOrigin?: string;
 }
 
 export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, options: PostCrawlOptions = {}) {
@@ -249,10 +251,25 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
     emit({ type: 'metrics:start', phase: 'Computing aggregate stats' });
     const metrics = calculateMetrics(graph, maxDepth);
 
+    // Compute health score if enabled
+    let healthScore: number | null = null;
+    if (options.health) {
+        try {
+            const rootOrigin = options.rootOrigin ?? '';
+            const healthService = new HealthService();
+            const issues = healthService.collectCrawlIssues(graph, metrics, rootOrigin);
+            const breakdown = healthService.calculateHealthScore(metrics.totalPages, issues);
+            healthScore = breakdown.score;
+        } catch (e) {
+            emit({ type: 'error', message: 'Error computing health score', error: e });
+        }
+    }
+
     snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
         node_count: metrics.totalPages,
         edge_count: metrics.totalEdges,
-        limit_reached: limitReached ? 1 : 0
+        limit_reached: limitReached ? 1 : 0,
+        ...(healthScore !== null ? { health_score: healthScore } : {})
     });
 
     emit({ type: 'metrics:complete', durationMs: 0 });
