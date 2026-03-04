@@ -6,6 +6,8 @@ export function runBaseMigrations(db: Database) {
     CREATE TABLE IF NOT EXISTS sites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       domain TEXT UNIQUE NOT NULL,
+      preferred_url TEXT,
+      ssl INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       settings_json TEXT,
       is_active INTEGER DEFAULT 1
@@ -101,8 +103,18 @@ export function runBaseMigrations(db: Database) {
       thin_content_score REAL,
       external_link_ratio REAL,
       orphan_score INTEGER,
+      pagerank_score REAL,
+      hub_score REAL,
+      auth_score REAL,
+      link_role TEXT,
       duplicate_cluster_id TEXT,
       duplicate_type TEXT,
+      cluster_id INTEGER,
+      soft404_score REAL,
+      heading_score REAL,
+      orphan_type TEXT,
+      impact_level TEXT,
+      heading_data TEXT,
       is_cluster_primary INTEGER DEFAULT 0,
       PRIMARY KEY(snapshot_id, page_id),
       FOREIGN KEY(snapshot_id) REFERENCES snapshots(id) ON DELETE CASCADE,
@@ -165,4 +177,25 @@ export function runBaseMigrations(db: Database) {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_plugin_reports_snapshot ON plugin_reports(snapshot_id);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_plugin_reports_composite ON plugin_reports(snapshot_id, plugin_name);`);
+
+  // Migrations for metrics
+  const metricsCols = [
+    ['pagerank_score', 'REAL'],
+    ['hub_score', 'REAL'],
+    ['auth_score', 'REAL'],
+    ['link_role', 'TEXT'],
+    ['cluster_id', 'INTEGER'],
+    ['soft404_score', 'REAL'],
+    ['heading_score', 'REAL'],
+    ['orphan_type', 'TEXT'],
+    ['impact_level', 'TEXT'],
+    ['heading_data', 'TEXT'],
+  ];
+  for (const [col, type] of metricsCols) {
+    try { db.exec(`ALTER TABLE metrics ADD COLUMN ${col} ${type}`); } catch { /* ignore */ }
+  }
+
+  // Final site column migrations
+  try { db.exec('ALTER TABLE sites ADD COLUMN preferred_url TEXT'); } catch { /* ignore */ }
+  try { db.exec('ALTER TABLE sites ADD COLUMN ssl INTEGER'); } catch { /* ignore */ }
 }

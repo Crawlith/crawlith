@@ -1,11 +1,11 @@
-import { request } from 'undici';
 import * as cheerio from 'cheerio';
 import pLimit from 'p-limit';
 import { normalizeUrl } from './normalize.js';
 import { EngineContext } from '../events.js';
+import { Fetcher } from './fetcher.js';
 
 export class Sitemap {
-  constructor(private context?: EngineContext) { }
+  constructor(private context?: EngineContext, private fetcher?: Fetcher) { }
 
   /**
    * Fetches and parses a sitemap (or sitemap index) to extract URLs.
@@ -28,15 +28,17 @@ export class Sitemap {
     if (visited.size > 50) return;
 
     try {
-      const res = await request(url, {
-        maxRedirections: 3,
-        headers: { 'User-Agent': 'crawlith/1.0' },
-        headersTimeout: 10000,
-        bodyTimeout: 10000
-      });
+      const res = this.fetcher
+        ? await this.fetcher.fetch(url, { maxBytes: 5000000 })
+        : await (async () => {
+          const { request } = await import('undici');
+          const r = await request(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          const b = await r.body.text();
+          return { status: r.statusCode, body: b };
+        })();
 
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        const xml = await res.body.text();
+      if (typeof res.status === 'number' && res.status >= 200 && res.status < 300) {
+        const xml = res.body;
         // Basic validation: must verify it looks like XML
         if (!xml.trim().startsWith('<')) return;
 
@@ -68,11 +70,9 @@ export class Sitemap {
             }
           });
         }
-      } else {
-        await res.body.dump();
       }
     } catch (e) {
-      this.context?.emit({ type: 'warn', message: `Failed to fetch sitemap ${url}`, context: e });
+      this.context?.emit({ type: 'warn', message: `Failed to fetch sitemap ${url} (${String(e)})`, context: e });
     }
   }
 }

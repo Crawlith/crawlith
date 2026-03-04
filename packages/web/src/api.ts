@@ -158,6 +158,7 @@ export interface PageDetails {
     valid: boolean;
     types: string[];
   };
+  headingData?: any;
   snapshotId: number;
 }
 
@@ -330,6 +331,16 @@ export async function fetchPageDetails(url: string, snapshotId?: number): Promis
     if (res.status === 404) throw new Error('Page not found');
     throw new Error('Failed to fetch page details');
   }
+  return res.json();
+}
+
+export async function fetchPagePlugins(url: string, snapshotId?: number): Promise<Record<string, any>> {
+  const params = new URLSearchParams();
+  params.append('url', url);
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/page/plugins?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch page plugins');
   return res.json();
 }
 

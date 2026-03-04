@@ -19,7 +19,33 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
     .option('--no-query', 'strip query params')
     .option('--sitemap [url]', 'sitemap URL (defaults to /sitemap.xml if not specified)')
     .addOption(new Option('--log-level [level]', 'Log level (normal, verbose, debug)').choices(['normal', 'verbose', 'debug']).default('normal'))
-    .option('--force', 'force run (override existing lock)');
+    .option('--force', 'force run (override existing lock)')
+    .option('--allow <domains>', 'comma separated list of domains to allow')
+    .option('--deny <domains>', 'comma separated list of domains to deny')
+    .option('--include-subdomains', 'include subdomains in the default scope')
+    .option('--ignore-robots', 'ignore robots.txt directives')
+    .option('--proxy <url>', 'proxy URL to use for requests')
+    .option('--ua <string>', 'user agent string to use')
+    .option('--rate <number>', 'requests per second limit')
+    .option('--max-bytes <number>', 'maximum bytes to download per page')
+    .option('--max-redirects <number>', 'maximum redirects to follow')
+    // Clustering (Moved from plugin to core)
+    .option('--clustering', 'Enable content clustering analysis')
+    .option('--cluster-threshold <number>', 'Hamming distance for content clusters', '10')
+    .option('--min-cluster-size <number>', 'Minimum pages per cluster', '3')
+    // Heading & Health (Moved from plugin to core)
+    .option('--heading', 'Analyze heading structure and hierarchy health')
+    .option('--health', 'Run health score analysis')
+    .option('--fail-on-critical', 'Exit code 1 if critical issues exist')
+    .option('--score-breakdown', 'Print health score component weights')
+    // Graph Centrality
+    .option('--compute-hits', 'Compute Hub and Authority scores (HITS)')
+    .option('--compute-pagerank', 'Compute PageRank centrality scores')
+    // Orphan Intelligence
+    .option('--orphans', 'Detect orphaned pages')
+    .option('--orphan-severity', 'Enable severity scoring for orphans')
+    .option('--include-soft-orphans', 'Include pages with very few in-links as soft orphans')
+    .option('--min-inbound <number>', 'Minimum inbound links to not be an orphan', '2');
 
   // Let plugins register their flags on this command
   registry.registerPlugins(crawlCommand);
@@ -70,10 +96,34 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
         sitemap: sitemap as string | undefined,
         debug: options.logLevel === 'debug',
         concurrency: options.concurrency ? parseInt(options.concurrency, 10) : 2,
+        ignoreRobots: options.ignoreRobots,
+        allowedDomains: options.allow ? options.allow.split(',').map((d: string) => d.trim()) : undefined,
+        deniedDomains: options.deny ? options.deny.split(',').map((d: string) => d.trim()) : undefined,
+        includeSubdomains: options.includeSubdomains,
+        proxyUrl: options.proxy,
+        userAgent: options.ua,
+        rate: options.rate ? parseFloat(options.rate) : undefined,
+        maxBytes: options.maxBytes ? parseInt(options.maxBytes, 10) : undefined,
+        maxRedirects: options.maxRedirects ? parseInt(options.maxRedirects, 10) : undefined,
+        clustering: options.clustering,
+        clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : undefined,
+        minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : undefined,
+        heading: options.heading,
+        health: options.health,
+        failOnCritical: options.failOnCritical,
+        scoreBreakdown: options.scoreBreakdown,
+        computeHits: options.computeHits,
+        computePagerank: options.computePagerank,
+        orphans: options.orphans,
+        orphanSeverity: options.orphanSeverity,
+        includeSoftOrphans: options.includeSoftOrphans,
+        minInbound: options.minInbound ? parseInt(options.minInbound, 10) : undefined,
         plugins: registry.getPlugins(),
         context: {
           command: 'crawl',
+          scope: 'crawl' as const,
           flags: options as Record<string, any>,
+          emit: (e: any) => controller.handle(e),
           logger: {
             info: (m: string) => context.emit({ type: 'info', message: m }),
             warn: (m: string) => context.emit({ type: 'warn', message: m, context: undefined }),

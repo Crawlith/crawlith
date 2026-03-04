@@ -424,6 +424,29 @@ server.tool(
   }
 );
 
+server.tool(
+  'full_site_audit',
+  'Perform a complete site audit: crawl the site with standard limits and build the graph.',
+  {
+    url: z.string().describe('Site URL or domain to audit.')
+  },
+  async ({ url }: { url: string }) => {
+    const args = ['crawl', url, '--limit', '2000', '--depth', '10'];
+    const result = await runCliCommand(args);
+    return asTextContent(result);
+  }
+);
+
+server.tool(
+  'portfolio_status',
+  'View all tracked domains and their crawl health summary across the local database.',
+  {},
+  async () => {
+    const result = await runCliCommand(['sites']);
+    return asTextContent(result);
+  }
+);
+
 registerPrompts(server);
 
 /**

@@ -62,6 +62,17 @@ export class SnapshotRepository {
     return result.count;
   }
 
+  /**
+   * Returns true if the site has ever had a completed full or incremental crawl.
+   * Partial snapshots (from page --live) do NOT count as a "first crawl".
+   */
+  hasFullCrawl(siteId: number): boolean {
+    const result = this.db.prepare(
+      `SELECT COUNT(*) as count FROM snapshots WHERE site_id = ? AND type IN ('full', 'incremental') AND status = 'completed'`
+    ).get(siteId) as { count: number };
+    return result.count > 0;
+  }
+
   updateSnapshotStatus(id: number, status: 'completed' | 'failed', stats: Partial<Snapshot> = {}) {
     const sets: string[] = ['status = ?'];
     const params: any[] = [status];

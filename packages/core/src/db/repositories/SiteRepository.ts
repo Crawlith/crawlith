@@ -3,6 +3,8 @@ import { Database } from 'better-sqlite3';
 export interface Site {
   id: number;
   domain: string;
+  preferred_url: string | null;
+  ssl: number | null;
   created_at: string;
   settings_json: string | null;
   is_active: number;
@@ -29,6 +31,11 @@ export class SiteRepository {
     return info.lastInsertRowid as number;
   }
 
+  updateSitePreference(id: number, prefs: { preferred_url: string; ssl: number }): void {
+    const stmt = this.db.prepare('UPDATE sites SET preferred_url = ?, ssl = ? WHERE id = ?');
+    stmt.run(prefs.preferred_url, prefs.ssl, id);
+  }
+
   firstOrCreateSite(domain: string): Site {
     let site = this.getSite(domain);
     if (!site) {
@@ -37,6 +44,7 @@ export class SiteRepository {
     }
     return site!;
   }
+
   deleteSite(id: number): void {
     this.db.prepare('DELETE FROM sites WHERE id = ?').run(id);
   }

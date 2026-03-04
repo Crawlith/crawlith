@@ -141,7 +141,20 @@ describe('Database Layer', () => {
       word_count: 100,
       thin_content_score: 0.1,
       external_link_ratio: 0.0,
-      orphan_score: 0
+      orphan_score: 0,
+      pagerank_score: 0,
+      hub_score: 0,
+      auth_score: 0,
+      link_role: null,
+      duplicate_cluster_id: null,
+      duplicate_type: null,
+      cluster_id: null,
+      soft404_score: 0,
+      heading_score: 0,
+      orphan_type: null,
+      impact_level: null,
+      heading_data: null,
+      is_cluster_primary: 0
     });
 
     const metrics = metricsRepo.getMetricsForPage(snapshotId, p1.id);
