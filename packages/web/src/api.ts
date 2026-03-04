@@ -219,12 +219,17 @@ export interface GraphContext {
  * A node in the snapshot structure graph explorer.
  */
 export interface SnapshotGraphNode {
-  id: number;
-  url: string;
+  id: string;
+  label: string;
+  nodeType: 'section' | 'cluster' | 'url';
+  clusterType: 'template' | 'duplicate' | 'content_group' | 'none';
+  url?: string;
   depth: number;
   pageRankScore: number;
   inlinks: number;
   outlinks: number;
+  health: number;
+  size: number;
   role: string | null;
 }
 
@@ -232,8 +237,8 @@ export interface SnapshotGraphNode {
  * A directed internal edge in the snapshot structure graph explorer.
  */
 export interface SnapshotGraphEdge {
-  source: number;
-  target: number;
+  source: string;
+  target: string;
 }
 
 /**
@@ -241,6 +246,7 @@ export interface SnapshotGraphEdge {
  */
 export interface SnapshotGraphResponse {
   snapshotId: number;
+  level: number;
   nodes: SnapshotGraphNode[];
   edges: SnapshotGraphEdge[];
   meta: {
@@ -255,6 +261,8 @@ export interface SnapshotGraphResponse {
  */
 export interface SnapshotGraphQuery {
   snapshotId?: number;
+  level?: 1 | 2 | 3;
+  includeEdges?: boolean;
   maxNodes?: number;
   maxEdges?: number;
   minPageRank?: number;
@@ -441,6 +449,8 @@ export async function crawlPage(url: string): Promise<{ success: boolean, snapsh
 export async function fetchSnapshotGraph(query: SnapshotGraphQuery = {}): Promise<SnapshotGraphResponse> {
   const params = new URLSearchParams();
 
+  if (query.level) params.append('level', query.level.toString());
+  if (typeof query.includeEdges === 'boolean') params.append('includeEdges', String(query.includeEdges));
   if (query.snapshotId) params.append('snapshot', query.snapshotId.toString());
   if (query.maxNodes) params.append('maxNodes', query.maxNodes.toString());
   if (query.maxEdges) params.append('maxEdges', query.maxEdges.toString());
@@ -452,5 +462,18 @@ export async function fetchSnapshotGraph(query: SnapshotGraphQuery = {}): Promis
 
   const res = await fetch(`${API_PREFIX}/graph/snapshot?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch snapshot graph');
+  return res.json();
+}
+
+/**
+ * Fetches the 1-hop neighborhood for an interacted graph node.
+ */
+export async function fetchGraphNeighbors(nodeId: string, snapshotId?: number): Promise<{ nodes: SnapshotGraphNode[]; edges: SnapshotGraphEdge[] }> {
+  const params = new URLSearchParams();
+  params.append('nodeId', nodeId);
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+
+  const res = await fetch(`${API_PREFIX}/graph/neighbors?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch node neighbors');
   return res.json();
 }
