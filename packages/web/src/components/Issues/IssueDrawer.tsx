@@ -1,9 +1,8 @@
-import React from 'react';
 import { X, ExternalLink, Link, AlertTriangle } from 'lucide-react';
-import { Issue } from '../../data';
+import * as API from '../../api';
 
 interface IssueDrawerProps {
-  issue: Issue | null;
+  issue: API.Issue | null;
   onClose: () => void;
   isOpen: boolean;
 }

@@ -4,6 +4,8 @@ import { runPostCrawlMetrics } from '../crawler/metricsRunner.js';
 import { analyzeSite, type AnalyzeOptions, type AnalysisResult } from '../analysis/analyze.js';
 import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { compareGraphs } from '../diff/compare.js';
+import { SiteRepository } from '../db/repositories/SiteRepository.js';
+import { SnapshotRepository } from '../db/repositories/SnapshotRepository.js';
 import { PluginRegistry } from '../plugin-system/plugin-registry.js';
 import type { CrawlithPlugin, PluginContext } from '../plugin-system/plugin-types.js';
 import type { UseCase } from './usecase.js';
@@ -102,6 +104,20 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     await registry.runHook('onGraphBuilt', ctx, graph);
     await registry.runHook('onMetrics', ctx, graph);
 
+    const db = getCrawlithDB().unsafeGetRawDb();
+    const siteRepo = new SiteRepository(db);
+    const snapshotRepo = new SnapshotRepository(db);
+    const snapshot = snapshotRepo.getSnapshot(snapshotId);
+    let resolvedOrigin = '';
+    if (snapshot) {
+      const site = siteRepo.getSiteById(snapshot.site_id);
+      if (site?.preferred_url) {
+        try {
+          resolvedOrigin = new URL(site.preferred_url).origin;
+        } catch { /* ignore */ }
+      }
+    }
+
     runPostCrawlMetrics(snapshotId, crawlOpts.depth, {
       context: undefined,
       limitReached: false,
@@ -117,7 +133,7 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       orphanSeverity: input.orphanSeverity ?? true,
       includeSoftOrphans: input.includeSoftOrphans ?? true,
       minInbound: input.minInbound,
-      rootOrigin: input.url.startsWith('http') ? new URL(input.url).origin : `https://${input.url}`
+      rootOrigin: resolvedOrigin || (input.url.startsWith('http') ? new URL(input.url).origin : `https://${input.url}`)
     });
 
     if (ctx.db) {
@@ -251,6 +267,10 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
           html: (page as any).html ?? '',
           status: page.status,
         });
+      }
+
+      if (pluginCtx.db && result.snapshotId) {
+        pluginCtx.db.aggregateScoreProviders(result.snapshotId, registry.pluginsList);
       }
     }
 

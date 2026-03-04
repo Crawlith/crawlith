@@ -152,6 +152,17 @@ export const SinglePage = () => {
                                     <Clock size={12} />
                                     Crawled: {details.identity.crawlDate ? new Date(details.identity.crawlDate).toLocaleString() : 'N/A'}
                                 </div>
+
+                                {details.latestSnapshotIdForPage && details.latestSnapshotIdForPage > (details.snapshotId || currentSnapshot || 0) && (
+                                    <button
+                                        onClick={() => setSnapshot(details.latestSnapshotIdForPage!)}
+                                        className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded border border-amber-200 dark:border-amber-800 transition-colors animate-pulse"
+                                        title="Click to view the newer snapshot data for this page"
+                                    >
+                                        <Activity size={12} />
+                                        Newer Data Available In Snapshot #{details.latestSnapshotIdForPage}
+                                    </button>
+                                )}
                             </div>
 
                             {details.identity.crawlError && (

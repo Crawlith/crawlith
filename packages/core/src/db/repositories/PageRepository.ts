@@ -21,6 +21,7 @@ export interface Page {
   discovered_via_sitemap: number;
   redirect_chain: string | null;
   bytes_received: number | null;
+  is_internal: number;
   crawl_trap_flag: number;
   crawl_trap_risk: number | null;
   trap_type: string | null;
@@ -38,13 +39,13 @@ export class PageRepository {
         site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id,
         http_status, canonical_url, content_hash, simhash, etag, last_modified, html,
         noindex, nofollow, security_error, retries, depth,
-        discovered_via_sitemap, redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
+        discovered_via_sitemap, redirect_chain, bytes_received, is_internal, crawl_trap_flag, crawl_trap_risk, trap_type,
         updated_at
       ) VALUES (
         @site_id, @normalized_url, @first_seen_snapshot_id, @last_seen_snapshot_id,
         @http_status, @canonical_url, @content_hash, @simhash, @etag, @last_modified, @html,
         @noindex, @nofollow, @security_error, @retries, @depth,
-        @discovered_via_sitemap, @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
+        @discovered_via_sitemap, @redirect_chain, @bytes_received, @is_internal, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
         datetime('now')
       )
       ON CONFLICT(site_id, normalized_url) DO UPDATE SET
@@ -64,6 +65,7 @@ export class PageRepository {
         discovered_via_sitemap = MAX(pages.discovered_via_sitemap, excluded.discovered_via_sitemap),
         redirect_chain = COALESCE(excluded.redirect_chain, pages.redirect_chain),
         bytes_received = COALESCE(excluded.bytes_received, pages.bytes_received),
+        is_internal = COALESCE(excluded.is_internal, pages.is_internal),
         crawl_trap_flag = MAX(pages.crawl_trap_flag, excluded.crawl_trap_flag),
         crawl_trap_risk = COALESCE(excluded.crawl_trap_risk, pages.crawl_trap_risk),
         trap_type = COALESCE(excluded.trap_type, pages.trap_type),
@@ -94,6 +96,7 @@ export class PageRepository {
       discovered_via_sitemap: page.discovered_via_sitemap ?? 0,
       redirect_chain: page.redirect_chain ?? null,
       bytes_received: page.bytes_received ?? null,
+      is_internal: page.is_internal ?? 1,
       crawl_trap_flag: page.crawl_trap_flag ?? 0,
       crawl_trap_risk: page.crawl_trap_risk ?? null,
       trap_type: page.trap_type ?? null,
@@ -140,13 +143,13 @@ export class PageRepository {
         site_id, normalized_url, first_seen_snapshot_id, last_seen_snapshot_id,
         http_status, canonical_url, content_hash, simhash, etag, last_modified, html,
         noindex, nofollow, security_error, retries, depth,
-        discovered_via_sitemap, redirect_chain, bytes_received, crawl_trap_flag, crawl_trap_risk, trap_type,
+        discovered_via_sitemap, redirect_chain, bytes_received, is_internal, crawl_trap_flag, crawl_trap_risk, trap_type,
         updated_at
       ) VALUES (
         @site_id, @normalized_url, @first_seen_snapshot_id, @last_seen_snapshot_id,
         @http_status, @canonical_url, @content_hash, @simhash, @etag, @last_modified, @html,
         @noindex, @nofollow, @security_error, @retries, @depth,
-        @discovered_via_sitemap, @redirect_chain, @bytes_received, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
+        @discovered_via_sitemap, @redirect_chain, @bytes_received, @is_internal, @crawl_trap_flag, @crawl_trap_risk, @trap_type,
         datetime('now')
       )
       ON CONFLICT(site_id, normalized_url) DO UPDATE SET
@@ -166,6 +169,7 @@ export class PageRepository {
         discovered_via_sitemap = MAX(pages.discovered_via_sitemap, excluded.discovered_via_sitemap),
         redirect_chain = COALESCE(excluded.redirect_chain, pages.redirect_chain),
         bytes_received = COALESCE(excluded.bytes_received, pages.bytes_received),
+        is_internal = COALESCE(excluded.is_internal, pages.is_internal),
         crawl_trap_flag = MAX(pages.crawl_trap_flag, excluded.crawl_trap_flag),
         crawl_trap_risk = COALESCE(excluded.crawl_trap_risk, pages.crawl_trap_risk),
         trap_type = COALESCE(excluded.trap_type, pages.trap_type),
@@ -196,6 +200,7 @@ export class PageRepository {
           discovered_via_sitemap: page.discovered_via_sitemap ?? 0,
           redirect_chain: page.redirect_chain ?? null,
           bytes_received: page.bytes_received ?? null,
+          is_internal: page.is_internal ?? 1,
           crawl_trap_flag: page.crawl_trap_flag ?? 0,
           crawl_trap_risk: page.crawl_trap_risk ?? null,
           trap_type: page.trap_type ?? null,
@@ -209,15 +214,22 @@ export class PageRepository {
     return urlToId;
   }
 
-  getPagesBySnapshot(snapshotId: number): Page[] {
+  getPagesBySnapshot(snapshotId: number, runType: string = 'completed'): Page[] {
+    if (runType === 'single') {
+      return this.db.prepare('SELECT p.* FROM pages p JOIN metrics m ON p.id = m.page_id WHERE m.snapshot_id = ?').all(snapshotId) as Page[];
+    }
     return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as Page[];
   }
 
   getPagesIdentityBySnapshot(snapshotId: number): { id: number; normalized_url: string }[] {
+    // For identities, always loading all up to this point is fine for the crawler to map URLs to IDs.
     return this.db.prepare('SELECT p.id, p.normalized_url FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as { id: number; normalized_url: string }[];
   }
 
-  getPagesIteratorBySnapshot(snapshotId: number): IterableIterator<Page> {
+  getPagesIteratorBySnapshot(snapshotId: number, runType: string = 'completed'): IterableIterator<Page> {
+    if (runType === 'single') {
+      return this.db.prepare('SELECT p.* FROM pages p JOIN metrics m ON p.id = m.page_id WHERE m.snapshot_id = ?').iterate(snapshotId) as IterableIterator<Page>;
+    }
     return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').iterate(snapshotId, snapshotId) as IterableIterator<Page>;
   }
 

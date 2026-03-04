@@ -9,6 +9,7 @@ export interface DuplicateCluster {
     id: string;
     type: 'exact' | 'near' | 'template_heavy';
     nodes: GraphNode[];
+    size: number;
     representative?: string;
     severity?: 'low' | 'medium' | 'high';
 }
@@ -71,7 +72,7 @@ export class DuplicateService {
         for (const group of exactMap.values()) {
             if (group.length > 1) {
                 const id = `cluster_exact_${clusterCounter++}`;
-                exactClusters.push({ id, type: 'exact', nodes: group });
+                exactClusters.push({ id, type: 'exact', nodes: group, size: group.length });
                 for (const n of group) {
                     (n as any).duplicateClusterId = id;
                     (n as any).duplicateType = 'exact';
@@ -221,7 +222,7 @@ export class DuplicateService {
             if (groupIndices.length > 1) {
                 const id = `cluster_near_${clusterCounter++}`;
                 const groupNodes = groupIndices.map(idx => candidates[idx]);
-                nearClusters.push({ id, type: 'near', nodes: groupNodes });
+                nearClusters.push({ id, type: 'near', nodes: groupNodes, size: groupNodes.length });
                 for (const n of groupNodes) {
                     (n as any).duplicateClusterId = id;
                     (n as any).duplicateType = 'near';

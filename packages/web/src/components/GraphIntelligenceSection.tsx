@@ -1,4 +1,3 @@
-import React from 'react';
 import { PageRankTable } from './Graphs/PageRankTable';
 import { SimpleBarChart } from './Graphs/SimpleBarChart';
 import { DuplicateClusterChart } from './Graphs/DuplicateClusterChart';

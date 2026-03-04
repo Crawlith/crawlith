@@ -18,4 +18,6 @@ export const DEFAULTS = {
     // Network timeouts
     HEADERS_TIMEOUT: 10000,
     BODY_TIMEOUT: 10000,
+    // Keep only last 5 snapshots
+    MAX_SNAPSHOTS: 5
 } as const;

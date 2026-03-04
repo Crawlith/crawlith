@@ -12,9 +12,9 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
     const metricsRepo = new MetricsRepository(db);
     const snapshotRepo = new SnapshotRepository(db);
 
-    const pages = pageRepo.getPagesIteratorBySnapshot(snapshotId);
-    const metrics = metricsRepo.getMetricsIterator(snapshotId);
     const snapshot = snapshotRepo.getSnapshot(snapshotId);
+    const pages = pageRepo.getPagesIteratorBySnapshot(snapshotId, snapshot?.run_type || 'completed');
+    const metrics = metricsRepo.getMetricsIterator(snapshotId);
     const metricsMap = new Map<number, DbMetrics>();
     for (const m of metrics) {
         metricsMap.set(m.page_id, m);
@@ -32,7 +32,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
 
     for (const p of pages) {
         idMap.set(p.id, p.normalized_url);
-        graph.addNode(p.normalized_url, p.depth, p.http_status || 0);
+        graph.addNode(p.normalized_url, p.depth, p.http_status || 0, !!p.is_internal);
 
         const m = metricsMap.get(p.id);
         if (m) {
@@ -57,6 +57,7 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
         }
 
         graph.updateNodeData(p.normalized_url, {
+            isInternal: !!p.is_internal,
             canonical: p.canonical_url || undefined,
             discoveredViaSitemap: !!p.discovered_via_sitemap,
             contentHash: p.content_hash || undefined,
