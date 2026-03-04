@@ -39,7 +39,7 @@ export interface CrawlOptions {
   proxyUrl?: string;
   maxRedirects?: number;
   userAgent?: string;
-  snapshotType?: 'full' | 'partial' | 'incremental';
+  snapshotRunType?: 'completed' | 'incremental' | 'single';
   registry?: PluginRegistry;
   plugins?: any[];
   robots?: any;
@@ -89,6 +89,7 @@ export class Crawler {
   private siteId: number | null = null;
   private snapshotId: number | null = null;
   private reusingSnapshot: boolean = false;
+  private runType: 'completed' | 'incremental' | 'single' = 'completed';
   private rootOrigin: string = '';
 
   // Discovery tracking
@@ -169,22 +170,11 @@ export class Crawler {
       (this.fetcher as any).scopeManager = this.scopeManager;
     }
 
-    // For partial snapshots (page --live), reuse the latest partial snapshot
-    // instead of creating a new one each time
-    if (this.options.snapshotType === 'partial') {
-      const existing = this.snapshotRepo.getLatestPartialSnapshot(this.siteId);
-      if (existing) {
-        this.snapshotId = existing.id;
-        this.reusingSnapshot = true;
-        this.context.emit({ type: 'debug', message: `Reusing partial snapshot #${existing.id}` });
-      } else {
-        this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, 'partial');
-      }
-    } else {
-      const type = this.options.snapshotType || (this.options.previousGraph ? 'incremental' : 'full');
-      this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, type);
-    }
+    // Every scan now creates a new snapshot (no reuse)
+    const runType = this.options.snapshotRunType || (this.options.previousGraph ? 'incremental' : 'completed');
+    this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, runType);
 
+    this.runType = runType;
     this.rootOrigin = urlObj.origin;
     this.startUrl = rootUrl;
 
@@ -257,7 +247,7 @@ export class Crawler {
     const sitemapsToFetch = new Set<string>();
 
     // 1. Explicitly configured sitemap
-    if (this.options.sitemap) {
+    if (this.options.sitemap && this.runType !== 'single') {
       const explicitUrl = this.options.sitemap === 'true' || (this.options.sitemap as any) === true
         ? new URL('/sitemap.xml', this.rootOrigin).toString()
         : this.options.sitemap;
@@ -269,9 +259,9 @@ export class Crawler {
 
     // 2. Discover sitemaps from robots.txt (unless explicitly disabled)
     // Only auto-fetch on the FIRST real crawl (full/incremental).
-    // page --live reuses partial snapshots and should NOT trigger sitemap fetch.
-    const isFirstCrawl = !this.snapshotRepo?.hasFullCrawl(this.siteId!);
-    if (this.options.sitemap !== false && (this.options.sitemap || isFirstCrawl) && this.robots) {
+    // page --live reuses snapshots and should NOT trigger sitemap fetch.
+    const isFirstFullCrawl = this.runType !== 'single' && !this.snapshotRepo?.hasFullCrawl(this.siteId!);
+    if (this.options.sitemap !== false && (this.options.sitemap || isFirstFullCrawl) && this.robots && this.runType !== 'single') {
       const robotsSitemaps = this.robots.getSitemaps();
       for (const s of robotsSitemaps) {
         if (s) sitemapsToFetch.add(s);

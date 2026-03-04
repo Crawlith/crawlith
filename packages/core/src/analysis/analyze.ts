@@ -183,18 +183,21 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
         const robotsParserModule = await import('robots-parser');
         const robotsParser = (robotsParserModule as any).default || robotsParserModule;
         robots = (robotsParser as any)(robotsUrl, robotsRes.body);
-        if (context) context.emit({ type: 'debug', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
+        if (context) context.emit({ type: 'info', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
       }
     } catch {
       // Fallback
     }
   }
 
-  // 2. Data Acquisition
+  // Data Acquisition
   if (options.live) {
+    const fullUrl = parsedUrl ? parsedUrl.toString() : (url.startsWith('http') ? url : `https://${url}`);
+    const normalizedFull = normalizeUrl(fullUrl, rootOrigin, { stripQuery: false }) || fullUrl;
+
     const crawlStart = Date.now();
-    crawlData = await runLiveCrawl(normalizedAbs, rootOrigin, options, context, robots);
-    if (context) context.emit({ type: 'debug', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
+    crawlData = await runLiveCrawl(normalizedFull, rootOrigin, options, context, robots);
+    if (context) context.emit({ type: 'info', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
   } else {
     try {
       const loadStart = Date.now();
@@ -579,7 +582,7 @@ async function runLiveCrawl(url: string, origin: string, options: AnalyzeOptions
     userAgent: options.userAgent,
     maxRedirects: options.maxRedirects,
     debug: options.debug,
-    snapshotType: 'partial',
+    snapshotRunType: 'single',
     robots,
     sitemap: options.sitemap,
     plugins: options.plugins

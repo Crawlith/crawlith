@@ -428,7 +428,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.7 GET /api/snapshots
     api.get('/snapshots', (req, res) => {
-      const rows = db.prepare('SELECT id, type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
+      const rows = db.prepare('SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
       res.json({ results: rows });
     });
 
@@ -1114,7 +1114,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       const sql = `
         SELECT
           id,
-          type,
+          run_type as type,
           created_at as createdAt,
           node_count as pages,
           health_score as health,
@@ -1137,7 +1137,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       // Actually, 'broken links' is not in snapshots table directly. We need to count.
 
       const snapshots = db.prepare(`
-        SELECT id, type, created_at, node_count, health_score, orphan_count
+        SELECT id, run_type as type, created_at, node_count, health_score, orphan_count
         FROM snapshots
         WHERE site_id = ?
         ORDER BY created_at ASC

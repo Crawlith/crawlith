@@ -12,6 +12,7 @@ export interface HealthScoreWeights {
     lowInternalLinks: number;
     excessiveLinks: number;
     blockedByRobots: number;
+    crawlTraps: number;
 }
 
 export interface CrawlIssueCounts {
@@ -33,6 +34,7 @@ export interface CrawlIssueCounts {
     underlinkedHighAuthorityPages: number;
     externalLinks: number;
     blockedByRobots: number;
+    crawlTraps: number;
 }
 
 export interface HealthScoreBreakdown {
@@ -59,13 +61,14 @@ export const DEFAULT_HEALTH_WEIGHTS: HealthScoreWeights = {
     canonicalConflicts: 10,
     lowInternalLinks: 10,
     excessiveLinks: 5,
-    blockedByRobots: 100
+    blockedByRobots: 100,
+    crawlTraps: 50
 };
 
 export class HealthService {
     public calculateHealthScore(
         totalPages: number,
-        issues: Pick<CrawlIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots'>,
+        issues: Pick<CrawlIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots' | 'crawlTraps'>,
         weights: HealthScoreWeights = DEFAULT_HEALTH_WEIGHTS
     ): HealthScoreBreakdown {
         const safePages = Math.max(totalPages, 1);
@@ -81,7 +84,8 @@ export class HealthService {
             canonicalConflicts: this.clamp((issues.canonicalConflicts / safePages) * weights.canonicalConflicts, 0, weights.canonicalConflicts),
             lowInternalLinks: this.clamp((issues.lowInternalLinkCount / safePages) * weights.lowInternalLinks, 0, weights.lowInternalLinks),
             excessiveLinks: this.clamp((issues.excessiveInternalLinkCount / safePages) * weights.excessiveLinks, 0, weights.excessiveLinks),
-            blockedByRobots: this.clamp((issues.blockedByRobots / safePages) * weights.blockedByRobots, 0, weights.blockedByRobots)
+            blockedByRobots: this.clamp((issues.blockedByRobots / safePages) * weights.blockedByRobots, 0, weights.blockedByRobots),
+            crawlTraps: this.clamp((issues.crawlTraps / safePages) * weights.crawlTraps, 0, weights.crawlTraps)
         };
 
         const totalPenalty = Object.values(weightedPenalties).reduce((sum, value) => sum + value, 0);
@@ -123,6 +127,7 @@ export class HealthService {
         let underlinkedHighAuthorityPages = 0;
         let externalLinks = 0;
         let blockedByRobots = 0;
+        let crawlTraps = 0;
 
         for (const node of nodes) {
             if (!node.isInternal) {
@@ -131,6 +136,10 @@ export class HealthService {
 
             if (node.crawlStatus === 'blocked' || node.crawlStatus === 'blocked_by_robots') {
                 blockedByRobots += 1;
+            }
+
+            if (node.crawlTrapFlag) {
+                crawlTraps += 1;
             }
 
             const isConfirmedError = node.status >= 400 || (node.status === 0 && (node.crawlStatus === 'network_error' || node.crawlStatus === 'failed_after_retries' || node.securityError || node.crawlStatus === 'fetched_error'));
@@ -240,7 +249,8 @@ export class HealthService {
             nearAuthorityThreshold,
             underlinkedHighAuthorityPages,
             externalLinks,
-            blockedByRobots
+            blockedByRobots,
+            crawlTraps
         };
     }
 

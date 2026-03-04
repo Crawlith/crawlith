@@ -19,11 +19,11 @@ export function runBaseMigrations(db: Database) {
     CREATE TABLE IF NOT EXISTS snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       site_id INTEGER NOT NULL,
-      type TEXT CHECK(type IN ('full', 'partial', 'incremental')) NOT NULL,
+      run_type TEXT CHECK(run_type IN ('completed', 'incremental', 'single')) NOT NULL DEFAULT 'completed',
       created_at TEXT DEFAULT (datetime('now')),
       node_count INTEGER DEFAULT 0,
       edge_count INTEGER DEFAULT 0,
-      status TEXT CHECK(status IN ('running', 'completed', 'failed')) DEFAULT 'running',
+      status TEXT CHECK(status IN ('queued', 'running', 'completed', 'failed', 'cancelled')) DEFAULT 'running',
       limit_reached INTEGER DEFAULT 0,
       health_score REAL,
       orphan_count INTEGER,
@@ -35,6 +35,13 @@ export function runBaseMigrations(db: Database) {
       FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
     );
   `);
+
+  // Migration for snapshots: run_type and status
+  try { db.exec(`ALTER TABLE snapshots ADD COLUMN run_type TEXT CHECK(run_type IN ('completed', 'incremental', 'single')) NOT NULL DEFAULT 'completed';`); } catch (_e) { /* ignore */ }
+  try {
+    // If type column exists, populate run_type from it
+    db.exec(`UPDATE snapshots SET run_type = CASE WHEN type = 'partial' THEN 'single' ELSE 'completed' END WHERE run_type IS NULL OR run_type = 'full' OR run_type = 'completed';`);
+  } catch (_e) { /* ignore */ }
 
   // Pages Table
   db.exec(`

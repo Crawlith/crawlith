@@ -62,7 +62,8 @@ export interface TopPage {
 
 export interface Snapshot {
   id: number;
-  type?: 'full' | 'partial' | 'incremental';
+  run_type?: 'completed' | 'incremental' | 'single';
+  status?: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   createdAt: string;
   pages?: number;
   health?: number;
