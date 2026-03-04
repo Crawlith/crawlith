@@ -29,11 +29,25 @@ export interface GraphNode {
   wordCount?: number;
   thinContentScore?: number;
   externalLinkRatio?: number;
-  orphanScore?: number;
   h1Count?: number;
   h2Count?: number;
 
   title?: string;
+  clusterId?: number;
+  duplicateClusterId?: string;
+  duplicateType?: 'exact' | 'near' | 'template_heavy';
+  pagerankScore?: number;
+  hubScore?: number;
+  authScore?: number;
+  linkRole?: string;
+  soft404Score?: number;
+  headingScore?: number;
+  orphanScore?: number;
+  orphanType?: string;
+  impactLevel?: string;
+  headingData?: string;
+  isClusterPrimary?: boolean;
+  isCollapsed?: boolean;
 }
 
 export interface GraphEdge {
@@ -66,15 +80,18 @@ export class Graph {
    * Generates a unique key for an edge.
    */
   static getEdgeKey(source: string, target: string): string {
-    return JSON.stringify([source, target]);
+    return source + '\x00' + target;
   }
 
   /**
    * Parses an edge key back into source and target.
    */
   static parseEdgeKey(key: string): { source: string; target: string } {
-    const [source, target] = JSON.parse(key);
-    return { source, target };
+    const splitIndex = key.indexOf('\x00');
+    return {
+      source: key.slice(0, splitIndex),
+      target: key.slice(splitIndex + 1)
+    };
   }
 
   /**

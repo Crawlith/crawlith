@@ -7,7 +7,7 @@ import { ResponseLimiter } from '../core/network/responseLimiter.js';
 import { RedirectController } from '../core/network/redirectController.js';
 import { ProxyAdapter } from '../core/network/proxyAdapter.js';
 import { ScopeManager } from '../core/scope/scopeManager.js';
-import { version } from '../utils/version.js';
+import { DEFAULTS } from '../constants.js';
 
 export interface RedirectStep {
   url: string;
@@ -45,7 +45,7 @@ export interface FetchOptions {
 }
 
 export class Fetcher {
-  private userAgent = 'crawlith/1.0';
+  private userAgent: string = DEFAULTS.USER_AGENT;
   private rateLimiter: RateLimiter;
   private proxyAdapter: ProxyAdapter;
   private secureDispatcher: Dispatcher;
@@ -59,7 +59,7 @@ export class Fetcher {
     maxRedirects?: number;
     userAgent?: string;
   } = {}) {
-    this.rateLimiter = new RateLimiter(options.rate || 2);
+    this.rateLimiter = new RateLimiter(options.rate || DEFAULTS.RATE_LIMIT);
     this.proxyAdapter = new ProxyAdapter(options.proxyUrl);
 
     if (this.proxyAdapter.dispatcher) {
@@ -69,12 +69,12 @@ export class Fetcher {
     }
 
     this.scopeManager = options.scopeManager;
-    this.maxRedirects = Math.min(options.maxRedirects ?? 2, 11);
-    this.userAgent = options.userAgent || `crawlith/${version}`;
+    this.maxRedirects = Math.min(options.maxRedirects ?? DEFAULTS.MAX_REDIRECTS, DEFAULTS.MAX_REDIRECTS_LIMIT);
+    this.userAgent = options.userAgent || DEFAULTS.USER_AGENT;
   }
 
   async fetch(url: string, options: FetchOptions = {}): Promise<FetchResult> {
-    const maxBytes = options.maxBytes || 2000000;
+    const maxBytes = options.maxBytes || DEFAULTS.MAX_BYTES;
     const redirectChain: RedirectStep[] = [];
     const redirectController = new RedirectController(this.maxRedirects, url);
 

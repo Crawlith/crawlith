@@ -81,7 +81,16 @@ export function loadGraphFromSnapshot(snapshotId: number): Graph {
             wordCount: m?.word_count != null ? m.word_count : undefined,
             thinContentScore: m?.thin_content_score != null ? m.thin_content_score : undefined,
             externalLinkRatio: m?.external_link_ratio != null ? m.external_link_ratio : undefined,
-            orphanScore: m?.orphan_score != null ? m.orphan_score : undefined,
+            pagerankScore: m?.pagerank_score ?? undefined,
+            hubScore: m?.hub_score ?? undefined,
+            authScore: m?.auth_score ?? undefined,
+            linkRole: m?.link_role ?? undefined,
+            soft404Score: m?.soft404_score ?? undefined,
+            headingScore: m?.heading_score ?? undefined,
+            orphanScore: m?.orphan_score ?? undefined,
+            orphanType: m?.orphan_type ?? undefined,
+            impactLevel: m?.impact_level ?? undefined,
+            headingData: m?.heading_data ?? undefined,
         });
     }
 

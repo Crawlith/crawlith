@@ -221,7 +221,6 @@ export function startServer(options: ServerOptions): Promise<void> {
           p.http_status,
           p.noindex,
           p.redirect_chain,
-          m.pagerank as rawPageRank,
           m.pagerank_score as pageRankScore,
           m.duplicate_type,
           m.thin_content_score,
@@ -300,7 +299,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           issueType,
           severity: sev,
           impactScore: Math.round(impactFactor * importanceMultiplier),
-          pageRank: r.rawPageRank,
+          pageRank: r.pageRankScore,
           pageRankScore: r.pageRankScore,
           lastSeen: r.lastSeen,
           isProblematic
@@ -333,7 +332,7 @@ export function startServer(options: ServerOptions): Promise<void> {
     api.get('/metrics/top-pagerank', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
       const rows = db.prepare(`
-        SELECT p.normalized_url as url, m.pagerank_score as pageRank, m.authority_score as authorityScore, m.hub_score as hubScore
+        SELECT p.normalized_url as url, m.pagerank_score as pageRank, m.auth_score as authorityScore, m.hub_score as hubScore
         FROM metrics m
         JOIN pages p ON m.page_id = p.id
         WHERE m.snapshot_id = ?
@@ -385,17 +384,24 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.1 GET /api/page
     api.get('/page', async (req, res) => {
       const url = req.query.url as string;
-      const snapshotParam = req.query.snapshot as string | undefined;
+      const snapshotParam = undefined;
 
       if (!url) {
         return res.status(400).json({ error: 'URL parameter is required' });
       }
 
+      // URLs are stored as root-relative paths (e.g. '/stats'), but PageAnalysisUseCase
+      // needs an absolute URL to fetch/resolve. Reconstruct it from the site domain.
+      const urlForLookup = url; // path for DB normalized_url lookup
+      const urlForAnalysis = url.startsWith('/')
+        ? `https://${site!.domain}${url}`
+        : url;
+
       try {
         // Use the same PageAnalysisUseCase as the CLI's `page` command
         const useCase = new PageAnalysisUseCase();
         const result = await useCase.execute({
-          url,
+          url: urlForAnalysis,
           snapshotId: snapshotParam ? parseInt(snapshotParam, 10) : undefined,
           seo: true,
           content: true,
@@ -413,11 +419,11 @@ export function startServer(options: ServerOptions): Promise<void> {
         // These are graph-level concerns not part of the page analysis use case
         const dbPage = db.prepare(`
           SELECT p.id, p.depth,
-            m.pagerank, m.pagerank_score, m.authority_score, m.hub_score
+            m.pagerank_score, m.auth_score, m.hub_score, m.heading_data
           FROM pages p
           LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
           WHERE p.site_id = ? AND p.normalized_url = ?
-        `).get(targetSnapshotId, siteId, url) as any;
+        `).get(targetSnapshotId, siteId, urlForLookup) as any;
 
         let inlinks = 0, outlinks = 0;
         if (dbPage) {
@@ -450,8 +456,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           },
           metrics: {
             pageRank: dbPage?.pagerank_score || 0,
-            rawPageRank: dbPage?.pagerank || 0,
-            authority: dbPage?.authority_score || 0,
+            authority: dbPage?.auth_score || 0,
             hub: dbPage?.hub_score || 0,
             depth: dbPage?.depth || 0,
             inlinks,
@@ -469,6 +474,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           images: page.images,
           links: page.links,
           structuredData: page.structuredData,
+          headingData: dbPage?.heading_data ? JSON.parse(dbPage.heading_data) : null,
           snapshotId: targetSnapshotId
         });
       } catch (error: any) {
@@ -480,12 +486,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.2 GET /api/page/inlinks
     api.get('/page/inlinks', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -521,12 +528,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.3 GET /api/page/outlinks
     api.get('/page/outlinks', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      let url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -561,9 +569,10 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.4 GET /api/page/cluster
     api.get('/page/cluster', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      const url = req.query.url as string;
+      let url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       const page = db.prepare(`
         SELECT p.id, m.duplicate_cluster_id
@@ -664,10 +673,53 @@ export function startServer(options: ServerOptions): Promise<void> {
       });
     });
 
-    // 5.7 POST /api/page/crawl (Live crawl of single page)
-    api.post('/page/crawl', express.json(), strictRateLimiter, async (req, res) => {
-      const { url } = req.body;
+    // 5.7 GET /api/page/plugins
+    api.get('/page/plugins', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      let url = req.query.url as string;
+
       if (!url) return res.status(400).json({ error: 'URL is required' });
+
+      const pageIdRow = db.prepare(`SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?`).get(siteId, url) as any;
+      if (!pageIdRow) return res.status(404).json({ error: 'Page not found' });
+      const pageId = pageIdRow.id;
+
+      const migrations = db.prepare('SELECT plugin_name FROM plugin_migrations').all() as any[];
+      const pluginData: Record<string, any> = {};
+
+      for (const migration of migrations) {
+        const pName = migration.plugin_name;
+        const tableName = `${pName.replace(/-/g, '_')}_plugin`;
+        try {
+          // Check if table exists
+          const tableExists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(tableName);
+          if (tableExists) {
+            const row = db.prepare(`SELECT * FROM ${tableName} WHERE snapshot_id = ? AND url_id = ? ORDER BY created_at DESC LIMIT 1`).get(currentSnapshotId, pageId);
+            if (row) {
+              const parsedRow: Record<string, any> = { ...row };
+              for (const key in parsedRow) {
+                if (typeof parsedRow[key] === 'string' && (parsedRow[key].startsWith('{') || parsedRow[key].startsWith('['))) {
+                  try {
+                    parsedRow[key] = JSON.parse(parsedRow[key] as string);
+                  } catch { }
+                }
+              }
+              pluginData[pName] = parsedRow;
+            }
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      res.json(pluginData);
+    });
+
+    // 5.8 POST /api/page/crawl (Live crawl of single page)
+    api.post('/page/crawl', express.json(), strictRateLimiter, async (req, res) => {
+      let { url } = req.body;
+      if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       try {
         console.log(chalk.cyan(`   Live crawl requested: ${url}`));

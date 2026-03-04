@@ -8,6 +8,8 @@ import { LinkingTab } from '../components/Tabs/LinkingTab';
 import { ClusterTab } from '../components/Tabs/ClusterTab';
 import { TechnicalTab } from '../components/Tabs/TechnicalTab';
 import { GraphTab } from '../components/Tabs/GraphTab';
+import { PerformanceTab } from '../components/Tabs/PerformanceTab';
+import { SignalsTab } from '../components/Tabs/SignalsTab';
 
 export const SinglePage = () => {
     const [searchParams] = useSearchParams();
@@ -204,7 +206,7 @@ export const SinglePage = () => {
 
                     {/* Tabs Navigation */}
                     <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-800 scrollbar-hide">
-                        {['content', 'linking', 'cluster', 'technical', 'graph'].map((tab) => (
+                        {['content', 'linking', 'cluster', 'technical', 'graph', 'performance', 'signals'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -217,6 +219,8 @@ export const SinglePage = () => {
                                 {tab === 'linking' && ' (Internal)'}
                                 {tab === 'cluster' && ' & Duplication'}
                                 {tab === 'graph' && ' Context'}
+                                {tab === 'performance' && ' & Core Web Vitals'}
+                                {tab === 'signals' && ' & Metadata'}
                             </button>
                         ))}
                     </div>
@@ -230,6 +234,8 @@ export const SinglePage = () => {
                 {activeTab === 'cluster' && <ClusterTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
                 {activeTab === 'technical' && <TechnicalTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
                 {activeTab === 'graph' && <GraphTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'performance' && <PerformanceTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'signals' && <SignalsTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
             </main>
         </div>
     );

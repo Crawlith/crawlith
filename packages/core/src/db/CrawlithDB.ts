@@ -192,7 +192,8 @@ export class CrawlithDB {
     }
 
     public getPageIdByUrl(snapshotId: number | string, url: string): number | null {
-        const normalized = normalizeUrl(url, '', { stripQuery: false });
+        // Find by path. In standard crawling, we use root-relative paths like /engineering-computer-science
+        const normalized = normalizeUrl(url, '', { stripQuery: false, toPath: true });
         if (!normalized) return null;
 
         const row = this.statements.getPageIdByUrl.get(snapshotId, normalized) as { id: number } | undefined;
