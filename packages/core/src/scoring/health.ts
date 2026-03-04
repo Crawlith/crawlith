@@ -42,7 +42,7 @@ export interface HealthScoreBreakdown {
     weights: HealthScoreWeights;
 }
 
-export const THIN_CONTENT_THRESHOLD = 300;
+export const THIN_CONTENT_THRESHOLD = 200;
 export const LOW_INTERNAL_LINK_THRESHOLD = 2;
 export const EXCESSIVE_INTERNAL_LINK_THRESHOLD = 150;
 export const HIGH_EXTERNAL_LINK_RATIO_THRESHOLD = 0.6;
@@ -125,6 +125,10 @@ export class HealthService {
         let blockedByRobots = 0;
 
         for (const node of nodes) {
+            if (!node.isInternal) {
+                continue;
+            }
+
             if (node.crawlStatus === 'blocked' || node.crawlStatus === 'blocked_by_robots') {
                 blockedByRobots += 1;
             }
@@ -146,8 +150,14 @@ export class HealthService {
             if ((node.redirectChain?.length || 0) > 1) {
                 redirectChains += 1;
             }
-            if (node.canonical && node.canonical !== node.url && node.canonical !== (rootOrigin ? new URL(node.url, rootOrigin).toString() : node.url)) {
-                canonicalConflicts += 1;
+            const absoluteUrl = rootOrigin ? (node.url.startsWith('http') ? node.url : new URL(node.url, rootOrigin).toString()) : node.url;
+            if (node.canonical && node.canonical !== node.url && node.canonical !== absoluteUrl) {
+                // Final check: normalize both to ignore trailing slash differences or protocol mismatches if they are considered "same"
+                const normCanonical = node.canonical.replace(/\/$/, '');
+                const normAbsolute = absoluteUrl.replace(/\/$/, '');
+                if (normCanonical !== normAbsolute) {
+                    canonicalConflicts += 1;
+                }
             }
             if (node.noindex && node.status >= 200 && node.status < 300) {
                 accidentalNoindex += 1;

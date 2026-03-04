@@ -59,6 +59,7 @@ export function runBaseMigrations(db: Database) {
       discovered_via_sitemap INTEGER DEFAULT 0,
       redirect_chain TEXT,
       bytes_received INTEGER,
+      is_internal INTEGER DEFAULT 1,
       crawl_trap_flag INTEGER DEFAULT 0,
       crawl_trap_risk REAL,
       trap_type TEXT,
@@ -72,6 +73,7 @@ export function runBaseMigrations(db: Database) {
   `);
 
   // Migrations for existing tables
+  try { db.exec(`ALTER TABLE pages ADD COLUMN is_internal INTEGER DEFAULT 1;`); } catch (_e) { /* ignore */ }
   try { db.exec(`ALTER TABLE pages ADD COLUMN discovered_via_sitemap INTEGER DEFAULT 0;`); } catch (_e) { /* ignore */ }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_pages_site_last_seen ON pages(site_id, last_seen_snapshot_id);`);

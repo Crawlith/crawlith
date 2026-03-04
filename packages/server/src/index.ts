@@ -176,6 +176,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       `).get(currentSnapshotId) as { count: number };
 
       // Aggregates from pages & metrics table for the specific snapshot
+      const siteOrigin = site?.preferred_url ? new URL(site.preferred_url).origin : '';
       const pagesAgg = db.prepare(`
         SELECT
            COUNT(*) as total_pages,
@@ -188,13 +189,19 @@ export function startServer(options: ServerOptions): Promise<void> {
            COUNT(CASE WHEN p.http_status >= 500 THEN 1 END) as server_errors,
            COUNT(CASE WHEN p.redirect_chain IS NOT NULL AND json_array_length(p.redirect_chain) > 1 THEN 1 END) as redirect_chains,
            COUNT(CASE WHEN p.noindex = 1 THEN 1 END) as noindex_pages,
-           COUNT(CASE WHEN p.canonical_url IS NOT NULL AND p.canonical_url != p.normalized_url THEN 1 END) as canonical_issues,
+           COUNT(CASE WHEN 
+             p.canonical_url IS NOT NULL AND 
+             p.canonical_url != p.normalized_url AND 
+             p.canonical_url != (? || p.normalized_url) AND
+             p.canonical_url != (? || p.normalized_url || '/') AND
+             REPLACE(p.canonical_url, '/', '') != REPLACE(? || p.normalized_url, '/', '')
+           THEN 1 END) as canonical_issues,
            COUNT(CASE WHEN m.crawl_status = 'blocked_by_robots' THEN 1 END) as blocked_robots,
            COUNT(CASE WHEN p.crawl_trap_flag = 1 THEN 1 END) as crawl_traps
         FROM metrics m
         JOIN pages p ON m.page_id = p.id
-        WHERE m.snapshot_id = ?
-      `).get(currentSnapshotId) as any;
+        WHERE m.snapshot_id = ? AND p.is_internal = 1
+      `).get(siteOrigin, siteOrigin, siteOrigin, currentSnapshotId) as any;
 
       // Internal links count (sum of all internal edges)
       const linksCount = db.prepare('SELECT COUNT(*) as count FROM edges WHERE snapshot_id = ? AND rel = ?').get(currentSnapshotId, 'internal') as { count: number };
@@ -254,11 +261,12 @@ export function startServer(options: ServerOptions): Promise<void> {
           m.link_role,
           m.crawl_status,
           p.security_error,
+          p.canonical_url,
           s.created_at as lastSeen
         FROM pages p
         JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
         JOIN snapshots s ON m.snapshot_id = s.id
-        WHERE p.site_id = ?
+        WHERE p.site_id = ? AND p.is_internal = 1
       `;
 
       const params: any[] = [currentSnapshotId, siteId];
@@ -318,6 +326,18 @@ export function startServer(options: ServerOptions): Promise<void> {
           sev = 'Warning';
           impactFactor = 20;
           isProblematic = true;
+        } else if (r.canonical_url) {
+          const siteOrigin = site?.preferred_url ? new URL(site.preferred_url).origin : '';
+          const isConflict = r.canonical_url !== r.url &&
+            r.canonical_url !== (siteOrigin + r.url) &&
+            r.canonical_url.replace(/\/$/, '') !== (siteOrigin + r.url).replace(/\/$/, '');
+
+          if (isConflict) {
+            issueType = 'Canonical Conflict';
+            sev = 'Warning';
+            impactFactor = 15;
+            isProblematic = true;
+          }
         }
 
         return {
@@ -335,7 +355,12 @@ export function startServer(options: ServerOptions): Promise<void> {
       // Filter: Only problematic ones by default, unless searching
       let filtered = allIssues;
       if (!search && (!severity || severity === 'All')) {
-        filtered = allIssues.filter(i => i.isProblematic);
+        filtered = allIssues.filter(i => {
+          if (!i.isProblematic) return false;
+          // Filter out external URLs that aren't errors from the main issues list
+          if (i.url.startsWith('http') && !i.url.includes(site.domain) && i.severity === 'Info') return false;
+          return true;
+        });
       } else if (severity && severity !== 'All') {
         filtered = allIssues.filter(i => i.severity === severity);
       }

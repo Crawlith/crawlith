@@ -544,9 +544,11 @@ export class Crawler {
       if (sourceAbs && targetAbs) {
         const sourcePath = UrlUtil.toPath(sourceAbs, this.rootOrigin);
         const targetPath = UrlUtil.toPath(targetAbs, this.rootOrigin);
-        this.bufferPage(sourcePath, depth, step.status);
-        this.bufferPage(targetPath, depth, 0);
-        this.bufferEdge(sourcePath, targetPath);
+        const sourceInternal = UrlUtil.isInternal(sourceAbs, this.rootOrigin);
+        const targetInternal = UrlUtil.isInternal(targetAbs, this.rootOrigin);
+        this.bufferPage(sourcePath, depth, step.status, { is_internal: sourceInternal ? 1 : 0 });
+        this.bufferPage(targetPath, depth, 0, { is_internal: targetInternal ? 1 : 0 });
+        this.bufferEdge(sourcePath, targetPath, 1.0, targetInternal ? 'internal' : 'external');
       }
     }
   }
@@ -605,7 +607,7 @@ export class Crawler {
 
         if (targetPath !== path) {
           const isInternal = UrlUtil.isInternal(normalizedLink, this.rootOrigin);
-          this.bufferPage(targetPath, depth + 1, 0);
+          this.bufferPage(targetPath, depth + 1, 0, { is_internal: isInternal ? 1 : 0 });
           this.bufferEdge(path, targetPath, 1.0, isInternal ? 'internal' : 'external');
 
           if (isInternal && this.shouldEnqueue(targetPath, depth + 1)) {
