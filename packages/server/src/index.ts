@@ -221,7 +221,6 @@ export function startServer(options: ServerOptions): Promise<void> {
           p.http_status,
           p.noindex,
           p.redirect_chain,
-          m.pagerank as rawPageRank,
           m.pagerank_score as pageRankScore,
           m.duplicate_type,
           m.thin_content_score,
@@ -300,7 +299,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           issueType,
           severity: sev,
           impactScore: Math.round(impactFactor * importanceMultiplier),
-          pageRank: r.rawPageRank,
+          pageRank: r.pageRankScore,
           pageRankScore: r.pageRankScore,
           lastSeen: r.lastSeen,
           isProblematic
@@ -333,7 +332,7 @@ export function startServer(options: ServerOptions): Promise<void> {
     api.get('/metrics/top-pagerank', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
       const rows = db.prepare(`
-        SELECT p.normalized_url as url, m.pagerank_score as pageRank, m.authority_score as authorityScore, m.hub_score as hubScore
+        SELECT p.normalized_url as url, m.pagerank_score as pageRank, m.auth_score as authorityScore, m.hub_score as hubScore
         FROM metrics m
         JOIN pages p ON m.page_id = p.id
         WHERE m.snapshot_id = ?
@@ -391,11 +390,18 @@ export function startServer(options: ServerOptions): Promise<void> {
         return res.status(400).json({ error: 'URL parameter is required' });
       }
 
+      // URLs are stored as root-relative paths (e.g. '/stats'), but PageAnalysisUseCase
+      // needs an absolute URL to fetch/resolve. Reconstruct it from the site domain.
+      const urlForLookup = url; // path for DB normalized_url lookup
+      const urlForAnalysis = url.startsWith('/')
+        ? `https://${site!.domain}${url}`
+        : url;
+
       try {
         // Use the same PageAnalysisUseCase as the CLI's `page` command
         const useCase = new PageAnalysisUseCase();
         const result = await useCase.execute({
-          url,
+          url: urlForAnalysis,
           snapshotId: snapshotParam ? parseInt(snapshotParam, 10) : undefined,
           seo: true,
           content: true,
@@ -413,11 +419,11 @@ export function startServer(options: ServerOptions): Promise<void> {
         // These are graph-level concerns not part of the page analysis use case
         const dbPage = db.prepare(`
           SELECT p.id, p.depth,
-            m.pagerank, m.pagerank_score, m.authority_score, m.hub_score
+            m.pagerank_score, m.auth_score, m.hub_score
           FROM pages p
           LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
           WHERE p.site_id = ? AND p.normalized_url = ?
-        `).get(targetSnapshotId, siteId, url) as any;
+        `).get(targetSnapshotId, siteId, urlForLookup) as any;
 
         let inlinks = 0, outlinks = 0;
         if (dbPage) {
@@ -450,8 +456,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           },
           metrics: {
             pageRank: dbPage?.pagerank_score || 0,
-            rawPageRank: dbPage?.pagerank || 0,
-            authority: dbPage?.authority_score || 0,
+            authority: dbPage?.auth_score || 0,
             hub: dbPage?.hub_score || 0,
             depth: dbPage?.depth || 0,
             inlinks,
