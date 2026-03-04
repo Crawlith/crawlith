@@ -6,6 +6,7 @@ import * as API from './api';
 import { Dashboard } from './pages/Dashboard';
 import { SinglePage } from './pages/SinglePage';
 import { HistoryView } from './components/History/HistoryView';
+import { GraphPage } from './pages/GraphPage';
 
 export const DashboardContext = React.createContext<{
   overview: API.OverviewData | null;
@@ -106,6 +107,7 @@ function App() {
                 </div>
               } />
               <Route path="/page" element={<SinglePage />} />
+              <Route path="/graph" element={<GraphPage />} />
             </Routes>
           </main>
         </BrowserRouter>

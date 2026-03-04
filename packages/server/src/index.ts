@@ -19,6 +19,32 @@ export interface ServerOptions {
   snapshotId: number;
 }
 
+/**
+ * Lightweight graph node payload returned to the web graph explorer.
+ */
+interface SnapshotGraphNode {
+  id: string;
+  label: string;
+  nodeType: 'section' | 'cluster' | 'url';
+  clusterType: 'template' | 'duplicate' | 'content_group' | 'none';
+  url?: string;
+  depth: number;
+  pageRankScore: number;
+  inlinks: number;
+  outlinks: number;
+  health: number;
+  size: number;
+  role: string | null;
+}
+
+/**
+ * Lightweight graph edge payload returned to the web graph explorer.
+ */
+interface SnapshotGraphEdge {
+  source: string;
+  target: string;
+}
+
 export function startServer(options: ServerOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     const { port, host = '127.0.0.1', staticPath, siteId, snapshotId } = options;
@@ -380,6 +406,307 @@ export function startServer(options: ServerOptions): Promise<void> {
     api.get('/snapshots', (req, res) => {
       const rows = db.prepare('SELECT id, type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
       res.json({ results: rows });
+    });
+
+    /**
+     * Returns hierarchical graph nodes (cluster-first) for a snapshot.
+     *
+     * Levels:
+     *  - 1: section clusters (first URL path segment)
+     *  - 2: URL clusters (duplicate/content/template buckets)
+     *  - 3: individual URLs
+     *
+     * Edges are disabled by default and only returned when explicitly requested,
+     * allowing the web app to render nodes first and reveal edges on interaction.
+     */
+    api.get('/graph/snapshot', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+
+      const level = Math.min(Math.max(parseInt((req.query.level as string) || '1', 10), 1), 3);
+      const maxNodes = Math.min(parseInt((req.query.maxNodes as string) || '10000', 10), 10000);
+      const maxEdges = Math.min(parseInt((req.query.maxEdges as string) || '40000', 10), 120000);
+      const minPageRank = Math.max(parseFloat((req.query.minPageRank as string) || '0') || 0, 0);
+      const minInlinks = Math.max(parseInt((req.query.minInlinks as string) || '0', 10), 0);
+      const minOutlinks = Math.max(parseInt((req.query.minOutlinks as string) || '0', 10), 0);
+      const search = ((req.query.search as string) || '').trim();
+      const includeEdges = (req.query.includeEdges as string) === 'true';
+
+      const baseRows = db.prepare(`
+        WITH in_counts AS (
+          SELECT target_page_id AS page_id, COUNT(*) AS inlinks
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal'
+          GROUP BY target_page_id
+        ),
+        out_counts AS (
+          SELECT source_page_id AS page_id, COUNT(*) AS outlinks
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal'
+          GROUP BY source_page_id
+        )
+        SELECT
+          p.id,
+          p.normalized_url AS url,
+          COALESCE(p.depth, 0) AS depth,
+          COALESCE(m.pagerank_score, 0) AS pageRankScore,
+          COALESCE(m.link_role, NULL) AS role,
+          COALESCE(ic.inlinks, 0) AS inlinks,
+          COALESCE(oc.outlinks, 0) AS outlinks,
+          CASE
+            WHEN m.duplicate_cluster_id IS NOT NULL THEN 'duplicate'
+            WHEN m.duplicate_type IS NOT NULL AND m.duplicate_type != 'none' THEN 'content_group'
+            ELSE 'template'
+          END AS clusterType,
+          CASE
+            WHEN p.http_status >= 400 OR p.security_error IS NOT NULL THEN 0.25
+            WHEN p.noindex = 1 THEN 0.5
+            ELSE 1.0
+          END AS health,
+          CASE
+            WHEN instr(replace(replace(p.normalized_url, 'https://', ''), 'http://', ''), '/') > 0
+              THEN substr(
+                replace(replace(p.normalized_url, 'https://', ''), 'http://', ''),
+                instr(replace(replace(p.normalized_url, 'https://', ''), 'http://', ''), '/') + 1
+              )
+            ELSE ''
+          END AS pathWithoutHost,
+          COALESCE(CAST(m.duplicate_cluster_id AS TEXT), '') AS duplicateClusterId
+        FROM pages p
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        LEFT JOIN in_counts ic ON p.id = ic.page_id
+        LEFT JOIN out_counts oc ON p.id = oc.page_id
+        WHERE p.site_id = ?
+          AND COALESCE(m.pagerank_score, 0) >= ?
+          AND COALESCE(ic.inlinks, 0) >= ?
+          AND COALESCE(oc.outlinks, 0) >= ?
+          AND (? = '' OR p.normalized_url LIKE ?)
+        ORDER BY COALESCE(m.pagerank_score, 0) DESC, COALESCE(ic.inlinks, 0) DESC
+        LIMIT ?
+      `).all(
+        currentSnapshotId,
+        currentSnapshotId,
+        currentSnapshotId,
+        siteId,
+        minPageRank,
+        minInlinks,
+        minOutlinks,
+        search,
+        search ? `%${search}%` : '',
+        maxNodes
+      ) as any[];
+
+      const rows = baseRows.map((row) => {
+        const firstPath = (row.pathWithoutHost || '').split('/').filter(Boolean)[0] || 'root';
+        const prefix = firstPath.length > 32 ? firstPath.slice(0, 32) : firstPath;
+        const fallbackCluster = `${prefix}:${row.clusterType}`;
+
+        return {
+          ...row,
+          sectionKey: prefix,
+          clusterKey: row.duplicateClusterId ? `dup:${row.duplicateClusterId}` : fallbackCluster,
+        };
+      });
+
+      let nodes: SnapshotGraphNode[] = [];
+
+      if (level === 1) {
+        const groups = new Map<string, any[]>();
+        for (const row of rows) {
+          const key = row.sectionKey;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(row);
+        }
+
+        nodes = Array.from(groups.entries()).map(([sectionKey, group]) => ({
+          id: `section:${sectionKey}`,
+          label: `/${sectionKey}`,
+          nodeType: 'section',
+          clusterType: 'none',
+          depth: 1,
+          pageRankScore: group.reduce((sum, r) => sum + r.pageRankScore, 0) / Math.max(group.length, 1),
+          inlinks: group.reduce((sum, r) => sum + r.inlinks, 0),
+          outlinks: group.reduce((sum, r) => sum + r.outlinks, 0),
+          health: group.reduce((sum, r) => sum + r.health, 0) / Math.max(group.length, 1),
+          size: group.length,
+          role: null,
+        }));
+      } else if (level === 2) {
+        const groups = new Map<string, any[]>();
+        for (const row of rows) {
+          const key = `${row.sectionKey}|${row.clusterKey}`;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(row);
+        }
+
+        nodes = Array.from(groups.entries()).map(([groupKey, group]) => {
+          const [sectionKey, clusterKey] = groupKey.split('|');
+          return {
+            id: `cluster:${sectionKey}:${clusterKey}`,
+            label: `${sectionKey} · ${clusterKey}`,
+            nodeType: 'cluster',
+            clusterType: group[0].clusterType,
+            depth: 2,
+            pageRankScore: group.reduce((sum, r) => sum + r.pageRankScore, 0) / Math.max(group.length, 1),
+            inlinks: group.reduce((sum, r) => sum + r.inlinks, 0),
+            outlinks: group.reduce((sum, r) => sum + r.outlinks, 0),
+            health: group.reduce((sum, r) => sum + r.health, 0) / Math.max(group.length, 1),
+            size: group.length,
+            role: null,
+          } as SnapshotGraphNode;
+        });
+      } else {
+        nodes = rows.map((row) => ({
+          id: `url:${row.id}`,
+          label: row.url,
+          nodeType: 'url',
+          clusterType: row.clusterType,
+          url: row.url,
+          depth: Number.isFinite(row.depth) ? row.depth : 0,
+          pageRankScore: row.pageRankScore,
+          inlinks: row.inlinks,
+          outlinks: row.outlinks,
+          health: row.health,
+          size: 1,
+          role: row.role,
+        }));
+      }
+
+      nodes = nodes
+        .sort((a, b) => (b.pageRankScore - a.pageRankScore) || (b.size - a.size))
+        .slice(0, maxNodes);
+
+      let edges: SnapshotGraphEdge[] = [];
+      if (includeEdges) {
+        const urlNodes = rows.map((r) => r.id);
+        if (urlNodes.length > 1) {
+          const placeholders = urlNodes.map(() => '?').join(',');
+          const rawEdges = db.prepare(`
+            SELECT source_page_id AS sourceId, target_page_id AS targetId
+            FROM edges
+            WHERE snapshot_id = ?
+              AND rel = 'internal'
+              AND source_page_id IN (${placeholders})
+              AND target_page_id IN (${placeholders})
+            LIMIT ?
+          `).all(currentSnapshotId, ...urlNodes, ...urlNodes, maxEdges) as Array<{ sourceId: number; targetId: number }>;
+
+          edges = rawEdges.map((edge) => {
+            if (level === 1) {
+              const source = rows.find((r) => r.id === edge.sourceId);
+              const target = rows.find((r) => r.id === edge.targetId);
+              return source && target
+                ? { source: `section:${source.sectionKey}`, target: `section:${target.sectionKey}` }
+                : null;
+            }
+            if (level === 2) {
+              const source = rows.find((r) => r.id === edge.sourceId);
+              const target = rows.find((r) => r.id === edge.targetId);
+              return source && target
+                ? {
+                  source: `cluster:${source.sectionKey}:${source.clusterKey}`,
+                  target: `cluster:${target.sectionKey}:${target.clusterKey}`
+                }
+                : null;
+            }
+            return { source: `url:${edge.sourceId}`, target: `url:${edge.targetId}` };
+          }).filter(Boolean) as SnapshotGraphEdge[];
+        }
+      }
+
+      res.json({
+        snapshotId: currentSnapshotId,
+        level,
+        nodes,
+        edges,
+        meta: {
+          totalNodes: nodes.length,
+          totalEdges: edges.length,
+          truncated: includeEdges && edges.length >= maxEdges,
+        }
+      });
+    });
+
+    /**
+     * Returns only 1-hop neighbors for an interacted node so the UI can reveal
+     * local edge structure on demand instead of drawing all links.
+     */
+    api.get('/graph/neighbors', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const nodeId = (req.query.nodeId as string) || '';
+      if (!nodeId) return res.status(400).json({ error: 'nodeId is required' });
+
+      if (nodeId.startsWith('url:')) {
+        const pageId = parseInt(nodeId.replace('url:', ''), 10);
+        if (!Number.isFinite(pageId)) return res.status(400).json({ error: 'Invalid url node id' });
+
+        const incoming = db.prepare(`
+          SELECT source_page_id AS neighborId
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal' AND target_page_id = ?
+          LIMIT 250
+        `).all(currentSnapshotId, pageId) as Array<{ neighborId: number }>;
+
+        const outgoing = db.prepare(`
+          SELECT target_page_id AS neighborId
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal' AND source_page_id = ?
+          LIMIT 250
+        `).all(currentSnapshotId, pageId) as Array<{ neighborId: number }>;
+
+        const neighborIds = Array.from(new Set([...incoming, ...outgoing].map((r) => r.neighborId)));
+        if (neighborIds.length === 0) {
+          return res.json({ nodes: [], edges: [] });
+        }
+
+        const placeholders = neighborIds.map(() => '?').join(',');
+        const neighborRows = db.prepare(`
+          SELECT p.id, p.normalized_url AS url,
+                 COALESCE(p.depth, 0) AS depth,
+                 COALESCE(m.pagerank_score, 0) AS pageRankScore
+          FROM pages p
+          LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+          WHERE p.id IN (${placeholders})
+        `).all(currentSnapshotId, ...neighborIds) as any[];
+
+        const nodes = [
+          ...neighborRows.map((row) => ({
+            id: `url:${row.id}`,
+            label: row.url,
+            nodeType: 'url',
+            clusterType: 'none',
+            url: row.url,
+            depth: row.depth,
+            pageRankScore: row.pageRankScore,
+            inlinks: 0,
+            outlinks: 0,
+            health: 1,
+            size: 1,
+            role: null,
+          })),
+          {
+            id: nodeId,
+            label: nodeId,
+            nodeType: 'url',
+            clusterType: 'none',
+            depth: 0,
+            pageRankScore: 0,
+            inlinks: 0,
+            outlinks: 0,
+            health: 1,
+            size: 1,
+            role: null,
+          }
+        ];
+
+        const edges = [
+          ...incoming.map((row) => ({ source: `url:${row.neighborId}`, target: nodeId })),
+          ...outgoing.map((row) => ({ source: nodeId, target: `url:${row.neighborId}` })),
+        ];
+
+        return res.json({ nodes, edges });
+      }
+
+      return res.json({ nodes: [], edges: [] });
     });
 
     // 5.1 GET /api/page
