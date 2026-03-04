@@ -158,6 +158,7 @@ export interface PageDetails {
     valid: boolean;
     types: string[];
   };
+  headingData?: any;
   snapshotId: number;
 }
 

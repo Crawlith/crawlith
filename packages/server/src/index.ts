@@ -419,7 +419,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         // These are graph-level concerns not part of the page analysis use case
         const dbPage = db.prepare(`
           SELECT p.id, p.depth,
-            m.pagerank_score, m.auth_score, m.hub_score
+            m.pagerank_score, m.auth_score, m.hub_score, m.heading_data
           FROM pages p
           LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
           WHERE p.site_id = ? AND p.normalized_url = ?
@@ -474,6 +474,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           images: page.images,
           links: page.links,
           structuredData: page.structuredData,
+          headingData: dbPage?.heading_data ? JSON.parse(dbPage.heading_data) : null,
           snapshotId: targetSnapshotId
         });
       } catch (error: any) {
