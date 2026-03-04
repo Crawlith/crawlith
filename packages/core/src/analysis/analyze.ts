@@ -90,6 +90,7 @@ export interface PageAnalysis {
     noindex?: boolean;
     nofollow?: boolean;
     crawlStatus?: string;
+    canonicalConflict?: boolean;
   };
   soft404?: { score: number; reason: string };
   headingScore?: number;
@@ -182,18 +183,21 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
         const robotsParserModule = await import('robots-parser');
         const robotsParser = (robotsParserModule as any).default || robotsParserModule;
         robots = (robotsParser as any)(robotsUrl, robotsRes.body);
-        if (context) context.emit({ type: 'debug', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
+        if (context) context.emit({ type: 'info', message: `[analyze] Robots fetch took ${Date.now() - start}ms` });
       }
     } catch {
       // Fallback
     }
   }
 
-  // 2. Data Acquisition
+  // Data Acquisition
   if (options.live) {
+    const fullUrl = parsedUrl ? parsedUrl.toString() : (url.startsWith('http') ? url : `https://${url}`);
+    const normalizedFull = normalizeUrl(fullUrl, rootOrigin, { stripQuery: false }) || fullUrl;
+
     const crawlStart = Date.now();
-    crawlData = await runLiveCrawl(normalizedAbs, rootOrigin, options, context, robots);
-    if (context) context.emit({ type: 'debug', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
+    crawlData = await runLiveCrawl(normalizedFull, rootOrigin, options, context, robots);
+    if (context) context.emit({ type: 'info', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
   } else {
     try {
       const loadStart = Date.now();
@@ -460,6 +464,9 @@ export function analyzePages(targetPath: string, rootOrigin: string, pages: Iter
     const soft404Service = new Soft404Service();
     const soft404 = soft404Service.analyze(html, links.externalLinks + links.internalLinks);
 
+    const isCanonicalConflict = !!(page.canonical && page.canonical !== page.url && page.canonical !== pageAbsUrl &&
+      page.canonical.replace(/\/$/, '') !== pageAbsUrl.replace(/\/$/, ''));
+
     const resultPage: PageAnalysis = {
       url: page.url,
       status: page.status || 0,
@@ -476,7 +483,8 @@ export function analyzePages(targetPath: string, rootOrigin: string, pages: Iter
         canonical: page.canonical,
         noindex: page.noindex,
         nofollow: page.nofollow,
-        crawlStatus
+        crawlStatus,
+        canonicalConflict: isCanonicalConflict
       },
       soft404
     };
@@ -574,7 +582,7 @@ async function runLiveCrawl(url: string, origin: string, options: AnalyzeOptions
     userAgent: options.userAgent,
     maxRedirects: options.maxRedirects,
     debug: options.debug,
-    snapshotType: 'partial',
+    snapshotRunType: 'single',
     robots,
     sitemap: options.sitemap,
     plugins: options.plugins
@@ -607,16 +615,16 @@ function renderSinglePageHtml(page: PageAnalysis): string {
 }
 
 export function renderAnalysisMarkdown(result: AnalysisResult): string {
-  const summary = ['# Crawlith SEO Analysis Report', '', '## 📊 Summary', `- Pages Analyzed: ${result.site_summary.pages_analyzed}`, `- Overall Site Score: ${result.site_summary.site_score.toFixed(1)}`, `- Avg SEO Score: ${result.site_summary.avg_seo_score.toFixed(1)}`, `- Thin Pages Found: ${result.site_summary.thin_pages}`, `- Duplicate Titles: ${result.site_summary.duplicate_titles}`, '', '## 📄 Page Details', '', '| URL | SEO Score | Thin Score | Title Status | Meta Status |', '| :--- | :--- | :--- | :--- | :--- |'];
-  result.pages.forEach((page) => summary.push(`| ${page.url} | ${page.seoScore} | ${page.thinScore} | ${page.title.status} | ${page.metaDescription.status} |`));
+  const summary = ['# Crawlith SEO Analysis Report', '', '## 📊 Summary', `- Pages Analyzed: ${result.site_summary.pages_analyzed}`, `- Overall Site Score: ${result.site_summary.site_score.toFixed(1)}`, `- Avg SEO Score: ${result.site_summary.site_score.toFixed(1)}`, `- Thin Pages Found: ${result.site_summary.thin_pages}`, `- Duplicate Titles: ${result.site_summary.duplicate_titles}`, '', '## 📄 Page Details', '', '| URL | SEO Score | Thin Score | Title Status | Meta Status | Canonical |', '| :--- | :--- | :--- | :--- | :--- | :--- |'];
+  result.pages.forEach((page) => summary.push(`| ${page.url} | ${page.seoScore} | ${page.thinScore} | ${page.title.status} | ${page.metaDescription.status} | ${page.meta.canonical || '-'} |`));
   return summary.join('\n');
 }
 
 export function renderAnalysisCsv(result: AnalysisResult): string {
-  const headers = ['URL', 'SEO Score', 'Thin Score', 'HTTP Status', 'Title', 'Title Length', 'Meta Description', 'Desc Length', 'Word Count', 'Internal Links', 'External Links'];
+  const headers = ['URL', 'SEO Score', 'Thin Score', 'HTTP Status', 'Title', 'Title Length', 'Meta Description', 'Desc Length', 'Word Count', 'Internal Links', 'External Links', 'Canonical'];
   const rows = result.pages.map((p) => {
     const statusStr = p.status === 0 ? 'Pending/Limit' : p.status;
-    return [p.url, p.seoScore, p.thinScore, statusStr, `"${(p.title.value || '').replace(/"/g, '""')}"`, p.title.length, `"${(p.metaDescription.value || '').replace(/"/g, '""')}"`, p.metaDescription.length, p.content.wordCount, p.links.internalLinks, p.links.externalLinks].join(',');
+    return [p.url, p.seoScore, p.thinScore, statusStr, `"${(p.title.value || '').replace(/"/g, '""')}"`, p.title.length, `"${(p.metaDescription.value || '').replace(/"/g, '""')}"`, p.metaDescription.length, p.content.wordCount, p.links.internalLinks, p.links.externalLinks, p.meta.canonical || ''].join(',');
   });
   return [headers.join(','), ...rows].join('\n');
 }

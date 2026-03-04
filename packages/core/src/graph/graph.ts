@@ -1,5 +1,6 @@
 export interface GraphNode {
   url: string;
+  isInternal?: boolean;
   depth: number;
   inLinks: number;
   outLinks: number;
@@ -99,11 +100,12 @@ export class Graph {
    * If it exists, updates the status if the new status is non-zero (meaning we crawled it).
    * Depth is only set on creation (BFS guarantees shortest path first).
    */
-  addNode(url: string, depth: number, status: number = 0) {
+  addNode(url: string, depth: number, status: number = 0, isInternal: boolean = true) {
     const existing = this.nodes.get(url);
     if (!existing) {
       this.nodes.set(url, {
         url,
+        isInternal,
         depth,
         status,
         inLinks: 0,
@@ -113,6 +115,9 @@ export class Graph {
       // Update status if we have a real one now (e.g. was 0/pending, now crawled)
       if (status !== 0) {
         existing.status = status;
+      }
+      if (isInternal !== undefined) {
+        existing.isInternal = isInternal;
       }
     }
   }

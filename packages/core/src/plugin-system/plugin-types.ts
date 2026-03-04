@@ -152,6 +152,7 @@ export interface CrawlithPlugin {
     cli?: {
         flag: string;
         description: string;
+        defaultValue?: unknown;
         for?: ('page' | 'crawl')[];
         options?: PluginCliOption[];
     };

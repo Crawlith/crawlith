@@ -12,6 +12,7 @@ export interface HealthScoreWeights {
     lowInternalLinks: number;
     excessiveLinks: number;
     blockedByRobots: number;
+    crawlTraps: number;
 }
 
 export interface CrawlIssueCounts {
@@ -33,6 +34,7 @@ export interface CrawlIssueCounts {
     underlinkedHighAuthorityPages: number;
     externalLinks: number;
     blockedByRobots: number;
+    crawlTraps: number;
 }
 
 export interface HealthScoreBreakdown {
@@ -42,7 +44,7 @@ export interface HealthScoreBreakdown {
     weights: HealthScoreWeights;
 }
 
-export const THIN_CONTENT_THRESHOLD = 300;
+export const THIN_CONTENT_THRESHOLD = 200;
 export const LOW_INTERNAL_LINK_THRESHOLD = 2;
 export const EXCESSIVE_INTERNAL_LINK_THRESHOLD = 150;
 export const HIGH_EXTERNAL_LINK_RATIO_THRESHOLD = 0.6;
@@ -59,13 +61,14 @@ export const DEFAULT_HEALTH_WEIGHTS: HealthScoreWeights = {
     canonicalConflicts: 10,
     lowInternalLinks: 10,
     excessiveLinks: 5,
-    blockedByRobots: 100
+    blockedByRobots: 100,
+    crawlTraps: 50
 };
 
 export class HealthService {
     public calculateHealthScore(
         totalPages: number,
-        issues: Pick<CrawlIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots'>,
+        issues: Pick<CrawlIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots' | 'crawlTraps'>,
         weights: HealthScoreWeights = DEFAULT_HEALTH_WEIGHTS
     ): HealthScoreBreakdown {
         const safePages = Math.max(totalPages, 1);
@@ -81,7 +84,8 @@ export class HealthService {
             canonicalConflicts: this.clamp((issues.canonicalConflicts / safePages) * weights.canonicalConflicts, 0, weights.canonicalConflicts),
             lowInternalLinks: this.clamp((issues.lowInternalLinkCount / safePages) * weights.lowInternalLinks, 0, weights.lowInternalLinks),
             excessiveLinks: this.clamp((issues.excessiveInternalLinkCount / safePages) * weights.excessiveLinks, 0, weights.excessiveLinks),
-            blockedByRobots: this.clamp((issues.blockedByRobots / safePages) * weights.blockedByRobots, 0, weights.blockedByRobots)
+            blockedByRobots: this.clamp((issues.blockedByRobots / safePages) * weights.blockedByRobots, 0, weights.blockedByRobots),
+            crawlTraps: this.clamp((issues.crawlTraps / safePages) * weights.crawlTraps, 0, weights.crawlTraps)
         };
 
         const totalPenalty = Object.values(weightedPenalties).reduce((sum, value) => sum + value, 0);
@@ -123,10 +127,19 @@ export class HealthService {
         let underlinkedHighAuthorityPages = 0;
         let externalLinks = 0;
         let blockedByRobots = 0;
+        let crawlTraps = 0;
 
         for (const node of nodes) {
+            if (!node.isInternal) {
+                continue;
+            }
+
             if (node.crawlStatus === 'blocked' || node.crawlStatus === 'blocked_by_robots') {
                 blockedByRobots += 1;
+            }
+
+            if (node.crawlTrapFlag) {
+                crawlTraps += 1;
             }
 
             const isConfirmedError = node.status >= 400 || (node.status === 0 && (node.crawlStatus === 'network_error' || node.crawlStatus === 'failed_after_retries' || node.securityError || node.crawlStatus === 'fetched_error'));
@@ -146,8 +159,14 @@ export class HealthService {
             if ((node.redirectChain?.length || 0) > 1) {
                 redirectChains += 1;
             }
-            if (node.canonical && node.canonical !== node.url && node.canonical !== (rootOrigin ? new URL(node.url, rootOrigin).toString() : node.url)) {
-                canonicalConflicts += 1;
+            const absoluteUrl = rootOrigin ? (node.url.startsWith('http') ? node.url : new URL(node.url, rootOrigin).toString()) : node.url;
+            if (node.canonical && node.canonical !== node.url && node.canonical !== absoluteUrl) {
+                // Final check: normalize both to ignore trailing slash differences or protocol mismatches if they are considered "same"
+                const normCanonical = node.canonical.replace(/\/$/, '');
+                const normAbsolute = absoluteUrl.replace(/\/$/, '');
+                if (normCanonical !== normAbsolute) {
+                    canonicalConflicts += 1;
+                }
             }
             if (node.noindex && node.status >= 200 && node.status < 300) {
                 accidentalNoindex += 1;
@@ -230,7 +249,8 @@ export class HealthService {
             nearAuthorityThreshold,
             underlinkedHighAuthorityPages,
             externalLinks,
-            blockedByRobots
+            blockedByRobots,
+            crawlTraps
         };
     }
 

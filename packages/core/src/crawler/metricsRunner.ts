@@ -262,10 +262,15 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
         }
     }
 
+    const thinContentCount = graph.getNodes().filter(n => n.wordCount !== undefined && n.wordCount < 200 && n.status === 200).length;
+    const orphanCount = metrics.orphanPages.length;
+
     snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
         node_count: metrics.totalPages,
         edge_count: metrics.totalEdges,
         limit_reached: limitReached ? 1 : 0,
+        thin_content_count: thinContentCount,
+        orphan_count: orphanCount,
         ...(healthScore !== null ? { health_score: healthScore } : {})
     });
 

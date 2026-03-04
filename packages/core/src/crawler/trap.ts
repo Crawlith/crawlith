@@ -9,7 +9,7 @@ export interface TrapResult {
 export class TrapDetector {
     private pathCounters = new Map<string, Set<string>>();
     private paginationCounters = new Map<string, number>();
-    private sessionParams = new Set(['sid', 'session', 'phpsessid', 'sessid', 'token']);
+    private sessionParams = new Set(['sid', 'session', 'phpsessid', 'sessid', 'token', 'intended']);
 
     // Configurable thresholds
     private PARAM_EXPLOSION_THRESHOLD = 30;
@@ -23,7 +23,13 @@ export class TrapDetector {
     /**
      * Checks if a URL represents a potential crawl trap.
      */
-    checkTrap(rawUrl: string, _depth: number): TrapResult {
+    checkTrap(rawUrl: string, _depth: number, isInternal: boolean = true): TrapResult {
+        // If it's not internal (e.g., social sharing links), we don't flag it as a trap
+        // that affects our crawl health, even though technically it might have many params.
+        if (!isInternal) {
+            return { risk: 0, type: null };
+        }
+
         let risk = 0;
         let type: TrapType | null = null;
 
@@ -93,7 +99,7 @@ export class TrapDetector {
         const nodes = graph.getNodes();
         for (const node of nodes) {
             if (node.status === 200 || node.status === 0) {
-                const res = this.checkTrap(node.url, node.depth || 0);
+                const res = this.checkTrap(node.url, node.depth || 0, !!node.isInternal);
                 if (res.risk > 0.4) {
                     node.crawlTrapFlag = true;
                     node.crawlTrapRisk = res.risk;
