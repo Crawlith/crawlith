@@ -214,6 +214,55 @@ export interface GraphContext {
   equityRatio: number;
 }
 
+/**
+ * A node in the snapshot structure graph explorer.
+ */
+export interface SnapshotGraphNode {
+  id: number;
+  url: string;
+  depth: number;
+  pageRankScore: number;
+  inlinks: number;
+  outlinks: number;
+  role: string | null;
+}
+
+/**
+ * A directed internal edge in the snapshot structure graph explorer.
+ */
+export interface SnapshotGraphEdge {
+  source: number;
+  target: number;
+}
+
+/**
+ * Snapshot graph payload returned by the API.
+ */
+export interface SnapshotGraphResponse {
+  snapshotId: number;
+  nodes: SnapshotGraphNode[];
+  edges: SnapshotGraphEdge[];
+  meta: {
+    totalNodes: number;
+    totalEdges: number;
+    truncated: boolean;
+  };
+}
+
+/**
+ * Query options supported by the snapshot graph endpoint.
+ */
+export interface SnapshotGraphQuery {
+  snapshotId?: number;
+  maxNodes?: number;
+  maxEdges?: number;
+  minPageRank?: number;
+  minInlinks?: number;
+  minOutlinks?: number;
+  role?: 'all' | 'hub' | 'authority' | 'orphan' | string;
+  search?: string;
+}
+
 // --- Existing Functions ---
 
 export async function fetchOverview(snapshotId?: number): Promise<OverviewData> {
@@ -372,5 +421,25 @@ export async function crawlPage(url: string): Promise<{ success: boolean, snapsh
     const err = await res.json();
     throw new Error(err.error || 'Failed to trigger crawl');
   }
+  return res.json();
+}
+
+/**
+ * Fetches a scalable graph projection for a specific snapshot.
+ */
+export async function fetchSnapshotGraph(query: SnapshotGraphQuery = {}): Promise<SnapshotGraphResponse> {
+  const params = new URLSearchParams();
+
+  if (query.snapshotId) params.append('snapshot', query.snapshotId.toString());
+  if (query.maxNodes) params.append('maxNodes', query.maxNodes.toString());
+  if (query.maxEdges) params.append('maxEdges', query.maxEdges.toString());
+  if (typeof query.minPageRank === 'number') params.append('minPageRank', query.minPageRank.toString());
+  if (typeof query.minInlinks === 'number') params.append('minInlinks', query.minInlinks.toString());
+  if (typeof query.minOutlinks === 'number') params.append('minOutlinks', query.minOutlinks.toString());
+  if (query.role) params.append('role', query.role);
+  if (query.search) params.append('search', query.search);
+
+  const res = await fetch(`${API_PREFIX}/graph/snapshot?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch snapshot graph');
   return res.json();
 }

@@ -19,6 +19,27 @@ export interface ServerOptions {
   snapshotId: number;
 }
 
+/**
+ * Lightweight graph node payload returned to the web graph explorer.
+ */
+interface SnapshotGraphNode {
+  id: number;
+  url: string;
+  depth: number;
+  pageRankScore: number;
+  inlinks: number;
+  outlinks: number;
+  role: string | null;
+}
+
+/**
+ * Lightweight graph edge payload returned to the web graph explorer.
+ */
+interface SnapshotGraphEdge {
+  source: number;
+  target: number;
+}
+
 export function startServer(options: ServerOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     const { port, host = '127.0.0.1', staticPath, siteId, snapshotId } = options;
@@ -380,6 +401,113 @@ export function startServer(options: ServerOptions): Promise<void> {
     api.get('/snapshots', (req, res) => {
       const rows = db.prepare('SELECT id, type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC').all(siteId);
       res.json({ results: rows });
+    });
+
+    /**
+     * Returns a graph projection for a snapshot with lightweight node/edge payloads.
+     * Filters are applied server-side to keep browser rendering responsive for large sites.
+     */
+    api.get('/graph/snapshot', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+
+      const maxNodes = Math.min(parseInt((req.query.maxNodes as string) || '10000', 10), 10000);
+      const maxEdges = Math.min(parseInt((req.query.maxEdges as string) || '40000', 10), 120000);
+      const minPageRank = Math.max(parseFloat((req.query.minPageRank as string) || '0') || 0, 0);
+      const minInlinks = Math.max(parseInt((req.query.minInlinks as string) || '0', 10), 0);
+      const minOutlinks = Math.max(parseInt((req.query.minOutlinks as string) || '0', 10), 0);
+      const role = ((req.query.role as string) || 'all').toLowerCase();
+      const search = ((req.query.search as string) || '').trim();
+
+      const roleSql = role !== 'all' ? 'AND COALESCE(m.link_role, "") = ?' : '';
+      const searchSql = search ? 'AND p.normalized_url LIKE ?' : '';
+
+      const nodeParams: Array<string | number> = [currentSnapshotId, currentSnapshotId, currentSnapshotId, siteId, minPageRank, minInlinks, minOutlinks];
+      if (role !== 'all') nodeParams.push(role);
+      if (search) nodeParams.push(`%${search}%`);
+      nodeParams.push(maxNodes);
+
+      const nodeSql = `
+        WITH in_counts AS (
+          SELECT target_page_id AS page_id, COUNT(*) AS inlinks
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal'
+          GROUP BY target_page_id
+        ),
+        out_counts AS (
+          SELECT source_page_id AS page_id, COUNT(*) AS outlinks
+          FROM edges
+          WHERE snapshot_id = ? AND rel = 'internal'
+          GROUP BY source_page_id
+        )
+        SELECT
+          p.id,
+          p.normalized_url AS url,
+          COALESCE(p.depth, 0) AS depth,
+          COALESCE(m.pagerank_score, 0) AS pageRankScore,
+          COALESCE(ic.inlinks, 0) AS inlinks,
+          COALESCE(oc.outlinks, 0) AS outlinks,
+          COALESCE(m.link_role, NULL) AS role
+        FROM pages p
+        LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
+        LEFT JOIN in_counts ic ON p.id = ic.page_id
+        LEFT JOIN out_counts oc ON p.id = oc.page_id
+        WHERE p.site_id = ?
+          AND COALESCE(m.pagerank_score, 0) >= ?
+          AND COALESCE(ic.inlinks, 0) >= ?
+          AND COALESCE(oc.outlinks, 0) >= ?
+          ${roleSql}
+          ${searchSql}
+        ORDER BY COALESCE(m.pagerank_score, 0) DESC, COALESCE(ic.inlinks, 0) DESC
+        LIMIT ?
+      `;
+
+      const nodes = db.prepare(nodeSql).all(...nodeParams) as SnapshotGraphNode[];
+      const nodeIds = nodes.map((n) => n.id);
+
+      if (nodeIds.length === 0) {
+        return res.json({
+          snapshotId: currentSnapshotId,
+          nodes: [],
+          edges: [],
+          meta: {
+            totalNodes: 0,
+            totalEdges: 0,
+            truncated: false,
+          }
+        });
+      }
+
+      const placeholders = nodeIds.map(() => '?').join(',');
+      const edgeSql = `
+        SELECT source_page_id AS source, target_page_id AS target
+        FROM edges
+        WHERE snapshot_id = ?
+          AND rel = 'internal'
+          AND source_page_id IN (${placeholders})
+          AND target_page_id IN (${placeholders})
+        LIMIT ?
+      `;
+
+      const edges = db.prepare(edgeSql).all(currentSnapshotId, ...nodeIds, ...nodeIds, maxEdges) as SnapshotGraphEdge[];
+      const totalEdges = db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM edges
+        WHERE snapshot_id = ?
+          AND rel = 'internal'
+          AND source_page_id IN (${placeholders})
+          AND target_page_id IN (${placeholders})
+      `).get(currentSnapshotId, ...nodeIds, ...nodeIds) as { count: number };
+
+      res.json({
+        snapshotId: currentSnapshotId,
+        nodes,
+        edges,
+        meta: {
+          totalNodes: nodes.length,
+          totalEdges: totalEdges.count,
+          truncated: totalEdges.count > edges.length,
+        }
+      });
     });
 
     // 5.1 GET /api/page
