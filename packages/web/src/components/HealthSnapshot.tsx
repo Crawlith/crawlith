@@ -1,7 +1,20 @@
-import { healthMetrics } from '../data';
+import { useContext } from 'react';
 import { Activity, Link, Ghost, Copy, Layers, TrendingUp } from 'lucide-react';
+import { DashboardContext } from '../App';
 
 export const HealthSnapshot = () => {
+  const { overview } = useContext(DashboardContext);
+
+  if (!overview) return <div className="animate-pulse bg-slate-100 h-32 rounded-xl mb-8 w-full"></div>;
+
+  const healthMetrics = {
+    score: overview.health.score,
+    brokenLinks: overview.totals.brokenLinks,
+    orphanPages: overview.totals.orphanPages,
+    duplicateClusters: overview.totals.duplicateClusters,
+    pagesCrawled: overview.totals.crawled,
+    efficiency: overview.crawl.efficiency,
+  };
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
       <StatCard label="Health Score" value={healthMetrics.score} unit="/100" icon={Activity} color="text-green-600 dark:text-green-500" />

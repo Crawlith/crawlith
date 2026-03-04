@@ -31,6 +31,7 @@ export interface OverviewData {
 }
 
 export interface Issue {
+  id?: string;
   url: string;
   issueType: string;
   severity: 'Critical' | 'Warning' | 'Info';
@@ -38,6 +39,12 @@ export interface Issue {
   pageRank: number;
   pageRankScore: number;
   lastSeen: string;
+  type?: string;
+  internalLinksCount?: number;
+  description?: string;
+  whyItMatters?: string;
+  howToFix?: string;
+  clusterId?: string;
 }
 
 export interface IssuesResponse {
