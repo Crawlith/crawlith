@@ -675,8 +675,9 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.7 POST /api/page/crawl (Live crawl of single page)
     api.post('/page/crawl', express.json(), strictRateLimiter, async (req, res) => {
-      const { url } = req.body;
+      let { url } = req.body;
       if (!url) return res.status(400).json({ error: 'URL is required' });
+      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
 
       try {
         console.log(chalk.cyan(`   Live crawl requested: ${url}`));
