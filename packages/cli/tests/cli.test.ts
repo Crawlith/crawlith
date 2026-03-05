@@ -225,3 +225,11 @@ test('crawl diff execution via --compare', async () => {
   consoleSpy.mockRestore();
   errorSpy.mockRestore();
 });
+
+test('crawl command help information matches snapshot (flags)', () => {
+  expect(crawlCommand.helpInformation()).toMatchSnapshot();
+});
+
+test('analyze command help information matches snapshot (flags)', () => {
+  expect(analyze.helpInformation()).toMatchSnapshot();
+});
