@@ -1,4 +1,5 @@
-import { Graph, GraphNode, SimHash } from '../index.js';
+import { Graph, GraphNode } from '../graph/graph.js';
+import { SimHash } from '../graph/simhash.js';
 
 export interface DuplicateOptions {
     collapse?: boolean;

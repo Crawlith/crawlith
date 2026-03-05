@@ -27,7 +27,7 @@ describe('GraphLoader', () => {
         const metricsRepo = new MetricsRepository(db);
 
         const siteId = siteRepo.createSite('example.com');
-        const snapshotId = snapshotRepo.createSnapshot(siteId, 'full');
+        const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
         const url = 'http://example.com/page1';
 
         // Create Page
@@ -84,7 +84,7 @@ describe('GraphLoader', () => {
         const metricsRepo = new MetricsRepository(db);
 
         const siteId = siteRepo.createSite('example.com');
-        const snapshotId = snapshotRepo.createSnapshot(siteId, 'full');
+        const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
         const url = 'http://example.com/page2';
 
         pageRepo.upsertPage({

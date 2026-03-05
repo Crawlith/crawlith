@@ -141,7 +141,6 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   try { parsedUrl = new URL(url); } catch { /* bare domain fallback below */ }
 
   const inputOrigin = parsedUrl ? `${parsedUrl.protocol}//${parsedUrl.host}` : url;
-  const inputPath = parsedUrl?.pathname || '/';
 
   let rootOrigin = inputOrigin;
   if (options.live !== false) {
@@ -162,7 +161,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   }
 
   // normalizedPath: use the input pathname (e.g. '/stats'), falling back to '/' for root
-  const normalizedPath = inputPath && inputPath !== '/' ? inputPath : UrlUtil.toPath(normalizedAbs, rootOrigin);
+  const normalizedPath = normalizedAbs;
 
   const start = Date.now();
   let crawlData: CrawlData;
@@ -423,7 +422,6 @@ export function analyzePages(targetPath: string, rootOrigin: string, pages: Iter
   const results: PageAnalysis[] = [];
 
   for (const page of pages) {
-    // page.url is a root-relative path (e.g. '/about') — compare to targetPath
     const isTarget = page.url === targetPath;
 
     // In single-page mode, if it's not the target, we skip it entirely for speed.
@@ -615,7 +613,7 @@ function renderSinglePageHtml(page: PageAnalysis): string {
 }
 
 export function renderAnalysisMarkdown(result: AnalysisResult): string {
-  const summary = ['# Crawlith SEO Analysis Report', '', '## 📊 Summary', `- Pages Analyzed: ${result.site_summary.pages_analyzed}`, `- Overall Site Score: ${result.site_summary.site_score.toFixed(1)}`, `- Avg SEO Score: ${result.site_summary.site_score.toFixed(1)}`, `- Thin Pages Found: ${result.site_summary.thin_pages}`, `- Duplicate Titles: ${result.site_summary.duplicate_titles}`, '', '## 📄 Page Details', '', '| URL | SEO Score | Thin Score | Title Status | Meta Status | Canonical |', '| :--- | :--- | :--- | :--- | :--- | :--- |'];
+  const summary = ['# Crawlith SEO Analysis Report', '', '## 📊 Summary', `- Pages Analyzed: ${result.site_summary.pages_analyzed}`, `- Overall Site Score: ${result.site_summary.site_score.toFixed(1)}`, `- Avg SEO Score: ${result.site_summary.avg_seo_score.toFixed(1)}`, `- Thin Pages Found: ${result.site_summary.thin_pages}`, `- Duplicate Titles: ${result.site_summary.duplicate_titles}`, '', '## 📄 Page Details', '', '| URL | SEO Score | Thin Score | Title Status | Meta Status | Canonical |', '| :--- | :--- | :--- | :--- | :--- | :--- |'];
   result.pages.forEach((page) => summary.push(`| ${page.url} | ${page.seoScore} | ${page.thinScore} | ${page.title.status} | ${page.metaDescription.status} | ${page.meta.canonical || '-'} |`));
   return summary.join('\n');
 }

@@ -1,3 +1,4 @@
+export * from './scoring/health.js';
 export * from './crawler/crawl.js';
 export * from './crawler/normalize.js';
 export * from './crawler/metricsRunner.js';
@@ -22,7 +23,6 @@ export * from './analysis/heading.js';
 export * from './analysis/orphan.js';
 export * from './audit/index.js';
 export * from './audit/types.js';
-export * from './scoring/health.js';
 export * from './report/html.js';
 export * from './report/crawl_template.js';
 export * from './report/crawlExport.js';

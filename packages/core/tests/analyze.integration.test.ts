@@ -30,7 +30,7 @@ describe('analyze integration', () => {
     // Create site and snapshot
     const domain = 'example.com';
     const siteId = siteRepo.createSite(domain);
-    const snapshotId = snapshotRepo.createSnapshot(siteId, 'full', 'running');
+    const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed', 'running');
 
     // Parse fixture and load pages into db
     const pages = rawData.pages || rawData.nodes || [];

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { initSchema } from '../src/db/schema.js';
+import { runBaseMigrations } from '../src/db/migrations.js';
 import { SiteRepository } from '../src/db/repositories/SiteRepository.js';
 import { SnapshotRepository } from '../src/db/repositories/SnapshotRepository.js';
 
@@ -11,7 +11,7 @@ describe('SiteRepository & SnapshotRepository', () => {
 
   beforeEach(() => {
     db = new Database(':memory:');
-    initSchema(db);
+    runBaseMigrations(db);
     siteRepo = new SiteRepository(db);
     snapshotRepo = new SnapshotRepository(db);
   });
@@ -37,10 +37,10 @@ describe('SiteRepository & SnapshotRepository', () => {
 
     expect(snapshotRepo.getSnapshotCount(siteId)).toBe(0);
 
-    snapshotRepo.createSnapshot(siteId, 'full');
+    snapshotRepo.createSnapshot(siteId, 'completed');
     expect(snapshotRepo.getSnapshotCount(siteId)).toBe(1);
 
-    snapshotRepo.createSnapshot(siteId, 'partial');
+    snapshotRepo.createSnapshot(siteId, 'single');
     expect(snapshotRepo.getSnapshotCount(siteId)).toBe(2);
   });
 
@@ -48,11 +48,11 @@ describe('SiteRepository & SnapshotRepository', () => {
     const siteId = siteRepo.createSite('test.com');
 
     // First snapshot
-    snapshotRepo.createSnapshot(siteId, 'full', 'completed');
+    snapshotRepo.createSnapshot(siteId, 'completed', 'completed');
     // Wait a tiny bit to ensure timestamp diff if needed, but synchronous execution usually implies order
 
     // Second snapshot
-    const secondId = snapshotRepo.createSnapshot(siteId, 'full', 'running');
+    const secondId = snapshotRepo.createSnapshot(siteId, 'completed', 'running');
 
     const latest = snapshotRepo.getLatestSnapshot(siteId);
     expect(latest).toBeDefined();
@@ -62,8 +62,8 @@ describe('SiteRepository & SnapshotRepository', () => {
 
   it('getLatestSnapshot with status filter', () => {
     const siteId = siteRepo.createSite('test.com');
-    const firstId = snapshotRepo.createSnapshot(siteId, 'full', 'completed');
-    snapshotRepo.createSnapshot(siteId, 'full', 'running');
+    const firstId = snapshotRepo.createSnapshot(siteId, 'completed', 'completed');
+    snapshotRepo.createSnapshot(siteId, 'completed', 'running');
 
     const latestCompleted = snapshotRepo.getLatestSnapshot(siteId, 'completed');
     expect(latestCompleted).toBeDefined();

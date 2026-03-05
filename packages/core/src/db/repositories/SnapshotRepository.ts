@@ -52,7 +52,7 @@ export class SnapshotRepository {
    */
   hasFullCrawl(siteId: number): boolean {
     const result = this.db.prepare(
-      `SELECT COUNT(*) as count FROM snapshots WHERE site_id = ? AND run_type IN ('full', 'incremental') AND status = 'completed'`
+      `SELECT COUNT(*) as count FROM snapshots WHERE site_id = ? AND run_type IN ('completed', 'incremental') AND status = 'completed'`
     ).get(siteId) as { count: number };
     return result.count > 0;
   }

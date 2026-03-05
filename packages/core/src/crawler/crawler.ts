@@ -155,8 +155,8 @@ export class Crawler {
       ssl: this.rootOrigin.startsWith('https') ? 1 : 0
     });
 
-    // Update normalized start URL as a path
-    this.startUrl = UrlUtil.toPath(rootUrl, this.rootOrigin);
+    // Use absolute URL as the primary key startUrl
+    this.startUrl = rootUrl;
 
     // Now that rootOrigin is resolved, initialize ScopeManager with the correct absolute origin
     this.scopeManager = new ScopeManager({
@@ -176,7 +176,6 @@ export class Crawler {
 
     this.runType = runType;
     this.rootOrigin = urlObj.origin;
-    this.startUrl = rootUrl;
 
     // Expose snapshot context for plugins that persist per-snapshot data.
     (this.context as any).snapshotId = this.snapshotId;
@@ -283,7 +282,7 @@ export class Crawler {
               const sitemapEntries = sitemapUrls.map(u => {
                 const normalized = normalizeUrl(u, this.rootOrigin, this.options);
                 if (!normalized) return null;
-                const path = UrlUtil.toPath(normalized, this.rootOrigin);
+                const path = normalized;
                 return {
                   site_id: this.siteId!,
                   normalized_url: path,
@@ -486,8 +485,8 @@ export class Crawler {
   }
 
   private handleCachedResponse(url: string, finalUrl: string, depth: number, prevNode: GraphNode): void {
-    const path = UrlUtil.toPath(url, this.rootOrigin);
-    const finalPath = UrlUtil.toPath(finalUrl, this.rootOrigin);
+    const path = url;
+    const finalPath = finalUrl;
     this.bufferPage(finalPath, depth, prevNode.status, {
       html: prevNode.html,
       canonical_url: prevNode.canonical,
@@ -514,7 +513,7 @@ export class Crawler {
       for (const link of prevLinks) {
         const normalizedLink = normalizeUrl(link, this.rootOrigin, this.options);
         if (normalizedLink) {
-          const path = UrlUtil.toPath(normalizedLink, this.rootOrigin);
+          const path = normalizedLink;
           if (path !== url) {
             this.bufferPage(path, depth + 1, 0);
             this.bufferEdge(url, path, 1.0, 'internal');
@@ -532,8 +531,8 @@ export class Crawler {
       const sourceAbs = normalizeUrl(step.url, this.rootOrigin, this.options);
       const targetAbs = normalizeUrl(step.target, this.rootOrigin, this.options);
       if (sourceAbs && targetAbs) {
-        const sourcePath = UrlUtil.toPath(sourceAbs, this.rootOrigin);
-        const targetPath = UrlUtil.toPath(targetAbs, this.rootOrigin);
+        const sourcePath = sourceAbs;
+        const targetPath = targetAbs;
         const sourceInternal = UrlUtil.isInternal(sourceAbs, this.rootOrigin);
         const targetInternal = UrlUtil.isInternal(targetAbs, this.rootOrigin);
         this.bufferPage(sourcePath, depth, step.status, { is_internal: sourceInternal ? 1 : 0 });
@@ -594,7 +593,7 @@ export class Crawler {
     for (const linkItem of parseResult.links) {
       const normalizedLink = normalizeUrl(linkItem.url, absoluteUrl, this.options);
       if (normalizedLink) {
-        const targetPath = UrlUtil.toPath(normalizedLink, this.rootOrigin);
+        const targetPath = normalizedLink;
 
         if (targetPath !== path) {
           const isInternal = UrlUtil.isInternal(normalizedLink, this.rootOrigin);
@@ -630,7 +629,7 @@ export class Crawler {
       if (!finalUrl) return;
 
       const fullUrl = finalUrl; // Already absolute
-      const finalPath = UrlUtil.toPath(finalUrl, this.rootOrigin);
+      const finalPath = finalUrl;
 
       if (res.status === 304 && prevNode) {
         this.handleCachedResponse(url, finalUrl, depth, prevNode);

@@ -1,4 +1,9 @@
-import { Graph, analyzeContent, analyzeH1, analyzeImageAlts, analyzeLinks, UrlUtil } from '../index.js';
+import { Graph } from '../graph/graph.js';
+import { analyzeContent } from '../analysis/content.js';
+import { analyzeH1 } from '../analysis/seo.js';
+import { analyzeImageAlts } from '../analysis/images.js';
+import { analyzeLinks } from '../analysis/links.js';
+import { UrlUtil } from '../crawler/normalize.js';
 
 export interface HealthScoreWeights {
     orphans: number;
@@ -74,31 +79,31 @@ export class HealthService {
         const safePages = Math.max(totalPages, 1);
 
         const weightedPenalties = {
-            orphans: this.clamp((issues.orphanPages / safePages) * weights.orphans, 0, weights.orphans),
-            brokenLinks: this.clamp((issues.brokenInternalLinks / safePages) * weights.brokenLinks, 0, weights.brokenLinks),
-            redirectChains: this.clamp((issues.redirectChains / safePages) * weights.redirectChains, 0, weights.redirectChains),
-            duplicateClusters: this.clamp((issues.duplicateClusters / safePages) * weights.duplicateClusters, 0, weights.duplicateClusters),
-            thinContent: this.clamp((issues.thinContent / safePages) * weights.thinContent, 0, weights.thinContent),
-            missingH1: this.clamp((issues.missingH1 / safePages) * weights.missingH1, 0, weights.missingH1),
-            noindexMisuse: this.clamp((issues.accidentalNoindex / safePages) * weights.noindexMisuse, 0, weights.noindexMisuse),
-            canonicalConflicts: this.clamp((issues.canonicalConflicts / safePages) * weights.canonicalConflicts, 0, weights.canonicalConflicts),
-            lowInternalLinks: this.clamp((issues.lowInternalLinkCount / safePages) * weights.lowInternalLinks, 0, weights.lowInternalLinks),
-            excessiveLinks: this.clamp((issues.excessiveInternalLinkCount / safePages) * weights.excessiveLinks, 0, weights.excessiveLinks),
-            blockedByRobots: this.clamp((issues.blockedByRobots / safePages) * weights.blockedByRobots, 0, weights.blockedByRobots),
-            crawlTraps: this.clamp((issues.crawlTraps / safePages) * weights.crawlTraps, 0, weights.crawlTraps)
+            orphans: this.clamp(((issues.orphanPages || 0) / safePages) * weights.orphans, 0, weights.orphans),
+            brokenLinks: this.clamp(((issues.brokenInternalLinks || 0) / safePages) * weights.brokenLinks, 0, weights.brokenLinks),
+            redirectChains: this.clamp(((issues.redirectChains || 0) / safePages) * weights.redirectChains, 0, weights.redirectChains),
+            duplicateClusters: this.clamp(((issues.duplicateClusters || 0) / safePages) * weights.duplicateClusters, 0, weights.duplicateClusters),
+            thinContent: this.clamp(((issues.thinContent || 0) / safePages) * weights.thinContent, 0, weights.thinContent),
+            missingH1: this.clamp(((issues.missingH1 || 0) / safePages) * weights.missingH1, 0, weights.missingH1),
+            noindexMisuse: this.clamp(((issues.accidentalNoindex || 0) / safePages) * weights.noindexMisuse, 0, weights.noindexMisuse),
+            canonicalConflicts: this.clamp(((issues.canonicalConflicts || 0) / safePages) * weights.canonicalConflicts, 0, weights.canonicalConflicts),
+            lowInternalLinks: this.clamp(((issues.lowInternalLinkCount || 0) / safePages) * weights.lowInternalLinks, 0, weights.lowInternalLinks),
+            excessiveLinks: this.clamp(((issues.excessiveInternalLinkCount || 0) / safePages) * weights.excessiveLinks, 0, weights.excessiveLinks),
+            blockedByRobots: this.clamp(((issues.blockedByRobots || 0) / safePages) * weights.blockedByRobots, 0, weights.blockedByRobots),
+            crawlTraps: this.clamp(((issues.crawlTraps || 0) / safePages) * weights.crawlTraps, 0, weights.crawlTraps)
         };
 
         const totalPenalty = Object.values(weightedPenalties).reduce((sum, value) => sum + value, 0);
         const score = Number(this.clamp(100 - totalPenalty, 0, 100).toFixed(1));
 
         const hasCritical = (
-            issues.orphanPages > 0 ||
-            issues.brokenInternalLinks > 0 ||
-            issues.redirectChains > 0 ||
-            issues.duplicateClusters > 0 ||
-            issues.canonicalConflicts > 0 ||
-            issues.accidentalNoindex > 0 ||
-            issues.blockedByRobots > 0
+            (issues.orphanPages || 0) > 0 ||
+            (issues.brokenInternalLinks || 0) > 0 ||
+            (issues.redirectChains || 0) > 0 ||
+            (issues.duplicateClusters || 0) > 0 ||
+            (issues.canonicalConflicts || 0) > 0 ||
+            (issues.accidentalNoindex || 0) > 0 ||
+            (issues.blockedByRobots || 0) > 0
         );
 
         return {
@@ -266,3 +271,18 @@ export class HealthService {
         return 'Critical';
     }
 }
+
+const service = new HealthService();
+export const calculateHealthScore = (
+    totalPages: number,
+    issues: Pick<CrawlIssueCounts, 'orphanPages' | 'brokenInternalLinks' | 'redirectChains' | 'duplicateClusters' | 'thinContent' | 'missingH1' | 'accidentalNoindex' | 'canonicalConflicts' | 'lowInternalLinkCount' | 'excessiveInternalLinkCount' | 'blockedByRobots' | 'crawlTraps'>,
+    weights: HealthScoreWeights = DEFAULT_HEALTH_WEIGHTS
+) => service.calculateHealthScore(totalPages, issues, weights);
+
+export const healthStatusLabel = (score: number, hasCritical: boolean = false) => {
+    if (hasCritical && score >= 75) return 'Needs Attention';
+    if (score >= 90) return 'Excellent';
+    if (score >= 75) return 'Good';
+    if (score >= 50) return 'Needs Attention';
+    return 'Critical';
+};

@@ -62,7 +62,7 @@ describe('auditUrl', () => {
     // Verify
     expect(IPGuard.validateHost).toHaveBeenCalledWith('example.com');
     expect(resolveDns).toHaveBeenCalledWith('example.com');
-    expect(analyzeTransport).toHaveBeenCalledWith(mockUrl, 10000); // default timeout
+    expect(analyzeTransport).toHaveBeenCalledWith(mockUrl, 10000, undefined); // default timeout and userAgent
     expect(analyzeHeaders).toHaveBeenCalledWith(mockTransportResult.transport.headers);
     expect(calculateScore).toHaveBeenCalled();
 

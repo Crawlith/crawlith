@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { PageRepository } from '../../src/db/repositories/PageRepository.js';
-import { initSchema } from '../../src/db/schema.js';
+import { runBaseMigrations } from '../../src/db/migrations.js';
 
 describe('PageRepository', () => {
   let db: Database.Database;
@@ -9,12 +9,12 @@ describe('PageRepository', () => {
 
   beforeEach(() => {
     db = new Database(':memory:');
-    initSchema(db);
+    runBaseMigrations(db);
     repo = new PageRepository(db);
 
     // Seed required tables (sites, snapshots)
     db.prepare("INSERT INTO sites (domain) VALUES ('example.com')").run();
-    db.prepare("INSERT INTO snapshots (site_id, type) VALUES (1, 'full')").run();
+    db.prepare("INSERT INTO snapshots (site_id, run_type) VALUES (1, 'completed')").run();
   });
 
   afterEach(() => {

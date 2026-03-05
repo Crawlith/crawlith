@@ -1,4 +1,4 @@
-import type { GraphNode, GraphEdge } from '../index.js';
+import type { GraphNode, GraphEdge } from '../graph/graph.js';
 
 export interface ExtendedGraphNode extends GraphNode {
     pageType?: string;

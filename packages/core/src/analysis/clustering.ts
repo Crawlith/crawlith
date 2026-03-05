@@ -1,4 +1,6 @@
-import { Graph, SimHash, analyzeH1, analyzeTitle } from '../index.js';
+import { Graph } from '../graph/graph.js';
+import { SimHash } from '../graph/simhash.js';
+import { analyzeH1, analyzeTitle } from './seo.js';
 
 export interface ClusterInfo {
     id: number;

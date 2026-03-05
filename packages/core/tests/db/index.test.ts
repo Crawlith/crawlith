@@ -24,9 +24,7 @@ vi.mock('better-sqlite3', () => {
     }),
   };
 });
-vi.mock('../../src/db/schema.js', () => ({
-  initSchema: vi.fn(),
-}));
+// No longer using schema.js
 
 describe('DB Index', () => {
   const originalEnv = process.env;
@@ -81,54 +79,54 @@ describe('DB Index', () => {
   });
 
   describe('getDb', () => {
-     it('should create a new database instance', () => {
-       process.env.NODE_ENV = 'production';
-       const db = getDb();
-       expect(db).toBeDefined();
-       // Check if pragma was called
-       expect(db.pragma).toHaveBeenCalledWith('journal_mode = WAL');
-     });
+    it('should create a new database instance', () => {
+      process.env.NODE_ENV = 'production';
+      const db = getDb();
+      expect(db).toBeDefined();
+      // Check if pragma was called
+      expect(db.pragma).toHaveBeenCalledWith('journal_mode = WAL');
+    });
 
-     it('should return existing instance if called twice', () => {
-        process.env.NODE_ENV = 'production';
-        const db1 = getDb();
-        const db2 = getDb();
-        expect(db1).toBe(db2);
-     });
+    it('should return existing instance if called twice', () => {
+      process.env.NODE_ENV = 'production';
+      const db1 = getDb();
+      const db2 = getDb();
+      expect(db1).toBe(db2);
+    });
 
-     it('should handle permission errors gracefully', () => {
-        process.env.NODE_ENV = 'production';
-        // Avoid getDbPath throwing
-        vi.mocked(fs.existsSync).mockReturnValue(true);
+    it('should handle permission errors gracefully', () => {
+      process.env.NODE_ENV = 'production';
+      // Avoid getDbPath throwing
+      vi.mocked(fs.existsSync).mockReturnValue(true);
 
-        vi.mocked(fs.chmodSync).mockImplementation((path) => {
-           if (path.toString().endsWith('crawlith.db')) {
-             throw new Error('EPERM');
-           }
-        });
+      vi.mocked(fs.chmodSync).mockImplementation((path) => {
+        if (path.toString().endsWith('crawlith.db')) {
+          throw new Error('EPERM');
+        }
+      });
 
-        expect(() => getDb()).not.toThrow();
-     });
+      expect(() => getDb()).not.toThrow();
+    });
 
-     it('should warn if integrity check fails', async () => {
-         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-         process.env.NODE_ENV = 'production';
-         vi.mocked(fs.existsSync).mockReturnValue(true);
+    it('should warn if integrity check fails', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+      process.env.NODE_ENV = 'production';
+      vi.mocked(fs.existsSync).mockReturnValue(true);
 
-         const MockDatabase = (await import('better-sqlite3')).default;
-         vi.mocked(MockDatabase).mockImplementationOnce(function() {
-            return {
-               pragma: vi.fn().mockReturnValue('corrupt'),
-               prepare: vi.fn(),
-               exec: vi.fn(),
-               close: vi.fn(),
-               transaction: vi.fn(),
-            } as any;
-         });
+      const MockDatabase = (await import('better-sqlite3')).default;
+      vi.mocked(MockDatabase).mockImplementationOnce(function () {
+        return {
+          pragma: vi.fn().mockReturnValue('corrupt'),
+          prepare: vi.fn(),
+          exec: vi.fn(),
+          close: vi.fn(),
+          transaction: vi.fn(),
+        } as any;
+      });
 
-         getDb();
+      getDb();
 
-         expect(warnSpy).toHaveBeenCalledWith('Database integrity check failed:', 'corrupt');
-     });
+      expect(warnSpy).toHaveBeenCalledWith('Database integrity check failed:', 'corrupt');
+    });
   });
 });

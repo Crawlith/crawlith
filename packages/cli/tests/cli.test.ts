@@ -10,7 +10,6 @@ const mockRegistry = {
     command.option('--export <formats>', 'Export formats');
     command.option('--output <path>', 'Output path');
     command.option('--format <type>', 'Format type');
-    command.option('--orphan-severity', 'Orphan severity');
     command.option('--compare [files...]', 'Compare snapshots');
   }),
   getPlugins: vi.fn().mockReturnValue([]),
@@ -138,7 +137,7 @@ test('crawl validates orphan severity flag dependency', async () => {
     hooks: {
       onInit: async (ctx: any) => {
         const flags = ctx.flags || {};
-        if (flags.orphanSeverity && !flags.orphans && !flags.minInbound && !flags.includeSoftOrphans) {
+        if (flags.orphanSeverity && !flags.orphans) {
           process.exit(1);
         }
       }

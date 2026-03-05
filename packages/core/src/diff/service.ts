@@ -1,4 +1,4 @@
-import { Graph } from '../index.js';
+import { Graph } from '../graph/graph.js';
 
 export interface DiffOptions {
     onlyCritical?: boolean;
