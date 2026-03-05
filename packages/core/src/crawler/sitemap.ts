@@ -3,9 +3,14 @@ import pLimit from 'p-limit';
 import { normalizeUrl } from './normalize.js';
 import { EngineContext } from '../events.js';
 import { Fetcher } from './fetcher.js';
+import { DEFAULTS } from '../constants.js';
 
 export class Sitemap {
-  constructor(private context?: EngineContext, private fetcher?: Fetcher) { }
+  private userAgent: string = DEFAULTS.USER_AGENT;
+  constructor(private context?: EngineContext, private fetcher?: Fetcher, userAgent?: string) {
+    if (userAgent) this.userAgent = userAgent;
+    else if (fetcher) this.userAgent = fetcher.userAgent;
+  }
 
   /**
    * Fetches and parses a sitemap (or sitemap index) to extract URLs.
@@ -32,7 +37,7 @@ export class Sitemap {
         ? await this.fetcher.fetch(url, { maxBytes: 5000000 })
         : await (async () => {
           const { request } = await import('undici');
-          const r = await request(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          const r = await request(url, { headers: { 'User-Agent': this.userAgent } });
           const b = await r.body.text();
           return { status: r.statusCode, body: b };
         })();

@@ -99,4 +99,5 @@ export interface AuditOptions {
   timeout?: number;
   verbose?: boolean;
   debug?: boolean;
+  userAgent?: string;
 }
