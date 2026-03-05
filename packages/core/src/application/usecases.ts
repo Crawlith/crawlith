@@ -12,6 +12,7 @@ import type { UseCase } from './usecase.js';
 import type { Graph } from '../graph/graph.js';
 import type { EngineContext } from '../events.js';
 import { getCrawlithDB } from '../db/index.js';
+import { UrlUtil } from '../crawler/normalize.js';
 
 export interface CrawlSitegraphResult {
   snapshotId: number;
@@ -133,7 +134,11 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       orphanSeverity: input.orphanSeverity ?? true,
       includeSoftOrphans: input.includeSoftOrphans ?? true,
       minInbound: input.minInbound,
-      rootOrigin: resolvedOrigin || (input.url.startsWith('http') ? new URL(input.url).origin : `https://${input.url}`)
+      rootOrigin: resolvedOrigin || (
+        input.url.startsWith('http://') || input.url.startsWith('https://')
+          ? new URL(input.url).origin
+          : `https://${UrlUtil.extractDomain(input.url)}`
+      )
     });
 
     if (ctx.db) {
@@ -261,7 +266,7 @@ export class PageAnalysisUseCase implements UseCase<PageAnalysisInput, AnalysisR
       // Fire onPage once per analyzed page (normally just 1 for the page command)
       const inputOrigin = new URL(input.url).origin;
       for (const page of result.pages) {
-        const absoluteUrl = page.url.startsWith('/') ? `${inputOrigin}${page.url}` : page.url;
+        const absoluteUrl = UrlUtil.toAbsolute(page.url, inputOrigin);
         await registry.runHook('onPage', pluginCtx, {
           url: absoluteUrl,
           html: (page as any).html ?? '',

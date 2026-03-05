@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startServer } from '@crawlith/server';
-import { getDb, SiteRepository, SnapshotRepository, PluginRegistry } from '@crawlith/core';
+import { getDb, SiteRepository, SnapshotRepository, PluginRegistry, UrlUtil } from '@crawlith/core';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,13 +40,7 @@ export const getUiCommand = (registry: PluginRegistry) => {
       }
 
       // 1. Normalize domain
-      let domain = siteUrl;
-      try {
-        const url = new URL(siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`);
-        domain = url.hostname;
-      } catch (_e) {
-        // use raw string if URL parsing fails
-      }
+      const domain = UrlUtil.extractDomain(siteUrl);
 
       console.log(chalk.gray(`   Resolving site: ${domain}`));
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ExternalLink, Network, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ExternalLink,  ChevronRight } from 'lucide-react';
 import { DashboardContext } from '../App';
 import * as API from '../api';
 
@@ -63,7 +63,7 @@ export const CriticalPanel = () => {
                  Details <ChevronRight size={12} />
                </button>
                <a
-                 href={issue.url} 
+                 href={issue.url}
                  target="_blank"
                  rel="noopener noreferrer"
                  className="px-2 py-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"

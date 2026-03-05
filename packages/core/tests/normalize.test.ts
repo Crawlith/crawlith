@@ -1,4 +1,4 @@
-import { normalizeUrl } from '../src/crawler/normalize.js';
+import { normalizeUrl, UrlUtil } from '../src/crawler/normalize.js';
 import { test, expect } from 'vitest';
 
 test('normalizeUrl', () => {
@@ -85,4 +85,36 @@ test('normalizeUrl: invalid URL', () => {
 test('normalizeUrl: return format', () => {
   const res = normalizeUrl('https://example.com/foo?a=1', '');
   expect(res).toBe('https://example.com/foo?a=1');
+});
+
+test('UrlUtil.extractDomain handles URL and host inputs', () => {
+  expect(UrlUtil.extractDomain('https://www.example.com/path')).toBe('example.com');
+  expect(UrlUtil.extractDomain('example.com/path')).toBe('example.com');
+  expect(UrlUtil.extractDomain('WWW.EXAMPLE.COM')).toBe('example.com');
+});
+
+test('UrlUtil.resolveSiteOrigin uses preferred_url and ssl fallback', () => {
+  expect(UrlUtil.resolveSiteOrigin({
+    domain: 'example.com',
+    preferred_url: 'https://www.example.com/abc',
+    ssl: 0
+  })).toBe('https://www.example.com');
+
+  expect(UrlUtil.resolveSiteOrigin({
+    domain: 'example.com',
+    preferred_url: null,
+    ssl: 0
+  })).toBe('http://example.com');
+
+  expect(UrlUtil.resolveSiteOrigin({
+    domain: 'example.com',
+    preferred_url: null,
+    ssl: 1
+  })).toBe('https://example.com');
+});
+
+test('UrlUtil.toLookupCandidates returns path and absolute variants', () => {
+  const candidates = UrlUtil.toLookupCandidates('https://example.com/docs?a=1', 'https://example.com');
+  expect(candidates).toContain('/docs?a=1');
+  expect(candidates).toContain('https://example.com/docs?a=1');
 });

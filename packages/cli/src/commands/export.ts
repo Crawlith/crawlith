@@ -8,7 +8,8 @@ import {
     calculateMetrics,
     parseExportFormats,
     runCrawlExports,
-    PluginRegistry
+    PluginRegistry,
+    UrlUtil
 } from '@crawlith/core';
 import path from 'node:path';
 
@@ -30,8 +31,7 @@ export const getExportCommand = (registry: PluginRegistry) => {
             const siteRepo = new SiteRepository(db);
             const snapshotRepo = new SnapshotRepository(db);
 
-            const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
-            const domain = urlObj.hostname;
+            const domain = UrlUtil.extractDomain(url);
             const site = siteRepo.getSite(domain);
 
             if (!site) {

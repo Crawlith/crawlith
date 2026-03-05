@@ -7,7 +7,8 @@ import {
     getDb,
     SiteRepository,
     SnapshotRepository,
-    PluginRegistry
+    PluginRegistry,
+    UrlUtil
 } from '@crawlith/core';
 
 export const getCleanCommand = (registry: PluginRegistry) => {
@@ -29,9 +30,8 @@ export const getCleanCommand = (registry: PluginRegistry) => {
                 process.exit(1);
             }
 
-            const urlObj = new URL(url.startsWith('http') ? url : `http://${url}`);
-            const domain = urlObj.hostname;
-            const domainFolder = domain.replace('www.', ''); // Standardize folder name as done in export/crawl
+            const domain = UrlUtil.extractDomain(url);
+            const domainFolder = domain;
 
             const db = getDb();
             const siteRepo = new SiteRepository(db);

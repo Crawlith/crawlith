@@ -541,9 +541,12 @@ async function loadCrawlData(rootUrl: string, snapshotId?: number): Promise<Craw
     snapshot = snapshotRepo.getSnapshot(snapshotId);
   }
   if (!snapshot) {
-    const page = pageRepo.getPage(site.id, rootUrl);
-    if (page?.last_seen_snapshot_id) {
-      snapshot = snapshotRepo.getSnapshot(page.last_seen_snapshot_id);
+    for (const candidate of UrlUtil.toLookupCandidates(rootUrl, `${urlObj.protocol}//${urlObj.host}`)) {
+      const page = pageRepo.getPage(site.id, candidate);
+      if (page?.last_seen_snapshot_id) {
+        snapshot = snapshotRepo.getSnapshot(page.last_seen_snapshot_id);
+        break;
+      }
     }
   }
   if (!snapshot) snapshot = snapshotRepo.getLatestSnapshot(site.id);

@@ -120,6 +120,46 @@ export function normalizeUrl(input: string, base: string, options: NormalizeOpti
  */
 export class UrlUtil {
   /**
+   * Extract a stable domain key from a URL/domain input.
+   * Examples:
+   *  - "https://www.example.com/a" -> "example.com"
+   *  - "example.com" -> "example.com"
+   */
+  static extractDomain(input: string): string {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+
+    try {
+      const direct = new URL(trimmed);
+      return direct.hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      // fall through
+    }
+
+    try {
+      const withProtocol = new URL(`https://${trimmed}`);
+      return withProtocol.hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      return trimmed.toLowerCase().replace(/^www\./, '');
+    }
+  }
+
+  /**
+   * Resolve a site's absolute origin from persisted site fields.
+   */
+  static resolveSiteOrigin(site: { domain: string; preferred_url?: string | null; ssl?: number | null }): string {
+    if (site.preferred_url) {
+      try {
+        return new URL(site.preferred_url).origin;
+      } catch {
+        // fall through to domain+ssl fallback
+      }
+    }
+    const protocol = site.ssl === 0 ? 'http' : 'https';
+    return `${protocol}://${site.domain}`;
+  }
+
+  /**
    * Converts a full URL to a root-relative path if it matches the origin.
    * If it doesn't match the origin, it's considered external and kept absolute.
    */
@@ -164,5 +204,26 @@ export class UrlUtil {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Build normalized lookup candidates for querying pages table.
+   * Returns path/absolute/original variants in priority order, deduplicated.
+   */
+  static toLookupCandidates(input: string, origin: string): string[] {
+    const candidates = new Set<string>();
+    const raw = input.trim();
+    if (!raw) return [];
+
+    const absolute = normalizeUrl(raw, origin, { stripQuery: false }) || UrlUtil.toAbsolute(raw, origin);
+    const path = normalizeUrl(raw, origin, { stripQuery: false, toPath: true }) || UrlUtil.toPath(raw, origin);
+    const absolutePath = normalizeUrl(absolute, '', { stripQuery: false, toPath: true }) || UrlUtil.toPath(absolute, origin);
+
+    candidates.add(path);
+    candidates.add(absolute);
+    candidates.add(absolutePath);
+    candidates.add(raw);
+
+    return Array.from(candidates).filter(Boolean);
   }
 }
