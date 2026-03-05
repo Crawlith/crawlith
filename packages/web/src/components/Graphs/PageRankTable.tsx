@@ -1,10 +1,12 @@
 import { useEffect, useState, useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ExternalLink, TrendingUp } from 'lucide-react';
 import { DashboardContext } from '../../App';
 import * as API from '../../api';
 import { Tooltip } from '../Tooltip';
 
 export const PageRankTable = () => {
+  const navigate = useNavigate();
   const { currentSnapshot } = useContext(DashboardContext);
   const [topPages, setTopPages] = useState<API.TopPage[]>([]);
 
@@ -45,11 +47,27 @@ export const PageRankTable = () => {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
             {topPages.map((page, i) => (
-              <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+              <tr 
+                key={i} 
+                className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group"
+                onClick={() => navigate(`/page?url=${encodeURIComponent(page.url)}`)}
+              >
                 <td className="px-4 py-2 font-mono text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title={page.url}>
                   <div className="flex items-center gap-2">
-                    <span className="truncate">{page.url}</span>
-                    <a href={page.url} target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-blue-500">
+                    <Link 
+                      to={`/page?url=${encodeURIComponent(page.url)}`} 
+                      className="truncate hover:text-blue-500 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {page.url}
+                    </Link>
+                    <a 
+                      href={page.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <ExternalLink size={10} />
                     </a>
                   </div>

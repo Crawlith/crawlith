@@ -1,9 +1,11 @@
 import { useEffect, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ExternalLink, Network, ChevronRight } from 'lucide-react';
 import { DashboardContext } from '../App';
 import * as API from '../api';
 
 export const CriticalPanel = () => {
+  const navigate = useNavigate();
   const { currentSnapshot } = useContext(DashboardContext);
   const [criticalIssues, setCriticalIssues] = useState<API.Issue[]>([]);
 
@@ -42,7 +44,8 @@ export const CriticalPanel = () => {
         {criticalIssues.map((issue, idx) => (
           <div
             key={idx}
-            className="p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900/30 transition-all group"
+            onClick={() => navigate(`/page?url=${encodeURIComponent(issue.url)}`)}
+            className="p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900/30 transition-all group cursor-pointer"
           >
             <div className="flex justify-between items-start mb-2">
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">
@@ -56,16 +59,16 @@ export const CriticalPanel = () => {
             </div>
 
             <div className="flex items-center gap-2">
-                {/* TODO: Implement issue details drawer trigger */}
                <button className="flex-1 px-2 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1">
                  Details <ChevronRight size={12} />
                </button>
                <a
-                 href={issue.url} // This might be relative if crawled site is relative, but assuming absolute URLs from DB
+                 href={issue.url} 
                  target="_blank"
                  rel="noopener noreferrer"
                  className="px-2 py-1.5 text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                  title="Open URL"
+                 onClick={(e) => e.stopPropagation()}
                >
                  <ExternalLink size={14} />
                </a>
@@ -84,8 +87,8 @@ export const CriticalPanel = () => {
           Export Critical Issues
         </button>
         <button className="w-full py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2">
-          <Network size={14} />
-          View in Structure Graph
+          <Activity size={14} />
+          View Site Architecture
         </button>
       </div>
     </div>
