@@ -13,7 +13,7 @@ You are an AI agent operating within **Crawlith**, a high-performance, determini
 | **web**     | `packages/web`      | React dashboard: Vite + Tailwind for visual reports and graphs.         |
 | **server**  | `packages/server`   | REST API: Bridges core logic to web/CLI, handles auth and scaling.      |
 | **plugins** | `packages/plugins`  | Modular extensions: PageRank, Soft 404 detection, content clustering.   |
-
+** Follow** `docs/plugins/plugin-guidlines.md` for plugin development.
 ---
 
 ## 2. Core Architecture & Philosophy
