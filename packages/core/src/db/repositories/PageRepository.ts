@@ -238,38 +238,45 @@ export class PageRepository {
     return row?.id;
   }
 
-  reconcileRootUrl(siteId: number, siteOrigin: string): void {
-    const rootAbsolute = `${siteOrigin.replace(/\/+$/, '')}/`;
+  reconcileInternalUrls(siteId: number, siteOrigin: string): void {
+    const origin = siteOrigin.replace(/\/+$/, '');
 
     const tx = this.db.transaction(() => {
-      const rootPathRow = this.db
-        .prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?')
-        .get(siteId, '/') as { id: number } | undefined;
+      const rows = this.db
+        .prepare("SELECT id, normalized_url FROM pages WHERE site_id = ? AND (normalized_url LIKE 'http://%' OR normalized_url LIKE 'https://%')")
+        .all(siteId) as { id: number; normalized_url: string }[];
 
-      if (!rootPathRow) {
-        return;
+      for (const row of rows) {
+        let parsed: URL;
+        try {
+          parsed = new URL(row.normalized_url);
+        } catch {
+          continue;
+        }
+
+        if (parsed.origin !== origin) {
+          continue;
+        }
+
+        const targetPath = `${parsed.pathname}${parsed.search}`;
+        if (targetPath === row.normalized_url) {
+          continue;
+        }
+
+        const existing = this.db
+          .prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?')
+          .get(siteId, targetPath) as { id: number } | undefined;
+
+        if (existing && existing.id !== row.id) {
+          this.db.prepare('UPDATE edges SET source_page_id = ? WHERE source_page_id = ?').run(existing.id, row.id);
+          this.db.prepare('UPDATE edges SET target_page_id = ? WHERE target_page_id = ?').run(existing.id, row.id);
+          this.db.prepare('UPDATE OR IGNORE metrics SET page_id = ? WHERE page_id = ?').run(existing.id, row.id);
+          this.db.prepare('DELETE FROM metrics WHERE page_id = ?').run(row.id);
+          this.db.prepare('DELETE FROM pages WHERE id = ?').run(row.id);
+        } else {
+          this.db.prepare('UPDATE pages SET normalized_url = ? WHERE id = ?').run(targetPath, row.id);
+        }
       }
-
-      const rootAbsoluteRow = this.db
-        .prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?')
-        .get(siteId, rootAbsolute) as { id: number } | undefined;
-
-      if (!rootAbsoluteRow) {
-        this.db.prepare('UPDATE pages SET normalized_url = ? WHERE id = ?').run(rootAbsolute, rootPathRow.id);
-        return;
-      }
-
-      const sourceId = rootPathRow.id;
-      const targetId = rootAbsoluteRow.id;
-
-      this.db.prepare('UPDATE edges SET source_page_id = ? WHERE source_page_id = ?').run(targetId, sourceId);
-      this.db.prepare('UPDATE edges SET target_page_id = ? WHERE target_page_id = ?').run(targetId, sourceId);
-
-      // Move metrics where possible and keep the existing canonical row if a conflict exists.
-      this.db.prepare('UPDATE OR IGNORE metrics SET page_id = ? WHERE page_id = ?').run(targetId, sourceId);
-      this.db.prepare('DELETE FROM metrics WHERE page_id = ?').run(sourceId);
-
-      this.db.prepare('DELETE FROM pages WHERE id = ?').run(sourceId);
     });
 
     tx();

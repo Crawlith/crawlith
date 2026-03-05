@@ -109,33 +109,9 @@ describe('Database Layer', () => {
     expect(page?.retries).toBe(3);
   });
 
-  it('should normalize legacy root path to absolute root URL', () => {
+  it('should normalize legacy absolute root URL to root path', () => {
     const siteId = siteRepo.createSite('example.com');
     const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
-    pageRepo.upsertPage({
-      site_id: siteId,
-      normalized_url: '/',
-      last_seen_snapshot_id: snapshotId,
-      http_status: 200
-    });
-
-    pageRepo.reconcileRootUrl(siteId, 'https://example.com');
-
-    expect(pageRepo.getPage(siteId, '/')).toBeUndefined();
-    const root = pageRepo.getPage(siteId, 'https://example.com/');
-    expect(root).toBeDefined();
-    expect(root?.http_status).toBe(200);
-  });
-
-  it('should merge legacy root path row into canonical absolute root row', () => {
-    const siteId = siteRepo.createSite('example.com');
-    const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
-    pageRepo.upsertPage({
-      site_id: siteId,
-      normalized_url: '/',
-      last_seen_snapshot_id: snapshotId,
-      http_status: 200
-    });
     pageRepo.upsertPage({
       site_id: siteId,
       normalized_url: 'https://example.com/',
@@ -143,8 +119,32 @@ describe('Database Layer', () => {
       http_status: 200
     });
 
-    const legacy = pageRepo.getPage(siteId, '/')!;
-    const canonical = pageRepo.getPage(siteId, 'https://example.com/')!;
+    pageRepo.reconcileInternalUrls(siteId, 'https://example.com');
+
+    const root = pageRepo.getPage(siteId, '/');
+    expect(root).toBeDefined();
+    expect(root?.http_status).toBe(200);
+    expect(pageRepo.getPage(siteId, 'https://example.com/')).toBeUndefined();
+  });
+
+  it('should merge duplicate root rows into canonical root path row', () => {
+    const siteId = siteRepo.createSite('example.com');
+    const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
+    pageRepo.upsertPage({
+      site_id: siteId,
+      normalized_url: 'https://example.com/',
+      last_seen_snapshot_id: snapshotId,
+      http_status: 200
+    });
+    pageRepo.upsertPage({
+      site_id: siteId,
+      normalized_url: '/',
+      last_seen_snapshot_id: snapshotId,
+      http_status: 200
+    });
+
+    const legacy = pageRepo.getPage(siteId, 'https://example.com/')!;
+    const canonical = pageRepo.getPage(siteId, '/')!;
 
     metricsRepo.insertMetrics({
       snapshot_id: snapshotId,
@@ -171,10 +171,10 @@ describe('Database Layer', () => {
 
     edgeRepo.insertEdge(snapshotId, legacy.id, canonical.id, 1.0, 'internal');
 
-    pageRepo.reconcileRootUrl(siteId, 'https://example.com');
+    pageRepo.reconcileInternalUrls(siteId, 'https://example.com');
 
-    expect(pageRepo.getPage(siteId, '/')).toBeUndefined();
-    const merged = pageRepo.getPage(siteId, 'https://example.com/');
+    expect(pageRepo.getPage(siteId, 'https://example.com/')).toBeUndefined();
+    const merged = pageRepo.getPage(siteId, '/');
     expect(merged).toBeDefined();
 
     const metrics = metricsRepo.getMetricsForPage(snapshotId, canonical.id);
