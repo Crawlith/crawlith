@@ -1,11 +1,39 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CLI_PATH = path.resolve(__dirname, '../../packages/cli/dist/index.js');
+const workspaceRoot = path.resolve(__dirname, '../..');
+const require = createRequire(import.meta.url);
+
+/**
+ * Resolve the Crawlith CLI entrypoint.
+ *
+ * @returns Absolute path to CLI JavaScript entrypoint.
+ */
+function resolveCliEntrypoint(): string {
+  try {
+    // Try to resolve from monorepo packages first
+    return require.resolve('../../packages/cli/dist/index.js');
+  } catch {
+    try {
+      // Try to resolve the package itself (works if installed as npm dependency)
+      return require.resolve('@crawlith/cli/dist/index.js');
+    } catch {
+      // Fallback to local paths
+      const localPath = path.resolve(workspaceRoot, 'packages/cli/dist/index.js');
+      if (fs.existsSync(localPath)) return localPath;
+      
+      return path.resolve(workspaceRoot, 'packages/cli/src/index.ts');
+    }
+  }
+}
+
+const CLI_PATH = resolveCliEntrypoint();
 
 /**
  * Execute a Crawlith CLI command in JSON mode.
@@ -18,9 +46,17 @@ async function runCli(
   $: { (strings: TemplateStringsArray, ...values: any[]): Promise<{ text(): Promise<string> }> },
   commandArgs: string
 ): Promise<string> {
-  const command = `node ${CLI_PATH} --format json ${commandArgs}`;
-  const result = await $`sh -c ${command}`;
-  return result.text();
+  const isTs = CLI_PATH.endsWith('.ts');
+  const runner = isTs ? 'npx tsx' : 'node';
+  const command = `${runner} ${CLI_PATH} --format json ${commandArgs}`;
+  
+  try {
+    const result = await $`sh -c ${command}`;
+    return await result.text();
+  } catch (error: any) {
+    const message = error.stderr?.trim() || error.message || 'Unknown CLI error';
+    throw new Error(`Crawlith CLI Error: ${message}`);
+  }
 }
 
 /**
@@ -43,18 +79,21 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }: 
           url: tool.schema.string().describe('Site URL or domain to crawl'),
           limit: tool.schema.number().optional().describe('Maximum number of pages to crawl'),
           depth: tool.schema.number().optional().describe('Maximum click depth'),
-          concurrency: tool.schema.number().optional().describe('Max concurrent requests')
+          concurrency: tool.schema.number().optional().describe('Max concurrent requests'),
+          health: tool.schema.boolean().optional().describe('Run health score analysis'),
+          pagerank: tool.schema.boolean().optional().describe('Compute PageRank scores'),
+          hits: tool.schema.boolean().optional().describe('Compute HITS (Hubs and Authorities) scores')
         },
-        async execute({ url, limit, depth, concurrency }: any) {
-          const flags = [
-            typeof limit === 'number' ? `--limit ${limit}` : '',
-            typeof depth === 'number' ? `--depth ${depth}` : '',
-            typeof concurrency === 'number' ? `--concurrency ${concurrency}` : ''
-          ]
-            .filter(Boolean)
-            .join(' ');
+        async execute({ url, limit, depth, concurrency, health, pagerank, hits }: any) {
+          const args = ['crawl', url];
+          if (typeof limit === 'number') args.push('--limit', String(limit));
+          if (typeof depth === 'number') args.push('--depth', String(depth));
+          if (typeof concurrency === 'number') args.push('--concurrency', String(concurrency));
+          if (health) args.push('--health');
+          if (pagerank) args.push('--compute-pagerank');
+          if (hits) args.push('--compute-hits');
 
-          return runCli($, `crawl ${url} ${flags}`.trim());
+          return runCli($, args.join(' '));
         }
       }),
 
@@ -65,8 +104,9 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }: 
           live: tool.schema.boolean().optional().describe('Run with --live flag')
         },
         async execute({ url, live }: any) {
-          const flags = live ? '--live' : '';
-          return runCli($, `page ${url} ${flags}`.trim());
+          const args = ['page', url];
+          if (live) args.push('--live');
+          return runCli($, args.join(' '));
         }
       }),
 
@@ -77,8 +117,9 @@ export const CrawlithPlugin: Plugin = async ({ project, client, $, directory }: 
           timeout: tool.schema.number().optional().describe('Probe timeout in milliseconds')
         },
         async execute({ url, timeout }: any) {
-          const flags = typeof timeout === 'number' ? `--timeout ${timeout}` : '';
-          return runCli($, `probe ${url} ${flags}`.trim());
+          const args = ['probe', url];
+          if (typeof timeout === 'number') args.push('--timeout', String(timeout));
+          return runCli($, args.join(' '));
         }
       }),
 
