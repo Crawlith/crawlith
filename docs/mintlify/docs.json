@@ -10,10 +10,24 @@
       ]
     },
     {
+      "group": "Commands",
+      "pages": [
+        "commands/crawl",
+        "commands/page",
+        "commands/probe",
+        "commands/sites",
+        "commands/ui",
+        "commands/export",
+        "commands/clean",
+        "commands/config"
+      ]
+    },
+    {
       "group": "Concepts",
       "pages": [
         "concepts/health-score",
         "concepts/pagerank",
+        "concepts/hits",
         "concepts/orphans",
         "concepts/clustering",
         "concepts/database"
@@ -22,7 +36,6 @@
     {
       "group": "Features",
       "pages": [
-        "features/feature-flags",
         "features/signals-intelligence"
       ]
     },

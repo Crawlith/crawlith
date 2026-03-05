@@ -113,11 +113,10 @@ async function runCliCommand(commandArgs: string[]): Promise<unknown> {
       return trimmed;
     }
   } catch (error: any) {
-    // Handle execution failure (non-zero exit code)
-    const message = error.stderr?.trim() || error.message || 'Unknown CLI error';
-    throw new Error(`Crawlith CLI Error: ${message}`);
-  }
-}
+  // Handle execution failure (non-zero exit code)
+  const message = error.stderr?.trim() || error.message || 'Unknown CLI error';
+  throw new Error(`Crawlith CLI Error: ${message}`, { cause: error });
+  }}
 
 /**
  * Convert unknown CLI results into MCP text content.

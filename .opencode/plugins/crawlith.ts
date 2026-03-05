@@ -55,7 +55,7 @@ async function runCli(
     return await result.text();
   } catch (error: any) {
     const message = error.stderr?.trim() || error.message || 'Unknown CLI error';
-    throw new Error(`Crawlith CLI Error: ${message}`);
+    throw new Error(`Crawlith CLI Error: ${message}`, { cause: error });
   }
 }
 

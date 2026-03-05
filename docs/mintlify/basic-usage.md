@@ -1,57 +1,49 @@
 # Basic Usage
 
-Crawlith's primary command is `crawl`, but it offers several other tools to manage your site's data.
+Crawlith is designed around a set of specialized commands. This page gives you a high-level overview of what each command does.
 
-## `crawl` — Build a Link Graph
+## Primary Commands
 
-The `crawl` command discovers pages on your site and builds a topological map of how they link together.
-
+### [crawl](/commands/crawl) — Build a Link Graph
+The core command for discovering pages and building a topological map of your site.
 ```bash
 crawlith crawl https://example.com
 ```
 
-By default, this will:
-*   Crawl up to **500 pages**.
-*   Explore to a depth of **5 clicks**.
-*   Process up to **2 concurrent requests**.
-*   Save results to the `./crawlith-reports` folder.
-
-## `page` — Single Page Audit
-
-Analyze a single URL in detail without performing a full crawl. This is useful for quickly verifying SEO or accessibility signals.
-
+### [page](/commands/page) — Single Page Audit
+Perform a real-time, deep audit of a specific URL for SEO and accessibility.
 ```bash
-crawlith page https://example.com/blog/hello-world
+crawlith page https://example.com/about
 ```
 
-## `sites` — List Tracked Sites
-
-View all websites and snapshots currently stored in your local [Crawlith database](/concepts/database).
-
-```bash
-crawlith sites
-```
-
-## `ui` — Visual Dashboard
-
-Launch the interactive, web-based dashboard to explore your site graphs.
-
+### [ui](/commands/ui) — Visual Dashboard
+Launch the interactive web dashboard to explore your site graphs.
 ```bash
 crawlith ui example.com
 ```
 
-## `clean` — Manage Storage
+## Management Commands
 
-Remove specific site snapshots or entire project data to free up space.
+### [sites](/commands/sites) — List Projects
+View all tracked websites and their latest crawl summaries.
+```bash
+crawlith sites
+```
 
+### [export](/commands/export) — Data Portability
+Extract raw data from the database into JSON or CSV formats.
+```bash
+crawlith export example.com
+```
+
+### [clean](/commands/clean) — Manage Storage
+Remove old snapshots or entire projects from your local database.
 ```bash
 crawlith clean example.com
 ```
 
-## `export` — Data Portability
-
-Export raw data from the latest completed crawl for use in third-party analysis tools.
-
+### [config](/commands/config) — Secure Settings
+Manage API keys and other encrypted configuration values.
 ```bash
-crawlith export example.com --format json
+crawlith config pagespeed set YOUR_KEY
 ```
