@@ -1,5 +1,35 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`analyze command executes with all flags correctly matched in snapshot 1`] = `
+{
+  "accessibility": true,
+  "clusterThreshold": 15,
+  "clustering": true,
+  "computeHits": true,
+  "computePagerank": true,
+  "content": true,
+  "debug": true,
+  "failOnCritical": true,
+  "heading": true,
+  "health": true,
+  "includeSoftOrphans": true,
+  "live": true,
+  "maxBytes": 1000000,
+  "maxRedirects": 10,
+  "minClusterSize": 5,
+  "minInbound": 3,
+  "orphanSeverity": "high",
+  "orphans": true,
+  "proxyUrl": "http://proxy.com",
+  "rate": 1.5,
+  "scoreBreakdown": true,
+  "seo": true,
+  "sitemap": "https://example.com/sitemap.xml",
+  "url": "https://example.com/test",
+  "userAgent": "CustomBot/1.0",
+}
+`;
+
 exports[`analyze command help information matches snapshot (flags) 1`] = `
 "Usage: page [options] [url]
 
@@ -44,6 +74,45 @@ Options:
   --compare [files...]          Compare snapshots
   -h, --help                    display help for command
 "
+`;
+
+exports[`crawl command executes with all flags correctly matched in snapshot 1`] = `
+{
+  "allowedDomains": [
+    "example.com",
+    "api.example.com",
+  ],
+  "clusterThreshold": 15,
+  "clustering": true,
+  "computeHits": true,
+  "computePagerank": true,
+  "concurrency": 5,
+  "debug": true,
+  "deniedDomains": [
+    "ads.example.com",
+  ],
+  "depth": 3,
+  "failOnCritical": true,
+  "heading": true,
+  "health": true,
+  "ignoreRobots": true,
+  "includeSoftOrphans": true,
+  "includeSubdomains": true,
+  "limit": 10,
+  "maxBytes": 1000000,
+  "maxRedirects": 10,
+  "minClusterSize": 5,
+  "minInbound": 3,
+  "orphanSeverity": true,
+  "orphans": true,
+  "proxyUrl": "http://proxy.com",
+  "rate": 1.5,
+  "scoreBreakdown": true,
+  "sitemap": "https://example.com/sitemap_index.xml",
+  "stripQuery": true,
+  "url": "https://example.com",
+  "userAgent": "CustomBot/1.0",
+}
 `;
 
 exports[`crawl command help information matches snapshot (flags) 1`] = `
