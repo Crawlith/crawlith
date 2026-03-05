@@ -14,11 +14,37 @@ A computed data file containing high-level summaries, [Health Scores](/concepts/
 
 ### `crawl.html` (Interactive)
 The primary visual report. It features a D3.js interactive link graph where node size represents [PageRank authority](/concepts/pagerank) and color indicates [Health Score](/concepts/health-score).
-*   **Generate with**: `crawlith crawl <url> --visualize`
+*   **Generate with**:
+<CodeGroup>
+```bash npx
+npx crawlith crawl <url> --visualize
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl <url> --visualize
+```
+
+```bash bun
+bunx crawlith crawl <url> --visualize
+```
+</CodeGroup>
 
 ### `summary.md` (Markdown)
 A concise text-based audit summary. Perfect for adding to GitHub PR comments or as part of a project README.
-*   **Generate with**: `crawlith crawl <url> --markdown`
+*   **Generate with**:
+<CodeGroup>
+```bash npx
+npx crawlith crawl <url> --markdown
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl <url> --markdown
+```
+
+```bash bun
+bunx crawlith crawl <url> --markdown
+```
+</CodeGroup>
 
 ### `graph.html` (Static)
 A lightweight HTML report for environments where interactive visualization isn't required.
@@ -27,7 +53,20 @@ A lightweight HTML report for environments where interactive visualization isn't
 
 ### `nodes.csv` and `edges.csv`
 Tabular data exports. Ideal for importing into Excel, Google Sheets, or graph analysis software like Gephi.
-*   **Generate with**: `crawlith crawl <url> --csv`
+*   **Generate with**:
+<CodeGroup>
+```bash npx
+npx crawlith crawl <url> --csv
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl <url> --csv
+```
+
+```bash bun
+bunx crawlith crawl <url> --csv
+```
+</CodeGroup>
 
 ### `crawlith-export-*.json`
 A single-file data bundle produced by the `crawlith export` command. This is the recommended format for machine-to-machine integrations.

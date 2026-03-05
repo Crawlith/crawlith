@@ -14,13 +14,54 @@ If you see an "Invalid URL" error, ensure your URL includes the protocol (`http:
 If requests are timing out, your server may be slow or you may be sending too many parallel requests.
 
 *   **Fix**: Reduce concurrency with `--concurrency 1`.
+<CodeGroup>
+```bash npx
+npx crawlith crawl https://example.com --concurrency 1
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl https://example.com --concurrency 1
+```
+
+```bash bun
+bunx crawlith crawl https://example.com --concurrency 1
+```
+</CodeGroup>
+
 *   **Fix**: Increase the request timeout with `--timeout 30000` (value in milliseconds).
+<CodeGroup>
+```bash npx
+npx crawlith crawl https://example.com --timeout 30000
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl https://example.com --timeout 30000
+```
+
+```bash bun
+bunx crawlith crawl https://example.com --timeout 30000
+```
+</CodeGroup>
 
 ## Empty Crawl Result
 
 If Crawlith finishes but says 0 pages were discovered:
 
 *   **Check `robots.txt`**: Ensure the bot isn't being blocked. You can verify by running with `--ignore-robots`.
+<CodeGroup>
+```bash npx
+npx crawlith crawl https://example.com --ignore-robots
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl https://example.com --ignore-robots
+```
+
+```bash bun
+bunx crawlith crawl https://example.com --ignore-robots
+```
+</CodeGroup>
+
 *   **Check Authentication**: If your site requires a login or has a firewall (like Cloudflare), Crawlith may be getting blocked.
 *   **Check Homepage Links**: Ensure your homepage has crawlable `<a>` tags. JS-based navigation is not currently supported.
 
@@ -43,4 +84,18 @@ If Crawlith cannot write to your home directory:
 If Crawlith is consuming too much RAM during a crawl:
 
 *   **Fix**: Decrease the page limit with `--limit 1000`.
+<CodeGroup>
+```bash npx
+npx crawlith crawl https://example.com --limit 1000
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl https://example.com --limit 1000
+```
+
+```bash bun
+bunx crawlith crawl https://example.com --limit 1000
+```
+</CodeGroup>
+
 *   **Fix**: Disable heavy analysis features like `--clustering` or `--compute-pagerank`.

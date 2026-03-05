@@ -21,12 +21,32 @@ Identifying structural clusters helps you spot:
 
 Enable clustering analysis with the `--clustering` flag:
 
-```bash
-crawlith crawl https://example.com --clustering
+<CodeGroup>
+```bash npx
+npx crawlith crawl https://example.com --clustering
 ```
 
-You can adjust the similarity threshold using `--cluster-threshold`:
-```bash
-crawlith crawl https://example.com --clustering --cluster-threshold 10
+```bash pnpm
+pnpm dlx crawlith crawl https://example.com --clustering
 ```
+
+```bash bun
+bunx crawlith crawl https://example.com --clustering
+```
+</CodeGroup>
+
+You can adjust the similarity threshold using `--cluster-threshold`:
+<CodeGroup>
+```bash npx
+npx crawlith crawl https://example.com --clustering --cluster-threshold 10
+```
+
+```bash pnpm
+pnpm dlx crawlith crawl https://example.com --clustering --cluster-threshold 10
+```
+
+```bash bun
+bunx crawlith crawl https://example.com --clustering --cluster-threshold 10
+```
+</CodeGroup>
 *(Lower numbers require more exact layout matches; higher numbers are more inclusive.)*
