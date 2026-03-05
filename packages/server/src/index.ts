@@ -39,15 +39,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // Verify initial context
     const defaultSite = siteRepo.getSiteById(siteId);
     if (!defaultSite) {
-      console.error(chalk.red(`❌ Site ID ${siteId} not found.`));
-      process.exit(1);
+      return reject(new Error(`Site ID ${siteId} not found.`));
     }
 
     // Check if snapshot exists
     const initialSnapshot = snapshotRepo.getSnapshot(snapshotId);
     if (!initialSnapshot) {
-      console.error(chalk.red(`❌ Snapshot ID ${snapshotId} not found.`));
-      process.exit(1);
+      return reject(new Error(`Snapshot ID ${snapshotId} not found.`));
     }
 
     console.log(chalk.gray(`   Loaded Context: ${defaultSite.domain} (Snapshot #${snapshotId})`));
@@ -1101,12 +1099,16 @@ export function startServer(options: ServerOptions): Promise<void> {
       }
     });
 
+    let shuttingDown = false;
     const shutdown = () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       console.log(chalk.yellow('\nShutting down server...'));
-      closeDb();
       server.close(() => {
+        closeDb();
         console.log(chalk.green('Server stopped.'));
-        process.exit(0);
+        process.off('SIGINT', shutdown);
+        process.off('SIGTERM', shutdown);
       });
     };
 
