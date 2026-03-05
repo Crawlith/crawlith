@@ -1,0 +1,169 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`analyze command executes with all flags correctly matched in snapshot 1`] = `
+{
+  "accessibility": true,
+  "clusterThreshold": 15,
+  "clustering": true,
+  "computeHits": true,
+  "computePagerank": true,
+  "content": true,
+  "debug": true,
+  "failOnCritical": true,
+  "heading": true,
+  "health": true,
+  "includeSoftOrphans": true,
+  "live": true,
+  "maxBytes": 1000000,
+  "maxRedirects": 10,
+  "minClusterSize": 5,
+  "minInbound": 3,
+  "orphanSeverity": "high",
+  "orphans": true,
+  "proxyUrl": "http://proxy.com",
+  "rate": 1.5,
+  "scoreBreakdown": true,
+  "seo": true,
+  "sitemap": "https://example.com/sitemap.xml",
+  "url": "https://example.com/test",
+  "userAgent": "CustomBot/1.0",
+}
+`;
+
+exports[`analyze command help information matches snapshot (flags) 1`] = `
+"Usage: page [options] [url]
+
+Analyze a single URL for on-page SEO signals and content structure.
+
+Arguments:
+  url                           URL to analyze
+
+Options:
+  --live                        Perform a live crawl before analysis
+  --log-level <level>           Log level (normal, verbose, debug) (choices:
+                                "normal", "verbose", "debug", default:
+                                "normal")
+  --seo                         Show only SEO module output
+  --content                     Show only content module output
+  --accessibility               Show only accessibility module output
+  --proxy <url>                 proxy URL to use for requests
+  --ua <string>                 user agent string to use
+  --rate <number>               requests per second limit
+  --max-bytes <number>          maximum bytes to download per page
+  --max-redirects <number>      maximum redirects to follow
+  --clustering                  Enable content clustering analysis
+  --cluster-threshold <number>  Hamming distance for content clusters (default:
+                                "10")
+  --min-cluster-size <number>   Minimum pages per cluster (default: "3")
+  --sitemap [url]               sitemap URL (defaults to /sitemap.xml if not
+                                specified)
+  --heading                     Analyze heading structure and hierarchy health
+  --health                      Run health score analysis
+  --fail-on-critical            Exit code 1 if critical issues exist
+  --score-breakdown             Print health score component weights
+  --pagerank                    Calculate PageRank
+  --hits                        Compute Hub and Authority scores (HITS)
+  --orphans                     Detect orphaned pages
+  --orphan-severity <value>     Severity for orphans (low/medium/high)
+  --include-soft-orphans        Include soft orphans in detection
+  --min-inbound <value>         Minimum inbound links to not be an orphan
+                                (default: "2")
+  --export <formats>            Export formats
+  --output <path>               Output path
+  --format <type>               Format type
+  --compare [files...]          Compare snapshots
+  -h, --help                    display help for command
+"
+`;
+
+exports[`crawl command executes with all flags correctly matched in snapshot 1`] = `
+{
+  "allowedDomains": [
+    "example.com",
+    "api.example.com",
+  ],
+  "clusterThreshold": 15,
+  "clustering": true,
+  "computeHits": true,
+  "computePagerank": true,
+  "concurrency": 5,
+  "debug": true,
+  "deniedDomains": [
+    "ads.example.com",
+  ],
+  "depth": 3,
+  "failOnCritical": true,
+  "heading": true,
+  "health": true,
+  "ignoreRobots": true,
+  "includeSoftOrphans": true,
+  "includeSubdomains": true,
+  "limit": 10,
+  "maxBytes": 1000000,
+  "maxRedirects": 10,
+  "minClusterSize": 5,
+  "minInbound": 3,
+  "orphanSeverity": true,
+  "orphans": true,
+  "proxyUrl": "http://proxy.com",
+  "rate": 1.5,
+  "scoreBreakdown": true,
+  "sitemap": "https://example.com/sitemap_index.xml",
+  "stripQuery": true,
+  "url": "https://example.com",
+  "userAgent": "CustomBot/1.0",
+}
+`;
+
+exports[`crawl command help information matches snapshot (flags) 1`] = `
+"Usage: crawl [options] [url]
+
+Crawl an entire website and build its internal link graph, metrics, and SEO
+structure.
+
+Arguments:
+  url                           URL to crawl
+
+Options:
+  -l, --limit <number>          max pages (default: "500")
+  -d, --depth <number>          max click depth (default: "5")
+  -c, --concurrency <number>    max concurrent requests (default: "2")
+  --no-query                    strip query params
+  --sitemap [url]               sitemap URL (defaults to /sitemap.xml if not
+                                specified)
+  --log-level [level]           Log level (normal, verbose, debug) (choices:
+                                "normal", "verbose", "debug", default:
+                                "normal")
+  --force                       force run (override existing lock)
+  --allow <domains>             comma separated list of domains to allow
+  --deny <domains>              comma separated list of domains to deny
+  --include-subdomains          include subdomains in the default scope
+  --ignore-robots               ignore robots.txt directives
+  --proxy <url>                 proxy URL to use for requests
+  --ua <string>                 user agent string to use
+  --rate <number>               requests per second limit
+  --max-bytes <number>          maximum bytes to download per page
+  --max-redirects <number>      maximum redirects to follow
+  --clustering                  Enable content clustering analysis
+  --cluster-threshold <number>  Hamming distance for content clusters (default:
+                                "10")
+  --min-cluster-size <number>   Minimum pages per cluster (default: "3")
+  --heading                     Analyze heading structure and hierarchy health
+  --health                      Run health score analysis
+  --fail-on-critical            Exit code 1 if critical issues exist
+  --score-breakdown             Print health score component weights
+  --compute-hits                Compute Hub and Authority scores (HITS)
+  --compute-pagerank            Compute PageRank centrality scores
+  --orphans                     Detect orphaned pages
+  --orphan-severity             Enable severity scoring for orphans
+  --include-soft-orphans        Include pages with very few in-links as soft
+                                orphans
+  --min-inbound <number>        Minimum inbound links to not be an orphan
+                                (default: "2")
+  --export <formats>            Export formats
+  --output <path>               Output path
+  --format <type>               Format type
+  --compare [files...]          Compare snapshots
+  -h, --help                    display help for command
+"
+`;
