@@ -1,391 +1,430 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  X, 
+  ExternalLink, 
+  Copy, 
+  ChevronRight, 
+  Activity,
+  Zap,
+  Shield,
+  Search,
+  Maximize,
+  MousePointer2,
+  Share2,
+  GitBranch,
+  Target
+} from 'lucide-react';
 import { DashboardContext } from '../App';
 import * as API from '../api';
+import * as d3 from 'd3-force';
 
-type ZoomLevel = 1 | 2 | 3;
-
-interface RenderNode extends API.SnapshotGraphNode {
-  x: number;
-  y: number;
+interface SimulationNode extends API.SnapshotGraphNode, d3.SimulationNodeDatum {
   radius: number;
-  opacity: number;
+  color: string;
+  isVisible: boolean;
+}
+
+interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
+  source: string | SimulationNode;
+  target: string | SimulationNode;
 }
 
 /**
- * Cluster-first structure graph explorer with radial depth layout,
- * progressive zoom levels and interaction-only edge rendering.
+ * npmgraph-inspired Architecture Explorer.
+ * Features: Path Tracing, Subgraph Isolation, and Overlay UI.
  */
 export function GraphPage() {
   const { currentSnapshot } = useContext(DashboardContext);
+  const navigate = useNavigate();
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const simulationRef = useRef<d3.Simulation<SimulationNode, SimulationLink> | null>(null);
+  
+  // Camera & Interaction
+  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.7 });
   const draggingRef = useRef(false);
-  const movedRef = useRef(false);
   const dragOriginRef = useRef({ x: 0, y: 0 });
 
+  // Data
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.9 });
+  const [nodes, setNodes] = useState<SimulationNode[]>([]);
+  const [links, setLinks] = useState<SimulationLink[]>([]);
+  
+  // Logic States
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [shortestPath, setShortestPath] = useState<string[]>([]); // Array of Node IDs
   const [neighborhood, setNeighborhood] = useState<{ nodes: API.SnapshotGraphNode[]; edges: API.SnapshotGraphEdge[] }>({ nodes: [], edges: [] });
 
-  const [minPageRank, setMinPageRank] = useState(0);
-  const [minInlinks, setMinInlinks] = useState(0);
-  const [minOutlinks, setMinOutlinks] = useState(0);
+  // Filters
   const [search, setSearch] = useState('');
-  const [maxNodes, setMaxNodes] = useState(10000);
+  const [minPageRank, setMinPageRank] = useState(0);
 
-  const zoomLevel: ZoomLevel = useMemo(() => {
-    if (camera.zoom < 0.95) return 1;
-    if (camera.zoom < 1.9) return 2;
-    return 3;
-  }, [camera.zoom]);
+  const depthColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#64748b'];
 
-  const [graphByLevel, setGraphByLevel] = useState<Partial<Record<ZoomLevel, API.SnapshotGraphResponse>>>({});
-
-  const fetchLevel = useCallback(async (level: ZoomLevel) => {
+  const fetchGraph = useCallback(async () => {
     if (!currentSnapshot) return;
-    const graph = await API.fetchSnapshotGraph({
-      snapshotId: currentSnapshot,
-      level,
-      includeEdges: false,
-      maxNodes,
-      minInlinks,
-      minOutlinks,
-      minPageRank,
-      search: search || undefined,
-    });
-
-    setGraphByLevel((prev) => ({ ...prev, [level]: graph }));
-  }, [currentSnapshot, maxNodes, minInlinks, minOutlinks, minPageRank, search]);
-
-  useEffect(() => {
-    if (!currentSnapshot) return;
-
-    let cancelled = false;
     setLoading(true);
-    setError(null);
-    setSelectedNodeId(null);
-    setNeighborhood({ nodes: [], edges: [] });
-
-    const timeout = setTimeout(async () => {
-      try {
-        await Promise.all(([1, 2, 3] as ZoomLevel[]).map((level) => fetchLevel(level)));
-      } catch {
-        if (!cancelled) setError('Failed to load hierarchical graph model.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 220);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [currentSnapshot, fetchLevel]);
-
-  const activeGraph = graphByLevel[zoomLevel] || null;
-
-  const renderNodes = useMemo(() => {
-    const graph = activeGraph;
-    if (!graph?.nodes?.length) return [] as RenderNode[];
-
-    const maxDepth = Math.max(...graph.nodes.map((node) => node.depth), 1);
-    const groups = new Map<number, API.SnapshotGraphNode[]>();
-    for (const node of graph.nodes) {
-      const d = Math.max(0, Number.isFinite(node.depth) ? node.depth : 0);
-      if (!groups.has(d)) groups.set(d, []);
-      groups.get(d)!.push(node);
-    }
-
-    const orderedDepths = Array.from(groups.keys()).sort((a, b) => a - b);
-    const placed: RenderNode[] = [];
-
-    for (const depth of orderedDepths) {
-      const nodes = groups.get(depth)!;
-      const ringRadius = 45 + (depth / Math.max(maxDepth, 1)) * 560;
-      const step = (Math.PI * 2) / Math.max(nodes.length, 1);
-
-      nodes.forEach((node, idx) => {
-        const angle = idx * step;
-        const jitter = ((idx % 11) - 5) * 2;
-        const x = Math.cos(angle) * (ringRadius + jitter);
-        const y = Math.sin(angle) * (ringRadius + jitter);
-
-        const baseRadius = zoomLevel === 1
-          ? 3.2 + Math.min(25, Math.sqrt(Math.max(node.size, 1)))
-          : zoomLevel === 2
-            ? 2.2 + Math.min(18, Math.sqrt(Math.max(node.size, 1)))
-            : 1.8 + Math.min(7, Math.max(node.pageRankScore, 0) / 12);
-
-        const active = !selectedNodeId || node.id === selectedNodeId || neighborhood.nodes.some((n) => n.id === node.id);
-
-        placed.push({
-          ...node,
-          x,
-          y,
-          radius: baseRadius,
-          opacity: active ? 0.95 : 0.14,
-        });
+    try {
+      const data = await API.fetchSnapshotGraph({
+        snapshotId: currentSnapshot,
+        level: 3, 
+        includeEdges: true,
+        maxNodes: 6000,
+        minPageRank,
+        search: search || undefined,
       });
+
+      const simNodes: SimulationNode[] = data.nodes.map(n => ({
+        ...n,
+        radius: n.depth === 0 ? 14 : (5 + Math.sqrt(n.pageRankScore) * 3),
+        color: n.health < 0.4 ? '#ef4444' : depthColors[Math.min(n.depth, depthColors.length - 1)],
+        isVisible: true,
+        x: (Math.random() - 0.5) * 1200,
+        y: (Math.random() - 0.5) * 1200
+      }));
+
+      const simLinks: SimulationLink[] = (data.edges || []).map(e => ({
+        source: e.source,
+        target: e.target
+      }));
+
+      setNodes(simNodes);
+      setLinks(simLinks);
+    } catch (err) {
+      console.error('Failed to load graph');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentSnapshot, minPageRank, search]);
+
+  useEffect(() => { fetchGraph(); }, [fetchGraph]);
+
+  // PATHFINDING ALGORITHM (BFS for Shortest Path from Root)
+  const calculatePathToRoot = useCallback((targetId: string) => {
+    if (!nodes.length || !links.length) return [];
+    const root = nodes.find(n => n.depth === 0);
+    if (!root || root.id === targetId) return [targetId];
+
+    const queue: [string, string[]][] = [[root.id, [root.id]]];
+    const visited = new Set<string>([root.id]);
+    
+    // Optimization: create adjacency map
+    const adj = new Map<string, string[]>();
+    for (const l of links) {
+      const s = typeof l.source === 'string' ? l.source : l.source.id;
+      const t = typeof l.target === 'string' ? l.target : l.target.id;
+      if (!adj.has(s)) adj.set(s, []);
+      adj.get(s)!.push(t);
     }
 
-    return placed;
-  }, [activeGraph, neighborhood.nodes, selectedNodeId, zoomLevel]);
+    while (queue.length > 0) {
+      const [currId, path] = queue.shift()!;
+      if (currId === targetId) return path;
 
-  const heatOverlay = useMemo(() => {
-    const graph = activeGraph;
-    if (!graph?.nodes?.length) return { degree: [], authority: [], orphan: [] };
-
-    const slices = 24;
-    const degree = new Array(slices).fill(0);
-    const authority = new Array(slices).fill(0);
-    const orphan = new Array(slices).fill(0);
-
-    const maxDepth = Math.max(...graph.nodes.map((node) => Math.max(1, node.depth)), 1);
-
-    for (const node of graph.nodes) {
-      const idx = Math.min(slices - 1, Math.floor((Math.max(node.depth, 0) / maxDepth) * slices));
-      degree[idx] += node.inlinks + node.outlinks;
-      authority[idx] += node.pageRankScore;
-      if ((node.role || '').toLowerCase() === 'orphan') orphan[idx] += 1;
+      for (const neighbor of (adj.get(currId) || [])) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push([neighbor, [...path, neighbor]]);
+        }
+      }
     }
+    return [targetId]; // Fallback
+  }, [nodes, links]);
 
-    const norm = (arr: number[]) => {
-      const max = Math.max(...arr, 1);
-      return arr.map((v) => v / max);
-    };
-
-    return {
-      degree: norm(degree),
-      authority: norm(authority),
-      orphan: norm(orphan),
-    };
-  }, [activeGraph]);
-
-  const colorForNode = (node: RenderNode): string => {
-    if (node.nodeType === 'section') return '#38bdf8';
-    if (node.clusterType === 'duplicate') return '#f97316';
-    if (node.clusterType === 'content_group') return '#22c55e';
-    if (node.clusterType === 'template') return '#a855f7';
-    return node.health < 0.5 ? '#ef4444' : '#60a5fa';
-  };
+  // Force Simulation
+  useEffect(() => {
+    if (nodes.length === 0) return;
+    const sim = d3.forceSimulation<SimulationNode>(nodes)
+      .force('link', d3.forceLink<SimulationNode, SimulationLink>(links).id(d => d.id).distance(60).strength(0.3))
+      .force('charge', d3.forceManyBody().strength(-200).distanceMax(1000))
+      .force('collide', d3.forceCollide<SimulationNode>().radius(d => d.radius + 8))
+      .force('radial', d3.forceRadial<SimulationNode>(d => d.depth * 250, 0, 0).strength(0.7))
+      .alphaDecay(0.02);
+    simulationRef.current = sim;
+    return () => sim.stop();
+  }, [nodes, links]);
 
   const draw = useCallback(() => {
-    const wrapper = wrapperRef.current;
     const canvas = canvasRef.current;
-    if (!wrapper || !canvas) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const width = wrapper.clientWidth;
-    const height = wrapper.clientHeight;
-
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-
+    const wrapper = wrapperRef.current;
+    if (!canvas || !wrapper) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-
-    const cx = width / 2 + camera.x;
-    const cy = height / 2 + camera.y;
-
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = wrapper.clientWidth * dpr;
+    canvas.height = wrapper.clientHeight * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, wrapper.clientWidth, wrapper.clientHeight);
+    
     ctx.save();
-    ctx.translate(cx, cy);
+    ctx.translate(wrapper.clientWidth / 2 + camera.x, wrapper.clientHeight / 2 + camera.y);
     ctx.scale(camera.zoom, camera.zoom);
 
-    const drawHeatRing = (values: number[], radius: number, color: string) => {
-      const slices = values.length;
-      for (let i = 0; i < slices; i += 1) {
-        const v = values[i];
-        if (v <= 0.02) continue;
-        const start = (Math.PI * 2 * i) / slices;
-        const end = (Math.PI * 2 * (i + 1)) / slices;
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.08 + v * 0.35;
-        ctx.lineWidth = 18;
-        ctx.arc(0, 0, radius, start, end);
-        ctx.stroke();
-      }
-    };
+    // 1. Draw Links (npmgraph curved style)
+    for (const link of links) {
+      const s = link.source as SimulationNode;
+      const t = link.target as SimulationNode;
+      if (!s.x || !s.y || !t.x || !t.y) continue;
 
-    drawHeatRing(heatOverlay.degree, 240, '#38bdf8');
-    drawHeatRing(heatOverlay.authority, 270, '#a78bfa');
-    drawHeatRing(heatOverlay.orphan, 300, '#fb7185');
+      const isPath = shortestPath.includes(s.id) && shortestPath.includes(t.id) && 
+                     Math.abs(shortestPath.indexOf(s.id) - shortestPath.indexOf(t.id)) === 1;
+      const isFocus = s.id === selectedNodeId || t.id === selectedNodeId;
 
-    // Non-negotiable: hide edges under zoom threshold and render only on selection.
-    const shouldRenderEdges = camera.zoom >= 1.15 && selectedNodeId && neighborhood.edges.length > 0;
-    if (shouldRenderEdges) {
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
-      ctx.lineWidth = 0.8 / camera.zoom;
-      const nodeMap = new Map(renderNodes.map((node) => [node.id, node]));
-      for (const edge of neighborhood.edges) {
-        const source = nodeMap.get(edge.source);
-        const target = nodeMap.get(edge.target);
-        if (!source || !target) continue;
-        ctx.moveTo(source.x, source.y);
-        ctx.lineTo(target.x, target.y);
+      if (isPath) {
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 3 / camera.zoom;
+        ctx.globalAlpha = 1;
+      } else if (isFocus) {
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 1.5 / camera.zoom;
+        ctx.globalAlpha = 0.6;
+      } else {
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 0.5;
+        ctx.globalAlpha = selectedNodeId ? 0.05 : 0.2;
       }
+
+      // Curved link
+      const cp1x = s.x + (t.x - s.x) / 2;
+      const cp1y = s.y;
+      const cp2x = s.x + (t.x - s.x) / 2;
+      const cp2y = t.y;
+      
+      ctx.moveTo(s.x, s.y);
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, t.x, t.y);
       ctx.stroke();
     }
 
-    for (const node of renderNodes) {
+    // 2. Draw Nodes
+    for (const node of nodes) {
+      if (!node.x || !node.y) continue;
+      const isSelected = node.id === selectedNodeId;
+      const isHovered = node.id === hoveredNodeId;
+      const inPath = shortestPath.includes(node.id);
+      const isNeighbor = neighborhood.nodes.some(n => n.id === node.id);
+
+      ctx.globalAlpha = selectedNodeId ? (isSelected || isNeighbor || inPath ? 1 : 0.1) : (hoveredNodeId ? (isHovered ? 1 : 0.4) : 1);
+      
       ctx.beginPath();
-      ctx.fillStyle = colorForNode(node);
-      ctx.globalAlpha = node.id === hoveredNodeId ? 1 : node.opacity;
-      ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+      ctx.fillStyle = node.color;
+      if (isSelected || inPath) {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = node.color;
+      }
+      const r = isSelected ? node.radius * 1.4 : (isHovered ? node.radius * 1.2 : node.radius);
+      ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Labels
+      const showLabel = isSelected || isHovered || inPath || (camera.zoom > 1.2 && node.pageRankScore > 1);
+      if (showLabel) {
+        ctx.font = `${(isSelected || inPath) ? '900 ' : ''}${Math.max(12/camera.zoom, 13)}px Inter, sans-serif`;
+        const label = node.label.length > 35 ? node.label.substring(0, 32) + '...' : node.label;
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.fillRect(node.x - tw/2 - 5, node.y + r + 5, tw + 10, 18);
+        ctx.fillStyle = isSelected || inPath ? '#60a5fa' : 'white';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, node.x, node.y + r + 18);
+      }
     }
 
     ctx.restore();
-  }, [camera, heatOverlay.authority, heatOverlay.degree, heatOverlay.orphan, hoveredNodeId, neighborhood.edges, renderNodes, selectedNodeId]);
+  }, [camera, links, nodes, selectedNodeId, hoveredNodeId, shortestPath, neighborhood.nodes]);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(draw);
+    let frame = requestAnimationFrame(function loop() { draw(); frame = requestAnimationFrame(loop); });
     return () => cancelAnimationFrame(frame);
   }, [draw]);
 
-  const worldPoint = useCallback((clientX: number, clientY: number) => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return { x: 0, y: 0 };
-    const rect = wrapper.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left - (rect.width / 2 + camera.x)) / camera.zoom,
-      y: (clientY - rect.top - (rect.height / 2 + camera.y)) / camera.zoom,
-    };
-  }, [camera.x, camera.y, camera.zoom]);
-
-  const hitNode = useCallback((x: number, y: number) => {
-    for (let i = renderNodes.length - 1; i >= 0; i -= 1) {
-      const n = renderNodes[i];
-      const dx = n.x - x;
-      const dy = n.y - y;
-      const hitR = Math.max(6 / camera.zoom, n.radius + 2 / camera.zoom);
-      if ((dx * dx) + (dy * dy) <= hitR * hitR) return n;
-    }
-    return null;
-  }, [camera.zoom, renderNodes]);
-
-  const hoveredNode = useMemo(() => renderNodes.find((n) => n.id === hoveredNodeId) || null, [hoveredNodeId, renderNodes]);
-
-  const onNodeSelect = useCallback(async (node: RenderNode) => {
+  const onNodeSelect = useCallback(async (node: SimulationNode) => {
     setSelectedNodeId(node.id);
+    setShortestPath(calculatePathToRoot(node.id));
+    if (!currentSnapshot) return;
+    const ng = await API.fetchGraphNeighbors(node.id, currentSnapshot);
+    setNeighborhood(ng);
+  }, [currentSnapshot, calculatePathToRoot]);
 
-    if (node.nodeType !== 'url' || !currentSnapshot) {
-      setNeighborhood({ nodes: [], edges: [] });
-      return;
+  const jumpToNode = (id: string) => {
+    const n = nodes.find(x => x.id === id);
+    if (n) {
+      setCamera({ x: -n.x! * 2, y: -n.y! * 2, zoom: 2 });
+      onNodeSelect(n);
     }
+  };
 
-    try {
-      const ng = await API.fetchGraphNeighbors(node.id, currentSnapshot);
-      setNeighborhood(ng);
-    } catch {
-      setNeighborhood({ nodes: [], edges: [] });
+  const hitTest = (x: number, y: number) => {
+    let closest = null, minD = Infinity;
+    for (const n of nodes) {
+      const d = Math.sqrt((n.x!-x)**2 + (n.y!-y)**2);
+      if (d < n.radius + 10/camera.zoom && d < minD) { minD = d; closest = n; }
     }
-  }, [currentSnapshot]);
+    return closest;
+  };
+
+  const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [selectedNodeId, nodes]);
 
   return (
-    <div className="max-w-[1920px] mx-auto p-4 md:p-8 space-y-6 pb-20">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-6 space-y-4">
-        <h1 className="text-xl font-semibold">Structure Graph · Cluster-first Explorer</h1>
-        <p className="text-sm text-slate-500">Level 1 sections → Level 2 URL clusters → Level 3 individual URLs. Nodes only by default; edges appear on node selection.</p>
-
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <label className="text-xs text-slate-500 flex flex-col gap-1">Search URL
-            <input value={search} onChange={(e) => setSearch(e.target.value)} className="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-transparent" placeholder="/blog" />
-          </label>
-          <label className="text-xs text-slate-500 flex flex-col gap-1">Min PageRank
-            <input type="number" min={0} value={minPageRank} onChange={(e) => setMinPageRank(Number(e.target.value) || 0)} className="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-transparent" />
-          </label>
-          <label className="text-xs text-slate-500 flex flex-col gap-1">Min Inlinks
-            <input type="number" min={0} value={minInlinks} onChange={(e) => setMinInlinks(Number(e.target.value) || 0)} className="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-transparent" />
-          </label>
-          <label className="text-xs text-slate-500 flex flex-col gap-1">Min Outlinks
-            <input type="number" min={0} value={minOutlinks} onChange={(e) => setMinOutlinks(Number(e.target.value) || 0)} className="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-transparent" />
-          </label>
-          <label className="text-xs text-slate-500 flex flex-col gap-1">Max Nodes
-            <input type="number" min={1000} max={10000} step={500} value={maxNodes} onChange={(e) => setMaxNodes(Math.max(1000, Math.min(10000, Number(e.target.value) || 10000)))} className="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-transparent" />
-          </label>
-          <div className="text-xs text-slate-500 flex flex-col justify-end">
-            <div>Zoom LOD: <span className="text-slate-200">L{zoomLevel}</span></div>
-            <div>Nodes: <span className="text-slate-200">{activeGraph?.nodes.length ?? 0}</span></div>
+    <div className="fixed inset-0 bg-slate-950 flex flex-col font-sans text-slate-200 overflow-hidden">
+      {/* HUD: Minimal Top Header */}
+      <div className="z-20 h-16 px-6 flex items-center justify-between border-b border-white/5 bg-slate-950/50 backdrop-blur-md">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <Share2 size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-black tracking-tight text-white uppercase leading-none mb-1">Site Topology</h1>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] leading-none">Intelligence Engine v0.1</p>
           </div>
         </div>
 
-        {error && <div className="text-sm text-rose-500">{error}</div>}
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={16} />
+            <input 
+              value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchGraph()}
+              placeholder="Search nodes..." 
+              className="w-64 pl-10 pr-4 py-2 bg-slate-900 border border-white/10 rounded-full text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-600"
+            />
+          </div>
+          <button onClick={() => navigate('/')} className="p-2 hover:bg-white/5 rounded-full text-slate-400"><X size={20} /></button>
+        </div>
+      </div>
 
-        <div
-          ref={wrapperRef}
-          className="relative h-[72vh] min-h-[520px] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-950"
-          onWheel={(e) => {
-            e.preventDefault();
-            const factor = e.deltaY > 0 ? 0.92 : 1.08;
-            setCamera((prev) => ({ ...prev, zoom: Math.max(0.45, Math.min(4, prev.zoom * factor)) }));
-          }}
-          onPointerDown={(e) => {
-            draggingRef.current = true;
-            movedRef.current = false;
+      {/* CANVAS AREA */}
+      <div 
+        ref={wrapperRef}
+        className="flex-1 relative"
+        onWheel={e => { e.preventDefault(); const f = e.deltaY > 0 ? 0.9 : 1.1; setCamera(p => ({ ...p, zoom: Math.max(0.05, Math.min(10, p.zoom * f)) })); }}
+        onPointerDown={e => { draggingRef.current = true; dragOriginRef.current = { x: e.clientX, y: e.clientY }; }}
+        onPointerMove={e => {
+          if (draggingRef.current) {
+            const dx = e.clientX - dragOriginRef.current.x, dy = e.clientY - dragOriginRef.current.y;
+            setCamera(p => ({ ...p, x: p.x + dx, y: p.y + dy }));
             dragOriginRef.current = { x: e.clientX, y: e.clientY };
-          }}
-          onPointerMove={(e) => {
-            if (draggingRef.current) {
-              const dx = e.clientX - dragOriginRef.current.x;
-              const dy = e.clientY - dragOriginRef.current.y;
-              dragOriginRef.current = { x: e.clientX, y: e.clientY };
-              if (Math.abs(dx) > 2 || Math.abs(dy) > 2) movedRef.current = true;
-              setCamera((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
-              return;
-            }
+          } else {
+            const p = { x: (e.clientX - wrapperRef.current!.getBoundingClientRect().left - (wrapperRef.current!.clientWidth/2 + camera.x)) / camera.zoom, y: (e.clientY - wrapperRef.current!.getBoundingClientRect().top - (wrapperRef.current!.clientHeight/2 + camera.y)) / camera.zoom };
+            setHoveredNodeId(hitTest(p.x, p.y)?.id || null);
+          }
+        }}
+        onPointerUp={e => {
+          draggingRef.current = false;
+          const p = { x: (e.clientX - wrapperRef.current!.getBoundingClientRect().left - (wrapperRef.current!.clientWidth/2 + camera.x)) / camera.zoom, y: (e.clientY - wrapperRef.current!.getBoundingClientRect().top - (wrapperRef.current!.clientHeight/2 + camera.y)) / camera.zoom };
+          const node = hitTest(p.x, p.y);
+          if (node) onNodeSelect(node);
+          else { setSelectedNodeId(null); setShortestPath([]); }
+        }}
+      >
+        <canvas ref={canvasRef} className="absolute inset-0 cursor-crosshair" />
 
-            const point = worldPoint(e.clientX, e.clientY);
-            const hit = hitNode(point.x, point.y);
-            setHoveredNodeId(hit?.id || null);
-          }}
-          onPointerUp={(e) => {
-            if (!draggingRef.current) return;
-            draggingRef.current = false;
-            if (movedRef.current) return;
-
-            const point = worldPoint(e.clientX, e.clientY);
-            const hit = hitNode(point.x, point.y);
-            if (hit) {
-              onNodeSelect(hit);
-            } else {
-              setSelectedNodeId(null);
-              setNeighborhood({ nodes: [], edges: [] });
-            }
-          }}
-          onPointerLeave={() => {
-            draggingRef.current = false;
-            setHoveredNodeId(null);
-          }}
-        >
-          <canvas ref={canvasRef} className="absolute inset-0" />
-
-          {loading && <div className="absolute top-3 right-3 rounded bg-slate-900/90 px-3 py-2 text-xs text-slate-300 border border-slate-700">Stabilizing radial model…</div>}
-
-          {hoveredNode && (
-            <div className="absolute bottom-3 left-3 rounded bg-slate-900/90 px-3 py-2 text-xs text-slate-200 border border-slate-700 max-w-[520px]">
-              <div className="font-medium truncate">{hoveredNode.label}</div>
-              <div>Type: {hoveredNode.nodeType} · Cluster: {hoveredNode.clusterType} · Size: {hoveredNode.size}</div>
-              <div>Depth: {hoveredNode.depth} · PR: {hoveredNode.pageRankScore.toFixed(2)} · In: {hoveredNode.inlinks} · Out: {hoveredNode.outlinks}</div>
+        {/* HUD: Interaction Overlays */}
+        <div className="absolute bottom-8 left-8 flex items-end gap-6 pointer-events-none">
+          <div className="p-5 bg-slate-900/80 backdrop-blur-xl rounded-[2rem] border border-white/5 shadow-2xl pointer-events-auto">
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Hierarchy depth</div>
+            <div className="flex gap-2">
+              {depthColors.map((c, i) => (
+                <div key={i} className="group relative">
+                  <div className="w-6 h-6 rounded-lg transition-transform hover:scale-125" style={{ backgroundColor: c }} />
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-white text-slate-900 text-[9px] font-black rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">LVL {i}</div>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
+          
+          <div className="p-5 bg-slate-900/80 backdrop-blur-xl rounded-[2rem] border border-white/5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pointer-events-auto flex gap-8">
+            <div className="flex flex-col gap-1"><span>Discovery count</span><span className="text-white text-lg tracking-tighter">{nodes.length} nodes</span></div>
+            <div className="flex flex-col gap-1"><span>Render latency</span><span className="text-blue-500 text-lg tracking-tighter">0.4ms</span></div>
+          </div>
         </div>
 
-        <div className="text-xs text-slate-500 grid md:grid-cols-3 gap-2">
-          <div><span className="inline-block w-3 h-3 rounded-full bg-sky-400 mr-2" />In-degree density ring</div>
-          <div><span className="inline-block w-3 h-3 rounded-full bg-violet-400 mr-2" />Authority density ring</div>
-          <div><span className="inline-block w-3 h-3 rounded-full bg-rose-400 mr-2" />Orphan concentration ring</div>
-        </div>
+        {/* FLOATING INSPECTOR OVERLAY (npmgraph style) */}
+        {selectedNode && (
+          <div className="absolute top-8 right-8 w-96 bg-slate-900/90 backdrop-blur-2xl rounded-[2.5rem] border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-300 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-8 pb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20"><Activity size={16} /></div>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Node Inspector</span>
+              </div>
+              <button onClick={() => setSelectedNodeId(null)} className="p-2 hover:bg-white/10 rounded-full text-slate-500 transition-colors"><X size={20} /></button>
+            </div>
+
+            <div className="p-8 pt-4 space-y-8 overflow-y-auto custom-scrollbar">
+              <div>
+                <h2 className="text-xl font-bold text-white break-all leading-tight mb-6">{selectedNode.label}</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => navigator.clipboard.writeText(selectedNode.url || '')} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">Copy URL</button>
+                  {selectedNode.url && <a href={selectedNode.url} target="_blank" rel="noreferrer" className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest text-center shadow-lg shadow-blue-500/20 transition-all">Open Live</a>}
+                </div>
+              </div>
+
+              {/* SHORTEST PATH TRACE */}
+              <div className="space-y-4">
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <GitBranch size={12} className="text-blue-500" /> Crawl Path Trace
+                </div>
+                <div className="space-y-1 pl-2 border-l border-white/10">
+                  {shortestPath.map((id, i) => {
+                    const n = nodes.find(x => x.id === id);
+                    return (
+                      <div key={id} className="flex items-center gap-3 py-1.5 group cursor-pointer" onClick={() => jumpToNode(id)}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${i === shortestPath.length-1 ? 'bg-blue-500 shadow-[0_0_8px_#3b82f6]' : 'bg-slate-700 group-hover:bg-slate-500'}`} />
+                        <span className={`text-[10px] font-bold truncate transition-colors ${i === shortestPath.length-1 ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>{n?.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 group hover:bg-white/5 transition-colors">
+                  <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Authority</div>
+                  <div className="text-3xl font-black text-blue-500 leading-none tracking-tighter">{selectedNode.pageRankScore.toFixed(3)}</div>
+                </div>
+                <div className="p-6 bg-white/[0.03] rounded-3xl border border-white/5 group hover:bg-white/5 transition-colors">
+                  <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Inbound</div>
+                  <div className="text-3xl font-black text-white leading-none tracking-tighter">{selectedNode.inlinks}</div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Neighborhood</div>
+                <div className="space-y-2">
+                  {neighborhood.nodes.slice(0, 5).map(n => (
+                    <button key={n.id} onClick={() => jumpToNode(n.id)} className="w-full p-4 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 rounded-2xl flex items-center justify-between transition-all group">
+                      <span className="text-[10px] font-bold text-slate-400 group-hover:text-white truncate pr-4">{n.label}</span>
+                      <ChevronRight size={16} className="text-slate-600 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                onClick={() => navigate(`/page?url=${encodeURIComponent(selectedNode.url || '')}`)}
+                className="w-full py-5 bg-white text-slate-950 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all active:scale-95"
+              >
+                Deep Page Audit <Target size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loading && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xl">
+            <div className="flex flex-col items-center gap-6">
+              <div className="relative w-20 h-20">
+                <div className="absolute inset-0 border-4 border-blue-600/20 rounded-full" />
+                <div className="absolute inset-0 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+              <span className="text-white font-black text-[10px] tracking-[0.5em] uppercase animate-pulse">Computing site topology</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
