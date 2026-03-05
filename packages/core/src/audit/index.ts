@@ -31,7 +31,7 @@ export async function auditUrl(urlStr: string, options: AuditOptions = {}): Prom
   // DNS errors might return partial results but usually if transport works, DNS worked (unless transport used IP)
 
   const dnsPromise = resolveDns(url.hostname);
-  const transportPromise = analyzeTransport(urlStr, timeout);
+  const transportPromise = analyzeTransport(urlStr, timeout, options.userAgent);
 
   const [dnsResult, transportResult] = await Promise.all([
     dnsPromise,

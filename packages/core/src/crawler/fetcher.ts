@@ -45,7 +45,7 @@ export interface FetchOptions {
 }
 
 export class Fetcher {
-  private userAgent: string = DEFAULTS.USER_AGENT;
+  public userAgent: string = DEFAULTS.USER_AGENT;
   private rateLimiter: RateLimiter;
   private proxyAdapter: ProxyAdapter;
   private secureDispatcher: Dispatcher;

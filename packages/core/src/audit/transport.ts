@@ -5,6 +5,7 @@ import { URL } from 'node:url';
 import { IPGuard } from '../core/security/ipGuard.js';
 import { TransportDiagnostics, PerformanceMetrics, CertificateInfo, RedirectInfo, AuditIssue } from './types.js';
 import { IncomingMessage } from 'node:http';
+import { DEFAULTS } from '../constants.js';
 
 interface RequestResult {
   url: string;
@@ -21,7 +22,7 @@ interface RequestResult {
   redirectUrl: string | null;
 }
 
-export async function analyzeTransport(targetUrl: string, timeout: number): Promise<{
+export async function analyzeTransport(targetUrl: string, timeout: number, userAgent?: string): Promise<{
   transport: TransportDiagnostics;
   performance: PerformanceMetrics;
   issues: AuditIssue[];
@@ -43,7 +44,7 @@ export async function analyzeTransport(targetUrl: string, timeout: number): Prom
     }
 
     try {
-      const result = await executeRequest(currentUrl, timeout);
+      const result = await executeRequest(currentUrl, timeout, userAgent);
 
       if (result.redirectUrl) {
         redirectCount++;
@@ -154,7 +155,7 @@ export async function analyzeTransport(targetUrl: string, timeout: number): Prom
   throw new Error(`Too many redirects (limit: ${maxRedirects})`);
 }
 
-function executeRequest(urlStr: string, timeout: number): Promise<RequestResult> {
+function executeRequest(urlStr: string, timeout: number, userAgent?: string): Promise<RequestResult> {
   return new Promise((resolve, reject) => {
     let url: URL;
     try {
@@ -187,7 +188,7 @@ function executeRequest(urlStr: string, timeout: number): Promise<RequestResult>
       rejectUnauthorized: false,
       agent: false,
       headers: {
-        'User-Agent': 'Crawlith/Audit',
+        'User-Agent': userAgent || DEFAULTS.USER_AGENT,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br'
       }
