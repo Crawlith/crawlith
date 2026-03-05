@@ -1,5 +1,5 @@
-import { Moon, Sun, Clock, ChevronDown, Menu, ArrowLeft } from 'lucide-react';
-import { useEffect, useState, useContext } from 'react';
+import { Moon, Sun, Clock, ChevronDown, Menu, ArrowLeft, Search } from 'lucide-react';
+import { useEffect, useState, useContext, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DashboardContext } from '../App';
 
@@ -15,6 +15,7 @@ export const Header = ({ toggleSidebar, showCompare: _showCompare, setShowCompar
   const navigate = useNavigate();
   const isDashboard = location.pathname === '/';
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [urlSearch, setUrlSearch] = useState('');
 
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -38,6 +39,27 @@ export const Header = ({ toggleSidebar, showCompare: _showCompare, setShowCompar
   };
 
   const currentSnapshotData = snapshots.find(s => s.id === currentSnapshot);
+  const baseQuery = new URLSearchParams(location.search);
+
+  const handleUrlSearch = (e: FormEvent) => {
+    e.preventDefault();
+    const raw = urlSearch.trim();
+    if (!raw) return;
+
+    let target = raw;
+    try {
+      const u = new URL(raw);
+      target = `${u.pathname}${u.search}`;
+    } catch {
+      // Keep raw path/domain if not absolute
+    }
+
+    const params = new URLSearchParams(baseQuery.toString());
+    params.set('url', target);
+    params.delete('pageSnapshot');
+    navigate({ pathname: '/page', search: `?${params.toString()}` });
+    setUrlSearch('');
+  };
 
   return (
     <header className="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 fixed top-0 right-0 left-0 md:left-64 z-50 transition-all duration-300">
@@ -85,6 +107,18 @@ export const Header = ({ toggleSidebar, showCompare: _showCompare, setShowCompar
 
       {/* Right Section: Actions & Settings */}
       <div className="flex items-center gap-3 md:gap-4">
+        <form onSubmit={handleUrlSearch} className="hidden xl:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5">
+          <Search size={14} className="text-slate-400" />
+          <input
+            value={urlSearch}
+            onChange={(e) => setUrlSearch(e.target.value)}
+            placeholder="Paste URL or path..."
+            className="bg-transparent text-xs text-slate-700 dark:text-slate-200 placeholder:text-slate-400 outline-none w-52"
+          />
+          <button type="submit" className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+            Go
+          </button>
+        </form>
 
         {/* Snapshot Selector (Dashboard Only) */}
         {isDashboard && (

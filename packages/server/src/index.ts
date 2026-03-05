@@ -37,8 +37,8 @@ export function startServer(options: ServerOptions): Promise<void> {
     const API_PREFIX = '/api';
 
     // Verify initial context
-    const site = siteRepo.getSiteById(siteId);
-    if (!site) {
+    const defaultSite = siteRepo.getSiteById(siteId);
+    if (!defaultSite) {
       console.error(chalk.red(`❌ Site ID ${siteId} not found.`));
       process.exit(1);
     }
@@ -50,14 +50,21 @@ export function startServer(options: ServerOptions): Promise<void> {
       process.exit(1);
     }
 
-    console.log(chalk.gray(`   Loaded Context: ${site.domain} (Snapshot #${snapshotId})`));
+    console.log(chalk.gray(`   Loaded Context: ${defaultSite.domain} (Snapshot #${snapshotId})`));
 
-    const siteOrigin = UrlUtil.resolveSiteOrigin(site);
     const pageLookupStmt = db.prepare('SELECT id, normalized_url, depth, bytes_received, http_status, redirect_chain FROM pages WHERE site_id = ? AND normalized_url = ?');
-    const resolvePage = (inputUrl: string) => {
-      const candidates = UrlUtil.toLookupCandidates(inputUrl, siteOrigin);
+    const resolveRequestedSite = (req: express.Request) => {
+      const selector = String(req.query.siteId || req.query.site || '').trim();
+      if (!selector) return defaultSite;
+      if (/^\d+$/.test(selector)) {
+        return siteRepo.getSiteById(parseInt(selector, 10));
+      }
+      return siteRepo.getSite(UrlUtil.extractDomain(selector));
+    };
+    const resolvePage = (selectedSiteId: number, selectedSiteOrigin: string, inputUrl: string) => {
+      const candidates = UrlUtil.toLookupCandidates(inputUrl, selectedSiteOrigin);
       for (const candidate of candidates) {
-        const row = pageLookupStmt.get(siteId, candidate) as any;
+        const row = pageLookupStmt.get(selectedSiteId, candidate) as any;
         if (row) return row;
       }
       return null;
@@ -69,14 +76,25 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // Middleware to validate snapshotId query param
     const validateSnapshot = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      const snapId = req.query.snapshot ? parseInt(req.query.snapshot as string, 10) : snapshotId;
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) {
+        return res.status(404).json({ error: 'Site not found' });
+      }
+
+      const defaultFull = snapshotRepo.getLatestSnapshot(selectedSite.id, 'completed', false);
+      const defaultAny = snapshotRepo.getLatestSnapshot(selectedSite.id, 'completed', true);
+      const fallbackSnapshotId = defaultFull?.id || defaultAny?.id || snapshotId;
+      const snapId = req.query.snapshot ? parseInt(req.query.snapshot as string, 10) : fallbackSnapshotId;
 
       // Basic validation: ensure snapshot belongs to site
       const snap = snapshotRepo.getSnapshot(snapId);
-      if (!snap || snap.site_id !== siteId) {
+      if (!snap || snap.site_id !== selectedSite.id) {
         return res.status(404).json({ error: 'Snapshot not found or does not belong to this site' });
       }
 
+      (req as any).siteId = selectedSite.id;
+      (req as any).site = selectedSite;
+      (req as any).siteOrigin = UrlUtil.resolveSiteOrigin(selectedSite);
       (req as any).snapshotId = snapId;
       (req as any).snapshot = snap;
       next();
@@ -127,18 +145,32 @@ export function startServer(options: ServerOptions): Promise<void> {
     // Apply general rate limit to all API routes
     api.use(rateLimiter);
 
+    api.get('/sites', (_req, res) => {
+      const sites = siteRepo.getAllSites().map((s) => {
+        const latestFull = snapshotRepo.getLatestSnapshot(s.id, 'completed', false);
+        return {
+          id: s.id,
+          domain: s.domain,
+          latestSnapshotId: latestFull?.id ?? null
+        };
+      });
+      res.json({ results: sites });
+    });
+
     // 4.1 GET /api/context
     api.get('/context', (req, res) => {
-      const latestFullSnapshot = snapshotRepo.getLatestSnapshot(siteId as number, 'completed', false);
-      const latestSnapshot = snapshotRepo.getLatestSnapshot(siteId as number, 'completed', true);
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
+      const latestFullSnapshot = snapshotRepo.getLatestSnapshot(selectedSite.id, 'completed', false);
+      const latestSnapshot = snapshotRepo.getLatestSnapshot(selectedSite.id, 'completed', true);
 
       res.json({
-        siteId,
+        siteId: selectedSite.id,
         snapshotId: latestFullSnapshot?.id || latestSnapshot?.id || snapshotId,
         latestSnapshotId: latestFullSnapshot?.id || latestSnapshot?.id || snapshotId,
         latestAnySnapshotId: latestSnapshot?.id || snapshotId,
-        domain: site.domain,
-        createdAt: site.created_at
+        domain: selectedSite.domain,
+        createdAt: selectedSite.created_at
       });
     });
 
@@ -146,6 +178,8 @@ export function startServer(options: ServerOptions): Promise<void> {
     api.get('/overview', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
       const snap = (req as any).snapshot as Snapshot;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
 
       // Get previous snapshot for comparison
       const previousSnapshot = db.prepare(`
@@ -154,7 +188,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         WHERE site_id = ? AND id < ? AND run_type != 'single'
         ORDER BY id DESC
         LIMIT 1
-      `).get(siteId, currentSnapshotId) as { id: number, health_score: number } | undefined;
+      `).get(currentSiteId, currentSnapshotId) as { id: number, health_score: number } | undefined;
 
       // Aggregates from metrics table
       const metricsAgg = db.prepare(`
@@ -194,7 +228,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         FROM metrics m
         JOIN pages p ON m.page_id = p.id
         WHERE m.snapshot_id = ? AND p.is_internal = 1
-      `).get(siteOrigin, siteOrigin, siteOrigin, currentSnapshotId) as any;
+      `).get(currentSiteOrigin, currentSiteOrigin, currentSiteOrigin, currentSnapshotId) as any;
 
       // Internal links count (sum of all internal edges)
       const linksCount = db.prepare('SELECT COUNT(*) as count FROM edges WHERE snapshot_id = ? AND rel = ?').get(currentSnapshotId, 'internal') as { count: number };
@@ -233,6 +267,9 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     api.get('/issues', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSite = (req as any).site as any;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const severity = req.query.severity as string;
       const search = req.query.search as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
@@ -262,7 +299,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         WHERE p.site_id = ? AND p.is_internal = 1
       `;
 
-      const params: any[] = [currentSnapshotId, siteId];
+      const params: any[] = [currentSnapshotId, currentSiteId];
 
       if (search) {
         sql += ' AND p.normalized_url LIKE ?';
@@ -321,8 +358,8 @@ export function startServer(options: ServerOptions): Promise<void> {
           isProblematic = true;
         } else if (r.canonical_url) {
           const isConflict = r.canonical_url !== r.url &&
-            r.canonical_url !== (siteOrigin + r.url) &&
-            r.canonical_url.replace(/\/$/, '') !== (siteOrigin + r.url).replace(/\/$/, '');
+            r.canonical_url !== (currentSiteOrigin + r.url) &&
+            r.canonical_url.replace(/\/$/, '') !== (currentSiteOrigin + r.url).replace(/\/$/, '');
 
           if (isConflict) {
             issueType = 'Canonical Conflict';
@@ -350,7 +387,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         filtered = allIssues.filter(i => {
           if (!i.isProblematic) return false;
           // Filter out external URLs that aren't errors from the main issues list
-          if (i.url.startsWith('http') && !i.url.includes(site.domain) && i.severity === 'Info') return false;
+          if (i.url.startsWith('http') && !i.url.includes(currentSite.domain) && i.severity === 'Info') return false;
           return true;
         });
       } else if (severity && severity !== 'All') {
@@ -378,7 +415,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         SELECT p.normalized_url as url, m.pagerank_score as pageRank, m.auth_score as authorityScore, m.hub_score as hubScore
         FROM metrics m
         JOIN pages p ON m.page_id = p.id
-        WHERE m.snapshot_id = ?
+        WHERE m.snapshot_id = ? AND p.is_internal = 1
         ORDER BY m.pagerank_score DESC
         LIMIT 10
       `).all(currentSnapshotId);
@@ -420,24 +457,28 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.7 GET /api/snapshots
     api.get('/snapshots', (req, res) => {
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
       const includeSingle = req.query.includeSingle === 'true' || req.query.includeSingle === '1';
       const sql = includeSingle
         ? 'SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC'
         : 'SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? AND run_type != \'single\' ORDER BY created_at DESC';
-      const rows = db.prepare(sql).all(siteId);
+      const rows = db.prepare(sql).all(selectedSite.id);
       res.json({ results: rows });
     });
 
     // 5.1 GET /api/page
     api.get('/page', validateSnapshot, async (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
 
       if (!url) {
         return res.status(400).json({ error: 'URL parameter is required' });
       }
 
-      const urlForAnalysis = UrlUtil.toAbsolute(url, siteOrigin);
+      const urlForAnalysis = UrlUtil.toAbsolute(url, currentSiteOrigin);
 
       try {
         // Use the same PageAnalysisUseCase as the CLI's `page` command
@@ -466,10 +507,10 @@ export function startServer(options: ServerOptions): Promise<void> {
           LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
           WHERE p.site_id = ? AND p.normalized_url = ?
         `);
-        const lookupCandidates = UrlUtil.toLookupCandidates(url, siteOrigin);
+        const lookupCandidates = UrlUtil.toLookupCandidates(url, currentSiteOrigin);
         let dbPage: any = null;
         for (const candidate of lookupCandidates) {
-          dbPage = dbPageQuery.get(targetSnapshotId, siteId, candidate) as any;
+          dbPage = dbPageQuery.get(targetSnapshotId, currentSiteId, candidate) as any;
           if (dbPage) break;
         }
 
@@ -485,13 +526,24 @@ export function startServer(options: ServerOptions): Promise<void> {
             WHERE snapshot_id = ? AND source_page_id = ? AND rel = 'internal'
           `).get(targetSnapshotId, dbPage.id) as { count: number };
 
-          const latestSnapResult = db.prepare(`
-            SELECT MAX(snapshot_id) as maxId FROM metrics WHERE page_id = ?
-          `).get(dbPage.id) as { maxId: number | null };
+          const latestSnapQuery = db.prepare(`
+            SELECT MAX(m.snapshot_id) as maxId
+            FROM metrics m
+            JOIN pages p ON m.page_id = p.id
+            JOIN snapshots s ON s.id = m.snapshot_id
+            WHERE s.site_id = ? AND s.status = 'completed' AND p.normalized_url = ?
+          `);
+          let latestMaxId: number | null = null;
+          for (const candidate of lookupCandidates) {
+            const row = latestSnapQuery.get(currentSiteId, candidate) as { maxId: number | null };
+            if (row?.maxId && (!latestMaxId || row.maxId > latestMaxId)) {
+              latestMaxId = row.maxId;
+            }
+          }
 
           inlinks = inlinksCount.count;
           outlinks = outlinksCount.count;
-          latestSnapshotIdForPage = latestSnapResult.maxId ?? undefined;
+          latestSnapshotIdForPage = latestMaxId ?? undefined;
         }
 
         // Health assessment
@@ -541,14 +593,16 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.2 GET /api/page/inlinks
     api.get('/page/inlinks', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).graphSnapshotId as number;
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
-      const page = resolvePage(url) as { id: number } | null;
+      const page = resolvePage(currentSiteId, currentSiteOrigin, url) as { id: number } | null;
       if (!page) return res.status(404).json({ error: 'Page not found' });
 
       const total = db.prepare(`
@@ -581,14 +635,16 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.3 GET /api/page/outlinks
     api.get('/page/outlinks', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).graphSnapshotId as number;
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
-      const page = resolvePage(url) as { id: number } | null;
+      const page = resolvePage(currentSiteId, currentSiteOrigin, url) as { id: number } | null;
       if (!page) return res.status(404).json({ error: 'Page not found' });
 
       const total = db.prepare(`
@@ -620,11 +676,13 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.4 GET /api/page/cluster
     api.get('/page/cluster', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).graphSnapshotId as number;
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
-      const pageMatch = resolvePage(url);
+      const pageMatch = resolvePage(currentSiteId, currentSiteOrigin, url);
       if (!pageMatch) return res.status(404).json({ error: 'Page not found' });
 
       const page = db.prepare(`
@@ -632,7 +690,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         FROM pages p
         JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
         WHERE p.site_id = ? AND p.id = ?
-      `).get(currentSnapshotId, siteId, pageMatch.id) as any;
+      `).get(currentSnapshotId, currentSiteId, pageMatch.id) as any;
 
       if (!page || !page.duplicate_cluster_id) {
         return res.json({ hasCluster: false });
@@ -661,10 +719,12 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.5 GET /api/page/technical
     api.get('/page/technical', validateSnapshot, (req, res) => {
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
-      const page = resolvePage(url);
+      const page = resolvePage(currentSiteId, currentSiteOrigin, url);
 
       if (!page) return res.status(404).json({ error: 'Page not found' });
 
@@ -681,11 +741,13 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.6 GET /api/page/graph-context
     api.get('/page/graph-context', validateSnapshot, (req, res) => {
-      const currentSnapshotId = (req as any).graphSnapshotId as number;
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
-      const pageMatch = resolvePage(url);
+      const pageMatch = resolvePage(currentSiteId, currentSiteOrigin, url);
       if (!pageMatch) return res.status(404).json({ error: 'Page not found' });
 
       const page = db.prepare(`
@@ -693,7 +755,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         FROM pages p
         LEFT JOIN metrics m ON p.id = m.page_id AND m.snapshot_id = ?
         WHERE p.site_id = ? AND p.id = ?
-      `).get(currentSnapshotId, siteId, pageMatch.id) as any;
+      `).get(currentSnapshotId, currentSiteId, pageMatch.id) as any;
 
       // Get neighbors (depth 1)
       const incoming = db.prepare(`
@@ -726,11 +788,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.7 GET /api/page/plugins
     api.get('/page/plugins', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteId = (req as any).siteId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
 
-      const page = resolvePage(url);
+      const page = resolvePage(currentSiteId, currentSiteOrigin, url);
       if (!page) return res.status(404).json({ error: 'Page not found' });
       const pageId = page.id;
 
@@ -769,9 +833,12 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.8 POST /api/page/crawl (Live crawl of single page)
     api.post('/page/crawl', express.json(), strictRateLimiter, async (req, res) => {
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
+      const selectedSiteOrigin = UrlUtil.resolveSiteOrigin(selectedSite);
       let { url } = req.body;
       if (!url) return res.status(400).json({ error: 'URL is required' });
-      url = UrlUtil.toAbsolute(url, siteOrigin);
+      url = UrlUtil.toAbsolute(url, selectedSiteOrigin);
 
       try {
         console.log(chalk.cyan(`   Live crawl requested: ${url}`));
@@ -810,6 +877,8 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.8 GET /api/history (List of snapshots with key stats)
     api.get('/history', (req, res) => {
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
       const includeSingle = req.query.includeSingle === 'true' || req.query.includeSingle === '1';
       // Fetch snapshots with summary data from the snapshots table.
       // Note: Some stats might be null if not computed, but usually they are present.
@@ -826,12 +895,14 @@ export function startServer(options: ServerOptions): Promise<void> {
         WHERE site_id = ? ${includeSingle ? '' : 'AND run_type != \'single\''}
         ORDER BY created_at DESC
       `;
-      const snapshots = db.prepare(sql).all(siteId);
+      const snapshots = db.prepare(sql).all(selectedSite.id);
       res.json({ results: snapshots });
     });
 
     // 4.9 GET /api/history/trends
     api.get('/history/trends', (req, res) => {
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
       const includeSingle = req.query.includeSingle === 'true' || req.query.includeSingle === '1';
       // Return a time-series list of snapshots with key metrics.
       // We'll need to aggregate metrics if they aren't fully in the snapshots table.
@@ -844,7 +915,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         FROM snapshots
         WHERE site_id = ? ${includeSingle ? '' : 'AND run_type != \'single\''}
         ORDER BY created_at ASC
-      `).all(siteId) as any[];
+      `).all(selectedSite.id) as any[];
 
       // Enrich with broken links count for each snapshot (expensive if many snapshots, but tolerable for < 100)
       // Optimization: One query to group by snapshot_id
@@ -858,7 +929,7 @@ export function startServer(options: ServerOptions): Promise<void> {
            p.security_error IS NOT NULL
         )
         GROUP BY m.snapshot_id
-      `).all(siteId) as any[];
+      `).all(selectedSite.id) as any[];
 
       const brokenMap = new Map(brokenLinksCounts.map(r => [r.snapshot_id, r.count]));
 
@@ -883,6 +954,8 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.10 GET /api/history/compare
     api.get('/history/compare', (req, res) => {
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
       const { snapshotA, snapshotB } = req.query;
 
       if (!snapshotA || !snapshotB) {
@@ -896,7 +969,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       const snapA = snapshotRepo.getSnapshot(idA);
       const snapB = snapshotRepo.getSnapshot(idB);
 
-      if (!snapA || snapA.site_id !== siteId || !snapB || snapB.site_id !== siteId) {
+      if (!snapA || snapA.site_id !== selectedSite.id || !snapB || snapB.site_id !== selectedSite.id) {
         return res.status(404).json({ error: 'Snapshots not found' });
       }
 
@@ -977,15 +1050,17 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 4.11 DELETE /api/history/:id
     api.delete('/history/:id', (req, res) => {
+      const selectedSite = resolveRequestedSite(req);
+      if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
       const id = parseInt(req.params.id, 10);
       const snap = snapshotRepo.getSnapshot(id);
 
-      if (!snap || snap.site_id !== siteId) {
+      if (!snap || snap.site_id !== selectedSite.id) {
         return res.status(404).json({ error: 'Snapshot not found' });
       }
 
       // Check if it's the ONLY snapshot
-      if (snapshotRepo.getSnapshotCount(siteId) <= 1) {
+      if (snapshotRepo.getSnapshotCount(selectedSite.id) <= 1) {
         return res.status(400).json({ error: 'Cannot delete the only snapshot.' });
       }
 

@@ -12,18 +12,38 @@ import { PerformanceTab } from '../components/Tabs/PerformanceTab';
 import { SignalsTab } from '../components/Tabs/SignalsTab';
 
 export const SinglePage = () => {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const url = searchParams.get('url');
-    const { currentSnapshot, setSnapshot } = useContext(DashboardContext);
+    const { currentSnapshot, setSnapshot, snapshots, domain } = useContext(DashboardContext);
 
     const [details, setDetails] = useState<API.PageDetails | null>(null);
     const [loading, setLoading] = useState(true);
     const [isCrawling, setIsCrawling] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('content');
+    const pageSnapshotParam = searchParams.get('pageSnapshot');
+    const pageSnapshotOverride = pageSnapshotParam ? Number(pageSnapshotParam) : null;
+    const effectiveSnapshotId = (pageSnapshotOverride && !Number.isNaN(pageSnapshotOverride))
+        ? pageSnapshotOverride
+        : currentSnapshot;
+
+    const updatePageSnapshotParam = (snapshotId: number | null) => {
+        const next = new URLSearchParams(searchParams);
+        if (snapshotId) next.set('pageSnapshot', String(snapshotId));
+        else next.delete('pageSnapshot');
+        setSearchParams(next, { replace: true });
+    };
+
+    const getFullPageUrl = () => {
+        const raw = details?.identity.url || '';
+        if (!raw) return '';
+        if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+        const path = raw.startsWith('/') ? raw : `/${raw}`;
+        return `https://${domain}${path}`;
+    };
 
     useEffect(() => {
-        if (!url || !currentSnapshot) {
+        if (!url || !effectiveSnapshotId) {
             setLoading(false);
             return;
         }
@@ -31,7 +51,7 @@ export const SinglePage = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const data = await API.fetchPageDetails(url, currentSnapshot);
+                const data = await API.fetchPageDetails(url, effectiveSnapshotId);
                 setDetails(data);
                 setError(null);
             } catch (e: any) {
@@ -43,7 +63,7 @@ export const SinglePage = () => {
 
         fetchData();
         setActiveTab('content');
-    }, [url, currentSnapshot]);
+    }, [url, effectiveSnapshotId]);
 
     const handleLiveCrawl = async () => {
         if (!url) return;
@@ -51,7 +71,8 @@ export const SinglePage = () => {
         try {
             const result = await API.crawlPage(url);
             if (result.success) {
-                setSnapshot(result.snapshotId);
+                // Keep live single snapshots scoped to page view and persistent across refresh.
+                updatePageSnapshotParam(result.snapshotId);
             }
         } catch (e: any) {
             alert(`Live crawl failed: ${e.message}`);
@@ -96,7 +117,7 @@ export const SinglePage = () => {
                         {error ? 'Data Fetch Error' : 'Page Not Found'}
                     </h2>
                     <p className="text-slate-600 dark:text-slate-400 mb-6 font-mono text-sm">
-                        {error || `The URL "${url}" was not found in snapshot #${currentSnapshot}.`}
+                        {error || `The URL "${url}" was not found in snapshot #${effectiveSnapshotId}.`}
                     </p>
                     <div className="text-sm text-slate-500">
                         Suggestion: Try selecting a different snapshot or verifying the URL in the discovery list.
@@ -120,16 +141,20 @@ export const SinglePage = () => {
                                 </span>
                             </div>
                             <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-                                <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 break-all font-mono leading-tight">
-                                    {details.identity.url}
-                                    <button
-                                        onClick={() => navigator.clipboard.writeText(details.identity.url)}
-                                        className="ml-3 inline-flex items-center p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                        title="Copy URL"
-                                    >
-                                        <Copy size={18} />
-                                    </button>
-                                </h1>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-start gap-2">
+                                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 font-mono leading-tight truncate min-w-0" title={details.identity.url}>
+                                            {details.identity.url}
+                                        </h1>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(getFullPageUrl())}
+                                            className="inline-flex items-center p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors flex-shrink-0"
+                                            title="Copy Full URL"
+                                        >
+                                            <Copy size={18} />
+                                        </button>
+                                    </div>
+                                </div>
                                 <button
                                     onClick={handleLiveCrawl}
                                     disabled={isCrawling}
@@ -155,7 +180,16 @@ export const SinglePage = () => {
 
                                 {details.latestSnapshotIdForPage && details.latestSnapshotIdForPage > (details.snapshotId || currentSnapshot || 0) && (
                                     <button
-                                        onClick={() => setSnapshot(details.latestSnapshotIdForPage!)}
+                                        onClick={() => {
+                                            const target = details.latestSnapshotIdForPage!;
+                                            const existsInGlobalSnapshots = snapshots.some((s) => s.id === target);
+                                            if (existsInGlobalSnapshots) {
+                                                setSnapshot(target);
+                                                updatePageSnapshotParam(null);
+                                            } else {
+                                                updatePageSnapshotParam(target);
+                                            }
+                                        }}
                                         className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded border border-amber-200 dark:border-amber-800 transition-colors animate-pulse"
                                         title="Click to view the newer snapshot data for this page"
                                     >
@@ -241,12 +275,12 @@ export const SinglePage = () => {
             {/* Tab Content */}
             <main className="max-w-[1920px] mx-auto px-6 md:px-8 pb-20">
                 {activeTab === 'content' && <ContentTab details={details} />}
-                {activeTab === 'linking' && <LinkingTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
-                {activeTab === 'cluster' && <ClusterTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
-                {activeTab === 'technical' && <TechnicalTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
-                {activeTab === 'graph' && <GraphTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
-                {activeTab === 'performance' && <PerformanceTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
-                {activeTab === 'signals' && <SignalsTab url={url} snapshotId={details.snapshotId || currentSnapshot || 0} />}
+                {activeTab === 'linking' && <LinkingTab url={url} snapshotId={details.snapshotId || effectiveSnapshotId || 0} />}
+                {activeTab === 'cluster' && <ClusterTab url={url} snapshotId={details.snapshotId || effectiveSnapshotId || 0} />}
+                {activeTab === 'technical' && <TechnicalTab url={url} snapshotId={details.snapshotId || effectiveSnapshotId || 0} />}
+                {activeTab === 'graph' && <GraphTab url={url} snapshotId={details.snapshotId || effectiveSnapshotId || 0} />}
+                {activeTab === 'performance' && <PerformanceTab url={url} snapshotId={details.snapshotId || effectiveSnapshotId || 0} />}
+                {activeTab === 'signals' && <SignalsTab url={url} snapshotId={details.snapshotId || effectiveSnapshotId || 0} />}
             </main>
         </div>
     );

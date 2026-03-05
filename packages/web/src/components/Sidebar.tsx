@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Network, FileText, Settings, Layers, ChevronRight, X } from 'lucide-react';
+import { LayoutDashboard, Network, FileText, Settings, Layers, ChevronRight, X, Globe2, ChevronDown, Check } from 'lucide-react';
+import * as API from '../api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -10,13 +11,40 @@ interface SidebarProps {
 export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [sites, setSites] = useState<API.SiteSummary[]>([]);
+  const [siteDropdownOpen, setSiteDropdownOpen] = useState(false);
 
   const currentPath = location.pathname;
+  const currentSearch = new URLSearchParams(location.search);
+  const currentSiteId = currentSearch.get('siteId') || '';
+  const selectedSiteValue = currentSiteId || (sites[0] ? String(sites[0].id) : '');
+  const selectedSite = sites.find((s) => String(s.id) === selectedSiteValue);
 
   const handleNavigation = (path: string) => {
-    navigate(path);
+    navigate({
+      pathname: path,
+      search: currentSearch.toString() ? `?${currentSearch.toString()}` : ''
+    });
     setIsOpen(false);
   };
+
+  const handleSiteSwitch = (nextSiteId: string) => {
+    const next = new URLSearchParams(location.search);
+    if (nextSiteId) next.set('siteId', nextSiteId);
+    else next.delete('siteId');
+    next.delete('snapshot');
+    next.delete('pageSnapshot');
+    const nextUrl = `/${next.toString() ? `?${next.toString()}` : ''}`;
+    window.location.assign(nextUrl);
+    setSiteDropdownOpen(false);
+    setIsOpen(false);
+  };
+
+  useEffect(() => {
+    API.fetchSites()
+      .then((res) => setSites(res.results))
+      .catch((err) => console.error('Failed to load sites', err));
+  }, []);
 
   return (
     <>
@@ -48,6 +76,54 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
           >
             <X size={20} />
           </button>
+        </div>
+
+        <div className="px-4 py-4 border-b border-slate-800">
+          <div className="rounded-xl border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 p-3 relative">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Site Workspace</label>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">{sites.length}</span>
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setSiteDropdownOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 bg-slate-900/80 text-slate-100 border border-slate-600 rounded-lg px-2.5 py-2 text-sm outline-none hover:border-slate-500 transition-colors"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <Globe2 size={14} className="text-slate-400 flex-shrink-0" />
+                  <span className="truncate">{selectedSite?.domain || 'Select site'}</span>
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${siteDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {siteDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 overflow-hidden z-50">
+                  <div className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800">
+                    Available Sites
+                  </div>
+                  <div className="max-h-56 overflow-y-auto">
+                    {sites.map((s) => {
+                      const isActive = String(s.id) === selectedSiteValue;
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => handleSiteSwitch(String(s.id))}
+                          className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between transition-colors ${
+                            isActive
+                              ? 'bg-blue-900/30 text-blue-300'
+                              : 'text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="truncate pr-2">{s.domain}</span>
+                          {isActive && <Check size={13} className="text-blue-300 flex-shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Navigation */}

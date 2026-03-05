@@ -140,6 +140,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   let parsedUrl: URL | null = null;
   try { parsedUrl = new URL(url); } catch { /* bare domain fallback below */ }
 
+  const inputFullUrl = parsedUrl ? parsedUrl.toString() : (url.startsWith('http') ? url : `https://${url}`);
   const inputOrigin = parsedUrl ? `${parsedUrl.protocol}//${parsedUrl.host}` : url;
 
   let rootOrigin = inputOrigin;
@@ -154,14 +155,14 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
     }
   }
 
-  // Normalize the resolved origin
-  const normalizedAbs = normalizeUrl(rootOrigin, '', { stripQuery: false });
-  if (!normalizedAbs) {
+  // Normalize origin and target URL independently.
+  const normalizedOrigin = normalizeUrl(rootOrigin, '', { stripQuery: false });
+  if (!normalizedOrigin) {
     throw new Error('Invalid URL for analysis');
   }
-
-  // normalizedPath: use the input pathname (e.g. '/stats'), falling back to '/' for root
-  const normalizedPath = normalizedAbs;
+  const normalizedTargetAbs = normalizeUrl(inputFullUrl, rootOrigin, { stripQuery: false }) || inputFullUrl;
+  const normalizedPath = normalizeUrl(inputFullUrl, rootOrigin, { stripQuery: false, toPath: true })
+    || UrlUtil.toPath(normalizedTargetAbs, rootOrigin);
 
   const start = Date.now();
   let crawlData: CrawlData;
@@ -191,29 +192,26 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
   // Data Acquisition
   if (options.live) {
-    const fullUrl = parsedUrl ? parsedUrl.toString() : (url.startsWith('http') ? url : `https://${url}`);
-    const normalizedFull = normalizeUrl(fullUrl, rootOrigin, { stripQuery: false }) || fullUrl;
-
     const crawlStart = Date.now();
-    crawlData = await runLiveCrawl(normalizedFull, rootOrigin, options, context, robots);
+    crawlData = await runLiveCrawl(normalizedTargetAbs, rootOrigin, options, context, robots);
     if (context) context.emit({ type: 'info', message: `[analyze] runLiveCrawl took ${Date.now() - crawlStart}ms` });
   } else {
     try {
       const loadStart = Date.now();
-      crawlData = await loadCrawlData(normalizedAbs, options.snapshotId);
+      crawlData = await loadCrawlData(normalizedOrigin, options.snapshotId);
       if (context) context.emit({ type: 'debug', message: `[analyze] loadCrawlData took ${Date.now() - loadStart}ms` });
 
       const allPages = Array.from(crawlData.pages);
       crawlData.pages = allPages;
 
-      const exists = allPages.some(p => p.url === normalizedPath);
+      const exists = allPages.some(p => p.url === normalizedPath || p.url === normalizedTargetAbs);
       if (!exists) {
-        if (context) context.emit({ type: 'info', message: `URL ${normalizedAbs} not found. Fetching live...` });
-        crawlData = await runLiveCrawl(normalizedAbs, rootOrigin, options, context, robots);
+        if (context) context.emit({ type: 'info', message: `URL ${normalizedTargetAbs} not found. Fetching live...` });
+        crawlData = await runLiveCrawl(normalizedTargetAbs, rootOrigin, options, context, robots);
       }
     } catch (_error: any) {
       if (context) context.emit({ type: 'info', message: 'No local crawl data found. Switching to live...' });
-      crawlData = await runLiveCrawl(normalizedAbs, rootOrigin, options, context, robots);
+      crawlData = await runLiveCrawl(normalizedTargetAbs, rootOrigin, options, context, robots);
     }
   }
 
@@ -223,7 +221,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 
 
   const pagesStart = Date.now();
-  const pages = analyzePages(normalizedPath, rootOrigin, crawlData.pages, robots, options);
+  const pages = analyzePages(normalizedTargetAbs, rootOrigin, crawlData.pages, robots, options);
   if (context) context.emit({ type: 'debug', message: `[analyze] analyzePages took ${Date.now() - pagesStart}ms` });
 
   // Sync basic page analysis results back to graph nodes for persistence
@@ -247,7 +245,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   const hasFilters = activeModules.seo || activeModules.content || activeModules.accessibility;
   const filteredPages = hasFilters ? pages.map((page) => filterPageModules(page, activeModules)) : pages;
 
-  const targetPage = filteredPages.find(p => p.url === normalizedPath || p.url === normalizedAbs);
+  const targetPage = filteredPages.find(p => p.url === normalizedPath || p.url === normalizedTargetAbs);
   let resultPages: PageAnalysis[];
 
   if (options.allPages) {
@@ -296,7 +294,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
       severityEnabled: !!options.orphanSeverity,
       includeSoftOrphans: !!options.includeSoftOrphans,
       minInbound: options.minInbound || 2,
-      rootUrl: normalizedAbs
+      rootUrl: normalizedOrigin
     });
   }
 
@@ -414,15 +412,19 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
 }
 
 
-export function analyzePages(targetPath: string, rootOrigin: string, pages: Iterable<CrawlPage> | CrawlPage[], robots?: any, options: AnalyzeOptions = {}): PageAnalysis[] {
+export function analyzePages(targetUrl: string, rootOrigin: string, pages: Iterable<CrawlPage> | CrawlPage[], robots?: any, options: AnalyzeOptions = {}): PageAnalysis[] {
   const titleCounts = new Map<string, number>();
   const metaCounts = new Map<string, number>();
   const sentenceCountFrequency = new Map<number, number>();
 
   const results: PageAnalysis[] = [];
+  const targetPath = UrlUtil.toPath(targetUrl, rootOrigin);
+  const targetAbs = UrlUtil.toAbsolute(targetUrl, rootOrigin);
 
   for (const page of pages) {
-    const isTarget = page.url === targetPath;
+    const pagePath = UrlUtil.toPath(page.url, rootOrigin);
+    const pageAbs = UrlUtil.toAbsolute(page.url, rootOrigin);
+    const isTarget = page.url === targetUrl || pagePath === targetPath || pageAbs === targetAbs;
 
     // In single-page mode, if it's not the target, we skip it entirely for speed.
     if (!options.allPages && !isTarget) continue;

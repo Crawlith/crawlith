@@ -1,5 +1,19 @@
 export const API_PREFIX = '/api';
 
+function getActiveSiteId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('siteId');
+}
+
+function apiUrl(path: string, params?: URLSearchParams): string {
+  const qp = new URLSearchParams(params || undefined);
+  const siteId = getActiveSiteId();
+  if (siteId && !qp.has('siteId')) qp.set('siteId', siteId);
+  const query = qp.toString();
+  return `${API_PREFIX}${path}${query ? `?${query}` : ''}`;
+}
+
 export interface OverviewData {
   health: {
     score: number;
@@ -76,6 +90,12 @@ export interface Snapshot {
   health?: number;
   orphanPages?: number;
   thinContent?: number;
+}
+
+export interface SiteSummary {
+  id: number;
+  domain: string;
+  latestSnapshotId: number | null;
 }
 
 export interface HistoryTrend {
@@ -227,8 +247,9 @@ export interface GraphContext {
 // --- Existing Functions ---
 
 export async function fetchOverview(snapshotId?: number): Promise<OverviewData> {
-  const query = snapshotId ? `?snapshot=${snapshotId}` : '';
-  const res = await fetch(`${API_PREFIX}/overview${query}`);
+  const params = new URLSearchParams();
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+  const res = await fetch(apiUrl('/overview', params));
   if (!res.ok) throw new Error('Failed to fetch overview');
   return res.json();
 }
@@ -240,40 +261,49 @@ export async function fetchIssues(snapshotId?: number, severity?: string, search
   if (search) params.append('search', search);
   params.append('page', page.toString());
 
-  const res = await fetch(`${API_PREFIX}/issues?${params.toString()}`);
+  const res = await fetch(apiUrl('/issues', params));
   if (!res.ok) throw new Error('Failed to fetch issues');
   return res.json();
 }
 
 export async function fetchTopPages(snapshotId?: number): Promise<{ results: TopPage[] }> {
-  const query = snapshotId ? `?snapshot=${snapshotId}` : '';
-  const res = await fetch(`${API_PREFIX}/metrics/top-pagerank${query}`);
+  const params = new URLSearchParams();
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+  const res = await fetch(apiUrl('/metrics/top-pagerank', params));
   if (!res.ok) throw new Error('Failed to fetch top pages');
   return res.json();
 }
 
 export async function fetchDepthDistribution(snapshotId?: number): Promise<{ buckets: MetricBucket[] }> {
-  const query = snapshotId ? `?snapshot=${snapshotId}` : '';
-  const res = await fetch(`${API_PREFIX}/metrics/depth-distribution${query}`);
+  const params = new URLSearchParams();
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+  const res = await fetch(apiUrl('/metrics/depth-distribution', params));
   if (!res.ok) throw new Error('Failed to fetch depth distribution');
   return res.json();
 }
 
 export async function fetchDuplicateClusters(snapshotId?: number): Promise<{ buckets: MetricBucket[] }> {
-  const query = snapshotId ? `?snapshot=${snapshotId}` : '';
-  const res = await fetch(`${API_PREFIX}/metrics/duplicate-clusters${query}`);
+  const params = new URLSearchParams();
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+  const res = await fetch(apiUrl('/metrics/duplicate-clusters', params));
   if (!res.ok) throw new Error('Failed to fetch duplicate clusters');
   return res.json();
 }
 
 export async function fetchSnapshots(): Promise<{ results: Snapshot[] }> {
-  const res = await fetch(`${API_PREFIX}/snapshots`);
+  const res = await fetch(apiUrl('/snapshots'));
   if (!res.ok) throw new Error('Failed to fetch snapshots');
   return res.json();
 }
 
-export async function fetchContext(): Promise<{ siteId: number, snapshotId: number, latestSnapshotId: number, domain: string, createdAt: string }> {
-  const res = await fetch(`${API_PREFIX}/context`);
+export async function fetchSites(): Promise<{ results: SiteSummary[] }> {
+  const res = await fetch(apiUrl('/sites'));
+  if (!res.ok) throw new Error('Failed to fetch sites');
+  return res.json();
+}
+
+export async function fetchContext(): Promise<{ siteId: number, snapshotId: number, latestSnapshotId: number, latestAnySnapshotId: number, domain: string, createdAt: string }> {
+  const res = await fetch(apiUrl('/context'));
   if (!res.ok) throw new Error('Failed to fetch context');
   return res.json();
 }
@@ -286,7 +316,7 @@ export async function fetchPageDetails(url: string, snapshotId?: number): Promis
   params.append('url', url);
   if (snapshotId) params.append('snapshot', snapshotId.toString());
 
-  const res = await fetch(`${API_PREFIX}/page?${params.toString()}`);
+  const res = await fetch(apiUrl('/page', params));
   if (!res.ok) {
     if (res.status === 404) throw new Error('Page not found');
     throw new Error('Failed to fetch page details');
@@ -299,7 +329,7 @@ export async function fetchPagePlugins(url: string, snapshotId?: number): Promis
   params.append('url', url);
   if (snapshotId) params.append('snapshot', snapshotId.toString());
 
-  const res = await fetch(`${API_PREFIX}/page/plugins?${params.toString()}`);
+  const res = await fetch(apiUrl('/page/plugins', params));
   if (!res.ok) throw new Error('Failed to fetch page plugins');
   return res.json();
 }
@@ -310,7 +340,7 @@ export async function fetchPageInlinks(url: string, page: number = 1, snapshotId
   params.append('page', page.toString());
   if (snapshotId) params.append('snapshot', snapshotId.toString());
 
-  const res = await fetch(`${API_PREFIX}/page/inlinks?${params.toString()}`);
+  const res = await fetch(apiUrl('/page/inlinks', params));
   if (!res.ok) throw new Error('Failed to fetch inlinks');
   return res.json();
 }
@@ -321,7 +351,7 @@ export async function fetchPageOutlinks(url: string, page: number = 1, snapshotI
   params.append('page', page.toString());
   if (snapshotId) params.append('snapshot', snapshotId.toString());
 
-  const res = await fetch(`${API_PREFIX}/page/outlinks?${params.toString()}`);
+  const res = await fetch(apiUrl('/page/outlinks', params));
   if (!res.ok) throw new Error('Failed to fetch outlinks');
   return res.json();
 }
@@ -331,7 +361,7 @@ export async function fetchPageCluster(url: string, snapshotId?: number): Promis
   params.append('url', url);
   if (snapshotId) params.append('snapshot', snapshotId.toString());
 
-  const res = await fetch(`${API_PREFIX}/page/cluster?${params.toString()}`);
+  const res = await fetch(apiUrl('/page/cluster', params));
   if (!res.ok) throw new Error('Failed to fetch cluster info');
   return res.json();
 }
@@ -341,7 +371,7 @@ export async function fetchPageTechnical(url: string, snapshotId?: number): Prom
   params.append('url', url);
   if (snapshotId) params.append('snapshot', snapshotId.toString());
 
-  const res = await fetch(`${API_PREFIX}/page/technical?${params.toString()}`);
+  const res = await fetch(apiUrl('/page/technical', params));
   if (!res.ok) throw new Error('Failed to fetch technical signals');
   return res.json();
 }
@@ -351,31 +381,34 @@ export async function fetchPageGraphContext(url: string, snapshotId?: number): P
   params.append('url', url);
   if (snapshotId) params.append('snapshot', snapshotId.toString());
 
-  const res = await fetch(`${API_PREFIX}/page/graph-context?${params.toString()}`);
+  const res = await fetch(apiUrl('/page/graph-context', params));
   if (!res.ok) throw new Error('Failed to fetch graph context');
   return res.json();
 }
 
 export async function fetchHistory(): Promise<{ results: Snapshot[] }> {
-  const res = await fetch(`${API_PREFIX}/history`);
+  const res = await fetch(apiUrl('/history'));
   if (!res.ok) throw new Error('Failed to fetch history');
   return res.json();
 }
 
 export async function fetchHistoryTrends(): Promise<{ results: HistoryTrend[] }> {
-  const res = await fetch(`${API_PREFIX}/history/trends`);
+  const res = await fetch(apiUrl('/history/trends'));
   if (!res.ok) throw new Error('Failed to fetch history trends');
   return res.json();
 }
 
 export async function fetchSnapshotComparison(snapshotA: number, snapshotB: number): Promise<SnapshotComparison> {
-  const res = await fetch(`${API_PREFIX}/history/compare?snapshotA=${snapshotA}&snapshotB=${snapshotB}`);
+  const params = new URLSearchParams();
+  params.append('snapshotA', String(snapshotA));
+  params.append('snapshotB', String(snapshotB));
+  const res = await fetch(apiUrl('/history/compare', params));
   if (!res.ok) throw new Error('Failed to fetch snapshot comparison');
   return res.json();
 }
 
 export async function deleteSnapshot(id: number): Promise<void> {
-  const res = await fetch(`${API_PREFIX}/history/${id}`, { method: 'DELETE' });
+  const res = await fetch(apiUrl(`/history/${id}`), { method: 'DELETE' });
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || 'Failed to delete snapshot');
@@ -383,7 +416,7 @@ export async function deleteSnapshot(id: number): Promise<void> {
 }
 
 export async function crawlPage(url: string): Promise<{ success: boolean, snapshotId: number, message: string }> {
-  const res = await fetch(`${API_PREFIX}/page/crawl`, {
+  const res = await fetch(apiUrl('/page/crawl'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url })

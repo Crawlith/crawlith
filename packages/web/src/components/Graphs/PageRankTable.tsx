@@ -4,6 +4,7 @@ import { ExternalLink, TrendingUp } from 'lucide-react';
 import { DashboardContext } from '../../App';
 import * as API from '../../api';
 import { Tooltip } from '../Tooltip';
+import { withSiteId } from '../../utils/siteQuery';
 
 export const PageRankTable = () => {
   const navigate = useNavigate();
@@ -46,16 +47,18 @@ export const PageRankTable = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-            {topPages.map((page, i) => (
+            {topPages.map((page, i) => {
+              const pageHref = withSiteId('/page', { url: page.url });
+              return (
               <tr 
                 key={i} 
                 className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group"
-                onClick={() => navigate(`/page?url=${encodeURIComponent(page.url)}`)}
+                onClick={() => navigate(pageHref)}
               >
                 <td className="px-4 py-2 font-mono text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title={page.url}>
                   <div className="flex items-center gap-2">
                     <Link 
-                      to={`/page?url=${encodeURIComponent(page.url)}`} 
+                      to={pageHref}
                       className="truncate hover:text-blue-500 hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -82,7 +85,8 @@ export const PageRankTable = () => {
                   {page.hubScore ? page.hubScore.toFixed(2) : '-'}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

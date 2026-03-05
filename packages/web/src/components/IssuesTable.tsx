@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, AlertCircle, Info, ChevronRight, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { DashboardContext } from '../App';
 import * as API from '../api';
+import { withSiteId } from '../utils/siteQuery';
 
 export const IssuesTable = () => {
   const navigate = useNavigate();
@@ -125,14 +126,16 @@ export const IssuesTable = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-            {issues.map((issue, idx) => (
+            {issues.map((issue, idx) => {
+              const issueHref = withSiteId('/page', { url: issue.url });
+              return (
               <tr
                 key={idx}
-                onClick={() => navigate(`/page?url=${encodeURIComponent(issue.url)}`)}
+                onClick={() => navigate(issueHref)}
                 className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group cursor-pointer"
               >
                 <td className="px-6 py-3 font-mono text-xs text-slate-600 dark:text-slate-400 truncate max-w-xs" title={issue.url}>
-                  <Link to={`/page?url=${encodeURIComponent(issue.url)}`} className="hover:text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>
+                  <Link to={issueHref} className="hover:text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>
                     {issue.url}
                   </Link>
                 </td>
@@ -159,7 +162,8 @@ export const IssuesTable = () => {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {issues.length === 0 && !loading && (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-slate-500">

@@ -20,6 +20,7 @@ export const DEFAULTS = {
     BODY_TIMEOUT: 10000,
     // Keep only last 5 snapshots
     MAX_SNAPSHOTS: 5,
+    MAX_SINGLE_SNAPSHOTS: 5,
     // Graph calculation precision
     GRAPH_PRECISION: 1e-12
 } as const;

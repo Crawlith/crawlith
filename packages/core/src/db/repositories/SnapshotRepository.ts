@@ -109,4 +109,37 @@ export class SnapshotRepository {
     });
     tx();
   }
+
+  pruneSnapshots(siteId: number, maxSnapshots: number, maxSingleSnapshots: number, protectedSnapshotId?: number): void {
+    const tx = this.db.transaction(() => {
+      const singlesToDelete = this.db.prepare(`
+        SELECT id
+        FROM snapshots
+        WHERE site_id = ? AND run_type = 'single'
+        ORDER BY created_at DESC, id DESC
+        LIMIT -1 OFFSET ?
+      `).all(siteId, Math.max(0, maxSingleSnapshots)) as { id: number }[];
+
+      const fullToDelete = this.db.prepare(`
+        SELECT id
+        FROM snapshots
+        WHERE site_id = ? AND run_type IN ('completed', 'incremental')
+        ORDER BY created_at DESC, id DESC
+        LIMIT -1 OFFSET ?
+      `).all(siteId, Math.max(0, maxSnapshots)) as { id: number }[];
+
+      const ids = [...singlesToDelete, ...fullToDelete]
+        .map(r => r.id)
+        .filter(id => id !== protectedSnapshotId);
+
+      for (const id of ids) {
+        // Inline delete logic to keep operation inside this transaction.
+        this.db.prepare('UPDATE pages SET first_seen_snapshot_id = NULL WHERE first_seen_snapshot_id = ?').run(id);
+        this.db.prepare('UPDATE pages SET last_seen_snapshot_id = NULL WHERE last_seen_snapshot_id = ?').run(id);
+        this.db.prepare('DELETE FROM pages WHERE first_seen_snapshot_id IS NULL AND last_seen_snapshot_id IS NULL').run();
+        this.db.prepare('DELETE FROM snapshots WHERE id = ?').run(id);
+      }
+    });
+    tx();
+  }
 }

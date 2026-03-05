@@ -24,6 +24,7 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Graph Context...</div>;
     if (!data) return null;
+    const siteId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('siteId') : null;
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -95,15 +96,26 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                         const arrayLength = (data.incoming || []).length;
                         const y = (i - (arrayLength - 1) / 2) * 45;
                         const shortUrl = (node.normalized_url || '').split('/').pop() || '/';
+                        const nodeHref = `/page?url=${encodeURIComponent(node.normalized_url || '')}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ''}`;
                         return (
-                            <g key={`in-${i}`} className="group/node cursor-pointer">
-                                <line x1={x} y1={y} x2="-25" y2="0" stroke="#10b981" strokeWidth="1" strokeDasharray="4" opacity="0.4" />
-                                <circle cx={x} cy={y} r="8" fill="#10b981" className="transition-transform group-hover/node:scale-150" />
-                                <text x={x - 12} y={y + 4} textAnchor="end" className="text-[9px] fill-slate-400 font-mono opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none">
-                                    {shortUrl}
-                                </text>
-                                <title>{node.normalized_url} (PR: {(node.pagerank_score || 0).toFixed(1)})</title>
-                            </g>
+                            <a key={`in-${i}`} href={nodeHref}>
+                                <g className="cursor-pointer">
+                                    <line x1={x} y1={y} x2="-25" y2="0" stroke="#10b981" strokeWidth="1.2" strokeDasharray="6 4" opacity="0.6" />
+                                    {/* Incoming flow: source node -> current node */}
+                                    <circle r="2.4" fill="#10b981" opacity="0.95">
+                                        <animateMotion
+                                            dur="1.1s"
+                                            repeatCount="indefinite"
+                                            path={`M ${x} ${y} L -25 0`}
+                                        />
+                                    </circle>
+                                    <circle cx={x} cy={y} r="8" fill="#10b981" />
+                                    <text x={x - 12} y={y + 4} textAnchor="end" className="text-[9px] fill-slate-500 dark:fill-slate-400 font-mono pointer-events-none">
+                                        {shortUrl}
+                                    </text>
+                                    <title>{node.normalized_url} (PR: {(node.pagerank_score || 0).toFixed(1)})</title>
+                                </g>
+                            </a>
                         );
                     })}
 
@@ -113,15 +125,26 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                         const arrayLength = (data.outgoing || []).length;
                         const y = (i - (arrayLength - 1) / 2) * 45;
                         const shortUrl = (node.normalized_url || '').split('/').pop() || '/';
+                        const nodeHref = `/page?url=${encodeURIComponent(node.normalized_url || '')}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ''}`;
                         return (
-                            <g key={`out-${i}`} className="group/node cursor-pointer">
-                                <line x1="25" y1="0" x2={x} y2={y} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4" opacity="0.4" />
-                                <circle cx={x} cy={y} r="8" fill="#f59e0b" className="transition-transform group-hover/node:scale-150" />
-                                <text x={x + 12} y={y + 4} textAnchor="start" className="text-[9px] fill-slate-400 font-mono opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none">
-                                    {shortUrl}
-                                </text>
-                                <title>{node.normalized_url} (PR: {(node.pagerank_score || 0).toFixed(1)})</title>
-                            </g>
+                            <a key={`out-${i}`} href={nodeHref}>
+                                <g className="cursor-pointer">
+                                    <line x1="25" y1="0" x2={x} y2={y} stroke="#f59e0b" strokeWidth="1.2" strokeDasharray="6 4" opacity="0.6" />
+                                    {/* Outgoing flow: current node -> target node */}
+                                    <circle r="2.4" fill="#f59e0b" opacity="0.95">
+                                        <animateMotion
+                                            dur="1.1s"
+                                            repeatCount="indefinite"
+                                            path={`M 25 0 L ${x} ${y}`}
+                                        />
+                                    </circle>
+                                    <circle cx={x} cy={y} r="8" fill="#f59e0b" />
+                                    <text x={x + 12} y={y + 4} textAnchor="start" className="text-[9px] fill-slate-500 dark:fill-slate-400 font-mono pointer-events-none">
+                                        {shortUrl}
+                                    </text>
+                                    <title>{node.normalized_url} (PR: {(node.pagerank_score || 0).toFixed(1)})</title>
+                                </g>
+                            </a>
                         );
                     })}
                 </svg>
@@ -130,6 +153,40 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                     <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-500"></div> Incoming Sources</div>
                     <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Current Page</div>
                     <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-amber-500"></div> Outgoing Targets</div>
+                </div>
+            </div>
+
+            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+                    <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-3">Incoming Nodes</h3>
+                    {(data.incoming || []).length === 0 ? (
+                        <p className="text-xs text-slate-500">No incoming internal nodes for this snapshot.</p>
+                    ) : (
+                        <ul className="space-y-2 max-h-56 overflow-y-auto">
+                            {(data.incoming || []).map((node, idx) => (
+                                <li key={`in-list-${idx}`} className="flex items-center justify-between text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
+                                    <span className="font-mono text-slate-700 dark:text-slate-300 truncate pr-3">{node.normalized_url}</span>
+                                    <span className="text-slate-500">PR {(node.pagerank_score || 0).toFixed(2)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+                    <h3 className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-3">Outgoing Nodes</h3>
+                    {(data.outgoing || []).length === 0 ? (
+                        <p className="text-xs text-slate-500">No outgoing internal nodes for this snapshot.</p>
+                    ) : (
+                        <ul className="space-y-2 max-h-56 overflow-y-auto">
+                            {(data.outgoing || []).map((node, idx) => (
+                                <li key={`out-list-${idx}`} className="flex items-center justify-between text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
+                                    <span className="font-mono text-slate-700 dark:text-slate-300 truncate pr-3">{node.normalized_url}</span>
+                                    <span className="text-slate-500">PR {(node.pagerank_score || 0).toFixed(2)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
             </div>
         </div>

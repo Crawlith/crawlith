@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import * as API from '../../api';
+import { withSiteId } from '../../utils/siteQuery';
 
 export const LinkingTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [subTab, setSubTab] = useState<'inlinks' | 'outlinks'>('inlinks');
@@ -69,7 +70,7 @@ const InlinksTable = ({ url, snapshotId }: { url: string; snapshotId: number }) 
                         {data.results.map((row, idx) => (
                             <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                 <td className="px-6 py-3 font-mono text-xs text-blue-600 dark:text-blue-400 truncate max-w-xs" title={row.sourceUrl}>
-                                    <Link to={`/page?url=${encodeURIComponent(row.sourceUrl)}`} className="hover:underline flex items-center gap-2">
+                                    <Link to={withSiteId('/page', { url: row.sourceUrl })} className="hover:underline flex items-center gap-2">
                                         <ArrowDownLeft size={12} className="text-slate-400" />
                                         {row.sourceUrl}
                                     </Link>
@@ -131,7 +132,7 @@ const OutlinksTable = ({ url, snapshotId }: { url: string; snapshotId: number })
                         {data.results.map((row, idx) => (
                             <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                 <td className="px-6 py-3 font-mono text-xs text-blue-600 dark:text-blue-400 truncate max-w-xs" title={row.targetUrl}>
-                                    <Link to={`/page?url=${encodeURIComponent(row.targetUrl)}`} className="hover:underline flex items-center gap-2">
+                                    <Link to={withSiteId('/page', { url: row.targetUrl })} className="hover:underline flex items-center gap-2">
                                         <ArrowUpRight size={12} className="text-slate-400" />
                                         {row.targetUrl}
                                     </Link>

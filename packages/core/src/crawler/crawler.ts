@@ -680,6 +680,12 @@ export class Crawler {
           this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
             limit_reached: this.reachedLimit ? 1 : 0
           });
+          this.snapshotRepo!.pruneSnapshots(
+            this.siteId!,
+            DEFAULTS.MAX_SNAPSHOTS,
+            DEFAULTS.MAX_SINGLE_SNAPSHOTS,
+            this.snapshotId!
+          );
           if (this.reusingSnapshot) {
             this.snapshotRepo!.touchSnapshot(this.snapshotId!);
           }
@@ -699,6 +705,12 @@ export class Crawler {
             this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
               limit_reached: 1
             });
+            this.snapshotRepo!.pruneSnapshots(
+              this.siteId!,
+              DEFAULTS.MAX_SNAPSHOTS,
+              DEFAULTS.MAX_SINGLE_SNAPSHOTS,
+              this.snapshotId!
+            );
             if (this.reusingSnapshot) {
               this.snapshotRepo!.touchSnapshot(this.snapshotId!);
             }

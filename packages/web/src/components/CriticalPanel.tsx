@@ -1,8 +1,9 @@
 import { useEffect, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ExternalLink,  ChevronRight } from 'lucide-react';
+import { AlertTriangle, ExternalLink, ChevronRight, Activity } from 'lucide-react';
 import { DashboardContext } from '../App';
 import * as API from '../api';
+import { withSiteId } from '../utils/siteQuery';
 
 export const CriticalPanel = () => {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ export const CriticalPanel = () => {
         {criticalIssues.map((issue, idx) => (
           <div
             key={idx}
-            onClick={() => navigate(`/page?url=${encodeURIComponent(issue.url)}`)}
+            onClick={() => navigate(withSiteId('/page', { url: issue.url }))}
             className="p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900/30 transition-all group cursor-pointer"
           >
             <div className="flex justify-between items-start mb-2">
