@@ -157,6 +157,11 @@ export class Crawler {
 
     // Use absolute URL as the primary key startUrl
     this.startUrl = rootUrl;
+    this.rootOrigin = urlObj.origin;
+
+    // Migrate legacy root-path rows ("/") to absolute root form ("https://site/").
+    // This prevents duplicate records for the homepage key across older/newer crawl formats.
+    this.pageRepo.reconcileRootUrl(this.siteId, this.rootOrigin);
 
     // Now that rootOrigin is resolved, initialize ScopeManager with the correct absolute origin
     this.scopeManager = new ScopeManager({
@@ -175,7 +180,6 @@ export class Crawler {
     this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, runType);
 
     this.runType = runType;
-    this.rootOrigin = urlObj.origin;
 
     // Expose snapshot context for plugins that persist per-snapshot data.
     (this.context as any).snapshotId = this.snapshotId;

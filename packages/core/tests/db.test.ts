@@ -109,6 +109,81 @@ describe('Database Layer', () => {
     expect(page?.retries).toBe(3);
   });
 
+  it('should normalize legacy root path to absolute root URL', () => {
+    const siteId = siteRepo.createSite('example.com');
+    const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
+    pageRepo.upsertPage({
+      site_id: siteId,
+      normalized_url: '/',
+      last_seen_snapshot_id: snapshotId,
+      http_status: 200
+    });
+
+    pageRepo.reconcileRootUrl(siteId, 'https://example.com');
+
+    expect(pageRepo.getPage(siteId, '/')).toBeUndefined();
+    const root = pageRepo.getPage(siteId, 'https://example.com/');
+    expect(root).toBeDefined();
+    expect(root?.http_status).toBe(200);
+  });
+
+  it('should merge legacy root path row into canonical absolute root row', () => {
+    const siteId = siteRepo.createSite('example.com');
+    const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
+    pageRepo.upsertPage({
+      site_id: siteId,
+      normalized_url: '/',
+      last_seen_snapshot_id: snapshotId,
+      http_status: 200
+    });
+    pageRepo.upsertPage({
+      site_id: siteId,
+      normalized_url: 'https://example.com/',
+      last_seen_snapshot_id: snapshotId,
+      http_status: 200
+    });
+
+    const legacy = pageRepo.getPage(siteId, '/')!;
+    const canonical = pageRepo.getPage(siteId, 'https://example.com/')!;
+
+    metricsRepo.insertMetrics({
+      snapshot_id: snapshotId,
+      page_id: legacy.id,
+      crawl_status: 'fetched',
+      word_count: 100,
+      thin_content_score: 0.1,
+      external_link_ratio: 0.0,
+      orphan_score: 0,
+      pagerank_score: 0,
+      hub_score: 0,
+      auth_score: 0,
+      link_role: null,
+      duplicate_cluster_id: null,
+      duplicate_type: null,
+      cluster_id: null,
+      soft404_score: 0,
+      heading_score: 0,
+      orphan_type: null,
+      impact_level: null,
+      heading_data: null,
+      is_cluster_primary: 0
+    });
+
+    edgeRepo.insertEdge(snapshotId, legacy.id, canonical.id, 1.0, 'internal');
+
+    pageRepo.reconcileRootUrl(siteId, 'https://example.com');
+
+    expect(pageRepo.getPage(siteId, '/')).toBeUndefined();
+    const merged = pageRepo.getPage(siteId, 'https://example.com/');
+    expect(merged).toBeDefined();
+
+    const metrics = metricsRepo.getMetricsForPage(snapshotId, canonical.id);
+    expect(metrics).toBeDefined();
+
+    const edges = edgeRepo.getEdgesBySnapshot(snapshotId);
+    expect(edges.every(e => e.source_page_id === canonical.id)).toBe(true);
+  });
+
   it('should insert and retrieve edges', () => {
     const siteId = siteRepo.createSite('example.com');
     const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');

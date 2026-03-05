@@ -237,4 +237,41 @@ export class PageRepository {
     const row = this.getIdStmt.get(siteId, url) as { id: number } | undefined;
     return row?.id;
   }
+
+  reconcileRootUrl(siteId: number, siteOrigin: string): void {
+    const rootAbsolute = `${siteOrigin.replace(/\/+$/, '')}/`;
+
+    const tx = this.db.transaction(() => {
+      const rootPathRow = this.db
+        .prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?')
+        .get(siteId, '/') as { id: number } | undefined;
+
+      if (!rootPathRow) {
+        return;
+      }
+
+      const rootAbsoluteRow = this.db
+        .prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?')
+        .get(siteId, rootAbsolute) as { id: number } | undefined;
+
+      if (!rootAbsoluteRow) {
+        this.db.prepare('UPDATE pages SET normalized_url = ? WHERE id = ?').run(rootAbsolute, rootPathRow.id);
+        return;
+      }
+
+      const sourceId = rootPathRow.id;
+      const targetId = rootAbsoluteRow.id;
+
+      this.db.prepare('UPDATE edges SET source_page_id = ? WHERE source_page_id = ?').run(targetId, sourceId);
+      this.db.prepare('UPDATE edges SET target_page_id = ? WHERE target_page_id = ?').run(targetId, sourceId);
+
+      // Move metrics where possible and keep the existing canonical row if a conflict exists.
+      this.db.prepare('UPDATE OR IGNORE metrics SET page_id = ? WHERE page_id = ?').run(targetId, sourceId);
+      this.db.prepare('DELETE FROM metrics WHERE page_id = ?').run(sourceId);
+
+      this.db.prepare('DELETE FROM pages WHERE id = ?').run(sourceId);
+    });
+
+    tx();
+  }
 }
