@@ -8,7 +8,7 @@ import {
   runAnalysisExports
 } from '@crawlith/core';
 import path from 'node:path';
-import chalk from 'chalk';
+import chalk from './chalk.js';
 import { Command } from '@crawlith/core';
 
 /**

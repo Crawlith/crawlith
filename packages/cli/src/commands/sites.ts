@@ -1,5 +1,5 @@
 import { Command, Option } from 'commander';
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import { getDb, SiteRepository, SnapshotRepository, PluginRegistry } from '@crawlith/core';
 
 export const getSitesCommand = (registry: PluginRegistry) => {

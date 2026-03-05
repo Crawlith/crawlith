@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import chalk from 'chalk';
+import chalk from './utils/chalk.js';
 import {
   getDb,
   closeDb,

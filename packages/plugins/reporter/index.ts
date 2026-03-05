@@ -6,7 +6,7 @@ import {
     buildCrawlInsightReport,
     renderInsightOutput
 } from '@crawlith/core';
-import chalk from 'chalk';
+import chalk from './chalk.js';
 import { Command } from '@crawlith/core';
 
 /**

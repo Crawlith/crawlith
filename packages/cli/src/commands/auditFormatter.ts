@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import { AuditResult } from '@crawlith/core';
 
 export function renderAuditOutput(result: AuditResult, verbose: boolean, debug: boolean): string {

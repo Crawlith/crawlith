@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getSitesCommand } from '../src/commands/sites.js';
-import chalk from 'chalk';
+import chalk from '../src/utils/chalk.js';
 
 // Use doMock to avoid hoisting if that was causing issues, or standard vi.mock
 vi.mock('@crawlith/core', () => {

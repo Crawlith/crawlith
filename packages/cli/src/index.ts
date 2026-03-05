@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import chalk from 'chalk';
+import chalk from './utils/chalk.js';
 import { version } from './utils/version.js';
 import { buildProgram, maybeNotifyForUpdates } from './bootstrap.js';
 

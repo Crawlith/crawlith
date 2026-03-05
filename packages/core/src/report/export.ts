@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import {
     generateHtml,
 } from './html.js';

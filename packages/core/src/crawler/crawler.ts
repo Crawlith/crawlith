@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import pLimit from 'p-limit';
 import robotsParser from 'robots-parser';
 import { Graph, GraphNode } from '../graph/graph.js';

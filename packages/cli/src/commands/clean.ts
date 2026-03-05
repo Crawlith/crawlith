@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';

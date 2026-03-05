@@ -1,5 +1,5 @@
 import { CrawlEvent } from '@crawlith/core';
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 
 export interface OutputOptions {
   format: 'pretty' | 'json';

@@ -1,5 +1,5 @@
 import { Command, Option } from 'commander';
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import { PageAnalysisUseCase, EngineContext, PluginRegistry } from '@crawlith/core';
 import { OutputController } from '../output/controller.js';
 import {

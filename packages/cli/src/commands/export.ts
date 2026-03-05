@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import {
     getDb,
     SiteRepository,

@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 
 export interface AnalyzeInsightPage {
   url: string;

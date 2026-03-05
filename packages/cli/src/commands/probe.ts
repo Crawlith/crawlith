@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { auditUrl } from '@crawlith/core';
 import { renderAuditOutput } from './auditFormatter.js';
-import chalk from 'chalk';
+import chalk from '../utils/chalk.js';
 import { PluginRegistry } from '@crawlith/core';
 
 export const getProbeCommand = (registry: PluginRegistry) => {
