@@ -1,41 +1,53 @@
 # Common Workflows
 
-## Quick audit
+Standard ways to use Crawlith in your daily audit and monitoring tasks.
+
+## Quick Structural Audit
+
+Run a fast scan of the top levels of your site to assess general health:
 
 ```bash
-crawlith crawl https://example.com --limit 200 --depth 3
+crawlith crawl https://example.com --limit 200 --depth 3 --health
 ```
 
-Runs a fast crawl of top pages so you can review site health quickly.
+*   **Goals**: Catch 404s, discover missing titles/meta, and view the high-level [Health Score](/concepts/health-score).
 
-## Incremental crawl
+## In-Depth Graph Analysis
+
+Identify your most authoritative pages and find internal link leaks:
 
 ```bash
-crawlith crawl https://example.com --incremental
+crawlith crawl https://example.com --compute-pagerank --orphans --sitemap
 ```
 
-Updates your crawl using previous results, which is helpful for regular monitoring.
+*   **Goals**: Map authority flow with [PageRank](/concepts/pagerank), find [Orphaned Pages](/concepts/orphans), and ensure [Sitemap](/features/feature-flags#--sitemap) coverage.
 
-## Comparing two crawls
+## Monitoring Site Changes
+
+Compare your current site structure against a previous baseline:
 
 ```bash
-crawlith crawl https://example.com --compare ./reports/baseline/crawl.json ./reports/latest/crawl.json
+crawlith crawl https://example.com --compare ./reports/baseline/graph.json ./reports/current/graph.json
 ```
 
-Compares two crawl snapshots to show what changed.
+*   **Goals**: Spot newly added or removed URLs and track structural changes over time.
 
-## Finding broken links
+## CI/CD Quality Control
+
+Integrate Crawlith into your build pipeline to prevent breaking SEO quality:
 
 ```bash
-crawlith crawl https://example.com --detect-broken-links
+crawlith crawl https://example.com --fail-on-critical --limit 500
 ```
 
-Finds internal links that point to unavailable pages.
+*   **Goals**: Automatically fail a build if [Critical Issues](/concepts/health-score#critical-issues) like broken links or redirect loops are detected.
 
-## Detecting duplicate content
+## Content Duplicate Detection
+
+Spot repeating content layouts or near-duplicate sections:
 
 ```bash
-crawlith crawl https://example.com --detect-duplicates
+crawlith crawl https://example.com --clustering --cluster-threshold 10
 ```
 
-Highlights pages that may repeat or overlap heavily in content.
+*   **Goals**: Group structurally similar pages into [Clusters](/concepts/clustering) to audit boilerplate density.

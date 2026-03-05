@@ -1,21 +1,22 @@
 # FAQ
 
-## Does Crawlith respect robots.txt?
+## Does Crawlith respect `robots.txt`?
+Yes. By default, Crawlith follows all `robots.txt` rules and respects `crawl-delay` directives to ensure it doesn't overload your server. Use the `--ignore-robots` flag only if you have explicit permission.
 
-Yes. By default, Crawlith follows robots.txt rules when crawling.
+## Can it crawl massive sites?
+Yes. Crawlith uses an on-disk [SQLite database](/concepts/database) to store crawl state, which keeps memory usage low even for sites with tens of thousands of URLs. For large runs, we recommend using the `--limit`, `--depth`, and `--concurrency` flags to manage performance.
 
-## Can it crawl large sites?
+## Does it support JavaScript rendering (SPAs)?
+Currently, Crawlith is a high-speed static crawler. It parses the HTML returned by your server but does not execute client-side JavaScript. Support for Playwright-based rendering is planned for future releases.
 
-Yes. Use flags like `--limit`, `--depth`, and `--concurrency` to control crawl size and speed.
+## How is the Health Score calculated?
+The [Health Score](/concepts/health-score) is a weighted metric (0-100) that penalizes critical issues like broken links or redirect loops while rewarding structural soundess and SEO fundamentals.
 
-## Does it crawl external domains?
+## Where is my crawl data stored?
+All crawl history and project metadata are stored in a local SQLite database at `~/.crawlith/crawlith.db`. This file is protected with user-only permissions (0o600).
 
-Crawlith is typically used for internal site crawling. External links may be discovered, but crawl scope is usually set to the target site.
+## Can I use Crawlith in a CI/CD pipeline?
+Absolutely. Crawlith is designed for automation. Use the `--format json` flag for machine-readable results and `--fail-on-critical` to exit with an error code if the site health drops below a certain threshold.
 
-## Is internet access required?
-
-Yes, for live websites. Crawlith needs network access to request pages.
-
-## Can I schedule it?
-
-Yes. You can run Crawlith on a schedule using cron, CI jobs, or task schedulers.
+## Does Crawlith crawl external links?
+Crawlith discovers external links and tracks them to report on your outbound link ratio, but it will **not** crawl the content of pages on different domains unless they are explicitly whitelisted.

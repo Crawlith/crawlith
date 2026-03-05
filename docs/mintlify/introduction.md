@@ -1,20 +1,40 @@
 # Introduction
 
-Crawlith is a command-line tool that crawls a website and maps how pages link to each other.
+Welcome to **Crawlith**, the modular crawl intelligence engine designed for deterministic SEO analysis, site health monitoring, and link graph exploration.
 
-It is built for marketers, SEO specialists, content teams, and site owners who want a quick way to audit internal links and assess overall site health with automated scoring.
+Crawlith goes beyond simple crawling. It builds a topological map of your website, calculates authority flow using [PageRank](/concepts/pagerank), and identifies structural issues like [crawl traps](/concepts/crawl-traps) and [orphaned pages](/concepts/orphans).
 
-## Quick start command
+## Why use Crawlith?
 
-```bash
-crawlith crawl https://example.com
+*   **Graph Intelligence**: Understand your site's structure through link topology, not just flat lists of URLs.
+*   **Health Scoring**: Get an instant [Health Score](/concepts/health-score) (0-100) based on weighted SEO heuristics.
+*   **Production Ready**: Built for massive sites with resilient local storage and safety features like SSRF protection.
+*   **AI Integration**: Built-in support for AI agents through the [Model Context Protocol (MCP)](/workflows/ai-integration).
+
+## Quick Start
+
+Ready to see your site's structure? Run your first crawl in seconds:
+
+<CodeGroup>
+```bash npm
+npx crawlith crawl https://example.com
 ```
 
-## Supported environments
+```bash pnpm
+pnpm dlx crawlith crawl https://example.com
+```
 
-- macOS
-- Linux
-- Windows (PowerShell, Command Prompt, or WSL)
-- CI environments that can run Node.js commands
+```bash bun
+bunx crawlith crawl https://example.com
+```
+</CodeGroup>
 
-> Tip: Crawlith needs internet access to crawl live websites.
+This will crawl up to 500 pages of `https://example.com` and generate a summary report.
+
+## Supported Platforms
+
+Crawlith is a Node.js-based CLI that runs anywhere you can install JavaScript packages:
+
+*   **macOS / Linux**: Fully supported.
+*   **Windows**: Supports PowerShell, Command Prompt, and WSL.
+*   **CI/CD**: Optimized for GitHub Actions, GitLab CI, and Jenkins.

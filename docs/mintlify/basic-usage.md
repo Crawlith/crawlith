@@ -1,61 +1,57 @@
 # Basic Usage
 
-The main command is:
+Crawlith's primary command is `crawl`, but it offers several other tools to manage your site's data.
 
-```bash
-crawlith crawl <url>
-```
+## `crawl` — Build a Link Graph
 
-## What it does
-
-`crawlith crawl` crawls pages on the target site and builds an internal link graph.
-
-## What it outputs
-
-After a crawl, Crawlith writes report files to your output folder.
-
-By default, files are saved in `./crawlith-reports`.
-
-## Insight-First Reporting
-
-Crawlith now provides an "Insight-First" output by default. This groups results into:
-- **Health Score**: A weighted score from 0-100 based on site quality.
-- **CRITICAL**: Issues that need immediate fixing (e.g., broken links, redirect chains).
-- **WARNINGS**: SEO improvements (e.g., missing descriptions, thin content).
-- **OPPORTUNITIES**: Internal linking and authority growth suggestions.
-
-## JSON output
-
-Crawlith can generate a full structured JSON report using the `--json` flag. This is useful for CI/CD pipelines and automated analysis.
-
-```bash
-crawlith crawl https://example.com --json
-```
-
-## CI/CD Integration
-
-Use the `--fail-on-critical` flag to make the CLI exit with code 1 if any critical issues are detected.
-
-```bash
-crawlith crawl https://example.com --fail-on-critical
-```
-
-## Examples
+The `crawl` command discovers pages on your site and builds a topological map of how they link together.
 
 ```bash
 crawlith crawl https://example.com
 ```
 
+By default, this will:
+*   Crawl up to **500 pages**.
+*   Explore to a depth of **5 clicks**.
+*   Process up to **2 concurrent requests**.
+*   Save results to the `./crawlith-reports` folder.
+
+## `page` — Single Page Audit
+
+Analyze a single URL in detail without performing a full crawl. This is useful for quickly verifying SEO or accessibility signals.
+
 ```bash
-crawlith crawl https://example.com --output ./reports/example --visualize
+crawlith page https://example.com/blog/hello-world
 ```
 
-## Exporting Snapshots
+## `sites` — List Tracked Sites
 
-To export the raw data from the latest completed crawl in the database to a JSON file:
+View all websites and snapshots currently stored in your local [Crawlith database](/concepts/database).
 
 ```bash
-crawlith export https://example.com -o snapshot.json
+crawlith sites
 ```
 
-This includes all discovered nodes, edges, and calculated metrics.
+## `ui` — Visual Dashboard
+
+Launch the interactive, web-based dashboard to explore your site graphs.
+
+```bash
+crawlith ui example.com
+```
+
+## `clean` — Manage Storage
+
+Remove specific site snapshots or entire project data to free up space.
+
+```bash
+crawlith clean example.com
+```
+
+## `export` — Data Portability
+
+Export raw data from the latest completed crawl for use in third-party analysis tools.
+
+```bash
+crawlith export example.com --format json
+```

@@ -1,175 +1,101 @@
 # Feature Flags
 
-Use flags to control crawl scope, output, and issue detection.
+Control your crawl with flags to manage scope, performance, and advanced analysis.
 
-## Core flags
+## Core Flags
 
 ### `--depth`
-
-Sets the maximum crawl depth from the starting URL.
-
-Use this to keep crawls focused on top-level pages.
-
+Sets the maximum crawl depth from the starting URL. Use this to focus only on top-level pages.
 ```bash
 crawlith crawl https://example.com --depth 3
 ```
 
-Expected behavior: Crawl results include pages up to the specified depth.
-
 ### `--limit`
-
-Sets the maximum number of pages to crawl.
-
-This is useful when you want a quick sample instead of a full-site run.
-
+Limits the total number of pages to crawl. Great for sampling instead of full site runs.
 ```bash
 crawlith crawl https://example.com --limit 250
 ```
 
-Expected behavior: The crawl stops when it reaches the page limit.
-
 ### `--concurrency`
-
-Controls how many pages Crawlith requests at the same time.
-
-Higher values can speed up crawls, but may increase load on the target site.
-
+Controls how many parallel requests Crawlith makes. Higher values speed up crawling but increase site load.
 ```bash
 crawlith crawl https://example.com --concurrency 10
 ```
 
-Expected behavior: Crawl speed and request parallelism adjust based on the value.
-
 ### `--output`
-
-Sets the folder where Crawlith writes crawl files.
-
-Use this when you want to separate reports by project or date.
-
+Sets the folder where reports are saved. Defaults to `./crawlith-reports`.
 ```bash
 crawlith crawl https://example.com --output ./reports/july-audit
 ```
 
-Expected behavior: Output files are written to the folder you provide.
-
 ### `--format`
-
-Chooses output format.
-
-Use this to generate data in the format your workflow expects.
-
+Choose between `pretty` (human-readable) and `json` (machine-readable) output.
 ```bash
 crawlith crawl https://example.com --format json
 ```
 
-Expected behavior: Crawlith writes output in the selected format.
+## Advanced Analysis Flags
 
-## Crawl intelligence flags
-
-### `--incremental`
-
-Runs an incremental crawl instead of a full recrawl.
-
-Use this to focus on pages that changed since the last crawl.
-
+### `--health`
+Runs a full health analysis post-crawl to generate your [Health Score](/concepts/health-score).
 ```bash
-crawlith crawl https://example.com --incremental
+crawlith crawl https://example.com --health
 ```
 
-Expected behavior: Crawlith updates crawl output using prior crawl context.
-
-### `--compare old.json new.json`
-
-Compares two crawl snapshots.
-
-This helps you see added, removed, or changed URLs between runs.
-
+### `--compute-pagerank`
+Calculates internal [PageRank](/concepts/pagerank) scores to identify your most authoritative pages.
 ```bash
-crawlith crawl https://example.com --compare ./baseline/crawl.json ./latest/crawl.json
+crawlith crawl https://example.com --compute-pagerank
 ```
 
-Expected behavior: Crawlith generates a diff-style output file for crawl changes.
+### `--compute-hits`
+Computes [HITS](/concepts/hits) scores to find "Hubs" and "Authorities" on your site.
+```bash
+crawlith crawl https://example.com --compute-hits
+```
+
+### `--clustering`
+Enables [Content Clustering](/concepts/clustering) to find structurally similar page sections.
+```bash
+crawlith crawl https://example.com --clustering
+```
+
+### `--orphans`
+Identifies [Orphaned Pages](/concepts/orphans) that are in your sitemap but not linked internally.
+```bash
+crawlith crawl https://example.com --orphans
+```
 
 ### `--sitemap`
-
-Uses sitemap URLs as crawl seeds.
-
-This helps discover important URLs quickly.
-
+Uses your site's `sitemap.xml` as seeds to ensure full coverage.
 ```bash
 crawlith crawl https://example.com --sitemap
 ```
 
-Expected behavior: Sitemap URLs are included early in crawl discovery.
+## Safety & Compliance
 
-### `--detect-duplicates`
-
-Enables duplicate-content detection.
-
-Use this to spot pages with very similar or repeated content.
-
+### `--ignore-robots`
+Forces Crawlith to ignore `robots.txt` directives (use with caution).
 ```bash
-crawlith crawl https://example.com --detect-duplicates
+crawlith crawl https://example.com --ignore-robots
 ```
 
-Expected behavior: Output includes duplicate-content findings.
-
-### `--detect-soft404`
-
-Enables soft 404 detection.
-
-Use this to identify pages that appear successful but behave like missing pages.
-
+### `--proxy`
+Route all crawl requests through a specific proxy URL.
 ```bash
-crawlith crawl https://example.com --detect-soft404
+crawlith crawl https://example.com --proxy http://myproxy:8080
 ```
 
-Expected behavior: Output includes potential soft 404 URLs.
-
-### `--detect-canonicals`
-
-Checks canonical URL signals.
-
-Use this to find missing, conflicting, or unexpected canonical patterns.
-
+### `--ua`
+Customize the User-Agent string Crawlith sends to the server.
 ```bash
-crawlith crawl https://example.com --detect-canonicals
+crawlith crawl https://example.com --ua "MyAuditBot/1.0"
 ```
 
-Expected behavior: Output includes canonical-related findings.
+## Automation
 
-### `--detect-broken-links`
-
-Enables broken internal link checks.
-
-Use this to identify links that lead to error pages.
-
+### `--fail-on-critical`
+Returns exit code 1 if any [critical issues](/concepts/health-score#critical-issues) are detected. Ideal for CI/CD pipelines.
 ```bash
-crawlith crawl https://example.com --detect-broken-links
+crawlith crawl https://example.com --fail-on-critical
 ```
-
-Expected behavior: Output includes broken-link URLs and sources.
-
-### `--detect-redirects`
-
-Enables redirect detection for crawled links.
-
-Use this to locate redirecting URLs that may slow navigation.
-
-```bash
-crawlith crawl https://example.com --detect-redirects
-```
-
-Expected behavior: Output includes redirecting URLs and targets.
-
-### `--detect-traps`
-
-Enables crawl trap detection.
-
-Use this to find URL patterns that can create near-infinite crawl paths.
-
-```bash
-crawlith crawl https://example.com --detect-traps
-```
-
-Expected behavior: Output includes suspected crawl-trap patterns.

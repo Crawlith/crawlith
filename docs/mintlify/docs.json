@@ -1,0 +1,39 @@
+{
+  "name": "Crawlith CLI",
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "installation",
+        "basic-usage"
+      ]
+    },
+    {
+      "group": "Concepts",
+      "pages": [
+        "concepts/health-score",
+        "concepts/pagerank",
+        "concepts/orphans",
+        "concepts/clustering",
+        "concepts/database"
+      ]
+    },
+    {
+      "group": "Features",
+      "pages": [
+        "features/feature-flags",
+        "features/signals-intelligence"
+      ]
+    },
+    {
+      "group": "Resources",
+      "pages": [
+        "output-files",
+        "workflows/common-workflows",
+        "troubleshooting",
+        "faq"
+      ]
+    }
+  ]
+}
