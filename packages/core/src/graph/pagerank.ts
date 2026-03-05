@@ -11,6 +11,7 @@ export interface PageRankOptions {
     maxIterations?: number;
     convergenceThreshold?: number;
     soft404WeightThreshold?: number;
+    neutralScoreWhenFlat?: number;
 }
 
 /**
@@ -29,6 +30,7 @@ export class PageRankService {
         const maxIterations = options.maxIterations ?? 40;
         const epsilon = options.convergenceThreshold ?? 1e-5;
         const soft404Threshold = options.soft404WeightThreshold ?? 0.8;
+        const neutralScoreWhenFlat = options.neutralScoreWhenFlat ?? 50;
 
         const allNodes = graph.getNodes();
         const allEdges = graph.getEdges();
@@ -144,7 +146,7 @@ export class PageRankService {
         for (let i = 0; i < nodeCount; i++) {
             const rawRank = pr[i];
             const url = eligibleNodes[i].url;
-            let score = 100;
+            let score = neutralScoreWhenFlat;
 
             if (range > DEFAULTS.GRAPH_PRECISION) {
                 score = 100 * (rawRank - minPR) / range;
