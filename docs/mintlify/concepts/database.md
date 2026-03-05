@@ -26,31 +26,11 @@ Unlike traditional crawlers that store results as flat files, Crawlith uses a hi
 
 Use the CLI to manage your local storage:
 *   **`crawlith sites`**: List all websites and snapshot counts.
-<CodeGroup>
-```bash npx
-npx crawlith sites
+```bash
+crawlith sites
 ```
-
-```bash pnpm
-pnpm dlx crawlith sites
-```
-
-```bash bun
-bunx crawlith sites
-```
-</CodeGroup>
 
 *   **`crawlith clean <domain>`**: Delete specific snapshots or entire projects.
-<CodeGroup>
-```bash npx
-npx crawlith clean <domain>
+```bash
+crawlith clean <domain>
 ```
-
-```bash pnpm
-pnpm dlx crawlith clean <domain>
-```
-
-```bash bun
-bunx crawlith clean <domain>
-```
-</CodeGroup>

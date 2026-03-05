@@ -1,10 +1,10 @@
 # Installation
 
-There are three ways to use Crawlith: as a global tool, as a one-off command, or as a project dependency.
+The recommended way to use Crawlith is by installing it globally. This makes the `crawlith` command available directly in your terminal.
 
-## Install Globally
+## Global Installation
 
-If you want to use the `crawlith` command from anywhere on your system, install it globally:
+Install Crawlith globally using your preferred package manager:
 
 <CodeGroup>
 ```bash npm
@@ -20,9 +20,21 @@ bun add -g crawlith
 ```
 </CodeGroup>
 
-## Run without Installing
+## Verify Installation
 
-For one-off audits, you can use a package runner without adding any files to your system:
+Once installed, you can run the binary directly:
+
+```bash
+crawlith --version
+```
+
+## Update Notifications
+
+Crawlith includes a built-in update notifier. When a new version is published to npm, the CLI will automatically notify you in the terminal with instructions on how to upgrade, ensuring you always have the latest features and bug fixes.
+
+## Running without Installation (On-demand)
+
+If you prefer not to install the binary globally, you can use these on-demand runners:
 
 <CodeGroup>
 ```bash npx
@@ -37,17 +49,3 @@ pnpm dlx crawlith crawl https://example.com
 bunx crawlith crawl https://example.com
 ```
 </CodeGroup>
-
-## Verify Installation
-
-Check if Crawlith is correctly installed and view its current version:
-
-```bash
-crawlith --version
-```
-
-## System Requirements
-
-*   **Node.js**: v18 or later.
-*   **Disk Space**: At least 100MB (for local crawl storage in `~/.crawlith`).
-*   **Network**: Active internet connection required to crawl live sites.

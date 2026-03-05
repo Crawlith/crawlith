@@ -15,19 +15,9 @@ Crawlith goes beyond simple crawling. It builds a topological map of your websit
 
 Ready to see your site's structure? Run your first crawl in seconds:
 
-<CodeGroup>
-```bash npm
-npx crawlith crawl https://example.com
+```bash
+crawlith crawl https://example.com
 ```
-
-```bash pnpm
-pnpm dlx crawlith crawl https://example.com
-```
-
-```bash bun
-bunx crawlith crawl https://example.com
-```
-</CodeGroup>
 
 This will crawl up to 500 pages of `https://example.com` and generate a summary report.
 

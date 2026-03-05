@@ -21,18 +21,8 @@ Understanding your internal PageRank helps you:
 
 Enable PageRank calculation during a crawl using the `--compute-pagerank` flag:
 
-<CodeGroup>
-```bash npx
-npx crawlith crawl https://example.com --compute-pagerank
+```bash
+crawlith crawl https://example.com --compute-pagerank
 ```
-
-```bash pnpm
-pnpm dlx crawlith crawl https://example.com --compute-pagerank
-```
-
-```bash bun
-bunx crawlith crawl https://example.com --compute-pagerank
-```
-</CodeGroup>
 
 Results are stored in `metrics.json` and visualized in the [Structure Graph](/basic-usage#ui-visual-dashboard).

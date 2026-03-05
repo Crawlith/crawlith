@@ -29,18 +29,8 @@ A clear score helps teams:
 
 Enable health scoring during a crawl with the `--health` flag:
 
-<CodeGroup>
-```bash npx
-npx crawlith crawl https://example.com --health
+```bash
+crawlith crawl https://example.com --health
 ```
-
-```bash pnpm
-pnpm dlx crawlith crawl https://example.com --health
-```
-
-```bash bun
-bunx crawlith crawl https://example.com --health
-```
-</CodeGroup>
 
 The CLI will print a summary table of the score breakdown upon completion.

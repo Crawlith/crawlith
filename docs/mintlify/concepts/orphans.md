@@ -27,18 +27,8 @@ Crawlith applies a severity score (low/medium/high) to each orphan:
 
 Enable orphan detection during a crawl with the `--orphans` flag:
 
-<CodeGroup>
-```bash npx
-npx crawlith crawl https://example.com --sitemap --orphans
+```bash
+crawlith crawl https://example.com --sitemap --orphans
 ```
-
-```bash pnpm
-pnpm dlx crawlith crawl https://example.com --sitemap --orphans
-```
-
-```bash bun
-bunx crawlith crawl https://example.com --sitemap --orphans
-```
-</CodeGroup>
 
 The CLI will list all discovered orphans and their severity in the final report.
