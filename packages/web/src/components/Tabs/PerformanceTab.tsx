@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as API from '../../api';
-import { Activity, Clock, Zap, AlertTriangle } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 export const PerformanceTab = ({ url, snapshotId }: { url: string, snapshotId: number }) => {
     const [pluginsData, setPluginsData] = useState<Record<string, any>>({});
@@ -54,7 +54,6 @@ export const PerformanceTab = ({ url, snapshotId }: { url: string, snapshotId: n
                 <MetricCard
                     title="Performance Score"
                     value={pagespeedData.performance_score}
-                    max={100}
                     suffix="/100"
                     color={getScoreColor(pagespeedData.performance_score)}
                 />
@@ -86,7 +85,7 @@ const getScoreColor = (score: number) => {
     return 'red';
 };
 
-const MetricCard = ({ title, value, suffix = '', max, color }: any) => {
+const MetricCard = ({ title, value, suffix = '', color }: any) => {
     const colorClasses = {
         green: 'text-green-600 dark:text-green-400',
         amber: 'text-amber-600 dark:text-amber-400',

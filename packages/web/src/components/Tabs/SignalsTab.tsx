@@ -56,7 +56,6 @@ export const SignalsTab = ({ url, snapshotId }: { url: string, snapshotId: numbe
                 <MetricCard
                     title="Score"
                     value={signalsData.score}
-                    max={100}
                     suffix="/100"
                     color={getScoreColor(signalsData.score)}
                 />
@@ -130,7 +129,7 @@ const getScoreColor = (score: number) => {
     return 'red';
 };
 
-const MetricCard = ({ title, value, suffix = '', max, color }: any) => {
+const MetricCard = ({ title, value, suffix = '', color }: any) => {
     const colorClasses = {
         green: 'text-green-600 dark:text-green-400',
         amber: 'text-amber-600 dark:text-amber-400',

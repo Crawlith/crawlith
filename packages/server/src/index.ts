@@ -532,7 +532,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         };
       });
 
-      let nodes: SnapshotGraphNode[] = [];
+      let nodes: SnapshotGraphNode[];
 
       if (level === 1) {
         const groups = new Map<string, any[]>();
@@ -1037,7 +1037,7 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.7 GET /api/page/plugins
     api.get('/page/plugins', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      let url = req.query.url as string;
+      const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
 
@@ -1062,14 +1062,16 @@ export function startServer(options: ServerOptions): Promise<void> {
                 if (typeof parsedRow[key] === 'string' && (parsedRow[key].startsWith('{') || parsedRow[key].startsWith('['))) {
                   try {
                     parsedRow[key] = JSON.parse(parsedRow[key] as string);
-                  } catch { }
+                  } catch (_parseErr) {
+                    // Ignore JSON parse errors for non-JSON strings
+                  }
                 }
               }
               pluginData[pName] = parsedRow;
             }
           }
-        } catch (e) {
-          // Ignore
+        } catch (_e) {
+          // Ignore table lookup or access errors for plugins that failed to initialize fully
         }
       }
 
