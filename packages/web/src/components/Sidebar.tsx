@@ -60,12 +60,6 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
               onClick={() => handleNavigation('/')}
             />
             <SidebarItem
-              icon={Network}
-              label="Structure Graph"
-              active={currentPath === '/graph'}
-              onClick={() => handleNavigation('/graph')}
-            />
-            <SidebarItem
               icon={FileText}
               label="Content Audit"
               active={currentPath === '/audit'}
