@@ -25,7 +25,7 @@ describe('PageRank Performance Large', () => {
         pr.evaluate(graph, { maxIterations: 40 });
         const end = performance.now();
 
-        console.log(`PageRank on ${numNodes} nodes with ${outDegree} edges each took ${end - start}ms`);
+
         expect(end - start).toBeLessThan(5000);
     });
 });

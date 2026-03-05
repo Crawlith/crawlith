@@ -25,7 +25,7 @@ describe('HITS Performance Large', () => {
         hits.evaluate(graph, { iterations: 20 });
         const end = performance.now();
 
-        console.log(`HITS on ${numNodes} nodes with ${outDegree} edges each took ${end - start}ms`);
+
         expect(end - start).toBeLessThan(5000);
     });
 });

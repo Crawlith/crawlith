@@ -532,7 +532,7 @@ export function startServer(options: ServerOptions): Promise<void> {
         };
       });
 
-      let nodes: SnapshotGraphNode[] = [];
+      let nodes: SnapshotGraphNode[];
 
       if (level === 1) {
         const groups = new Map<string, any[]>();

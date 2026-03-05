@@ -1,4 +1,5 @@
 import { Graph } from './graph.js';
+import { DEFAULTS } from '../constants.js';
 
 export interface PageRankRow {
     raw_rank: number;
@@ -145,7 +146,7 @@ export class PageRankService {
             const url = eligibleNodes[i].url;
             let score = 100;
 
-            if (range > 1e-12) {
+            if (range > DEFAULTS.GRAPH_PRECISION) {
                 score = 100 * (rawRank - minPR) / range;
             }
 
