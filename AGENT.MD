@@ -1,139 +1,198 @@
-# Crawlith - AI Agent Instructions 🧠
+# Crawlith — AI Agent Instructions
 
-You are an AI agent operating within **Crawlith**, a high-performance, deterministic SEO Intelligence Engine. This pnpm monorepo powers graph-based site audits, link equity analysis, and technical SEO workflows. Adhere strictly to the rules, architecture, and workflows below to maintain consistency, security, and extensibility. **Anti-Hallucination Rule**: Ground all suggestions, code, or changes in the existing codebase, docs, or explicitly confirmed requirements. If uncertain, clarify before proceeding—do not invent features, APIs, or behaviors.
+You are an AI agent working inside the **Crawlith** monorepo: a deterministic SEO Intelligence Engine built on graph-based site audits, BFS crawling, and SQLite persistence.
 
----
+## Anti-Hallucination Contract
 
-## 1. Monorepo Structure
-
-| Package     | Path                | Purpose                                                                 |
-|-------------|---------------------|-------------------------------------------------------------------------|
-| **core**    | `packages/core`     | Core engine: Graph algorithms, BFS crawler, SQLite persistence.         |
-| **cli**     | `packages/cli`      | CLI interface: Command-line tools with premium DX (Chalk, spinners).    |
-| **web**     | `packages/web`      | React dashboard: Vite + Tailwind for visual reports and graphs.         |
-| **server**  | `packages/server`   | REST API: Bridges core logic to web/CLI, handles auth and scaling.      |
-| **plugins** | `packages/plugins`  | Modular extensions: PageRank, Soft 404 detection, content clustering.   |
-** Follow** `docs/plugins/plugin-guidlines.md` for plugin development.
----
-
-## 2. Core Architecture & Philosophy
-
-- **Crawler**: Use BFS for deterministic discovery. Respect robots.txt, rate limits, and scope (e.g., subdomain policies).
-- **Graph Engine**: Model sites as weighted directed graphs via the `Graph` class in `core`. Compute centrality with PageRank/HITS.
-- **Persistence**: Store snapshots in SQLite using `better-sqlite3`. Enable diffs, trends, and incremental crawls.
-- **Premium DX**: Outputs must be polished—use `chalk` for colors, `p-limit` for concurrency, `ora` for spinners.
-- **Plugins**: Extend via the Plugin System. Standardize outputs with `onMetrics` (data hooks) and `onReport` (rendering hooks).
-
-**Key Principle**: Favor modularity. OSS components (core/cli) remain self-contained; premium features (e.g., cloud queuing) layer on top without altering OSS boundaries. **No Duplication Rule**: Before adding code, search the codebase (e.g., via `grep` or IDE) for similar patterns—reuse or extend existing abstractions (e.g., `Fetcher`).
+Before writing any code, suggestion, or plan:
+- Ground every decision in the **existing codebase, these instructions, or an explicitly confirmed requirement**.
+- If you cannot find something in the codebase, say so and ask — do not invent it.
+- If you are unsure which abstraction to extend, stop and ask before writing new code.
+- Never fabricate API signatures, file paths, or behavior. If uncertain, grep first.
 
 ---
 
-## 3. Safety & Security
+## 1. Monorepo Layout
 
-Leverage the existing **IPGuard** and related safeguards—do not modify or bypass them:
+| Package | Path | Owns |
+|---|---|---|
+| `core` | `packages/core` | BFS crawler, Graph engine, SQLite persistence, Fetcher, IPGuard |
+| `cli` | `packages/cli` | Commands, terminal output (Chalk, Ora, spinners) |
+| `web` | `packages/web` | React dashboard (Vite + Tailwind) |
+| `server` | `packages/server` | REST API, auth, scaling |
+| `plugins` | `packages/plugins` | PageRank, Soft 404, content clustering |
 
-- **IPGuard**: DNS-resolve targets pre-fetch; blocks private IPs (e.g., 10.0.0.0/8, cloud metadata).
-- **RedirectController**: Limit hops (default: 2, max: 11) with cycle detection.
-- **Rate Limiting**: Default 2 req/sec via Token Bucket; override only via explicit config.
-- **Scope Enforcement**: Use `DomainFilter` and `SubdomainPolicy` to contain crawls.
+**Package boundaries are enforced:**
+- HTTP logic belongs in `core/Fetcher` — not in `cli`, `server`, or plugins.
+- BFS logic belongs in `packages/core/src/crawler/`.
+- Graph algorithms belong in `packages/core/src/graph/`.
+- CLI commands are thin wrappers — no business logic.
+- Plugins only interact with core via `onMetrics` and `onReport` hooks.
 
-**Rule**: Route all HTTP through `Fetcher` in core to inherit safeguards. Reference existing implementations; do not reimplement.
+For plugin development, follow `docs/plugins/plugin-guidelines.md` exactly.
+For PR Review, follow `docs/PR-REVIEW-GUIDELINES.md` exactly.
 
 ---
 
-## 4. Standard Workflows
+## 2. Non-Negotiable Architecture Rules
 
-### Build & Rebuild
+**Before writing any code, grep for existing implementations.**
+
+1. **All HTTP goes through `core/Fetcher`.** Never use raw `undici`, `http`, or `fetch` directly. `Fetcher` inherits `IPGuard`, rate limiting, and redirect control automatically.
+
+2. **No hardcoded constants.** All defaults (rate limits, user agent, timeouts, etc.) come from `packages/core/src/constants.ts`. Import, don't redefine.
+
+3. **No duplication.** Run `rg "pattern"` before building anything new. Extend `Fetcher`, `Graph`, `DomainFilter`, `IPGuard` — don't reimplement them.
+
+4. **OSS/premium boundary.** `core` and `cli` must remain fork-friendly. Premium features are gated via env vars or tokens, never via code locks inside OSS packages.
+
+5. **Plugins via hooks only.** Plugins must use `onMetrics` (data) and `onReport` (render) — no direct imports from core internals.
+
+---
+
+## 3. Safety & Security — Do Not Touch
+
+These are production safeguards. Do not modify, bypass, or reimplement them:
+
+- **`IPGuard`** — DNS-resolves all targets pre-fetch; blocks private IPs and cloud metadata endpoints.
+- **`RedirectController`** — Max 11 hops, default 2, with cycle detection.
+- **Token Bucket** — Default 2 req/sec. Override only via explicit user config, never in code.
+- **`DomainFilter` + `SubdomainPolicy`** — Contain crawl scope. Do not widen without explicit config.
+
+If a task requires touching any of these, **stop and confirm with the user first.**
+
+---
+
+## 4. Commands
+
 ```bash
-# Clean and rebuild monorepo
+# Rebuild monorepo
 pnpm run rebuild
-```
-### Testing & Coverage
-Vitest handles the suite via root `vitest.config.ts`. Mandatory: Run tests locally before any changes.
-```
-# Run tests with coverage
+
+# Run tests with coverage (required before any change)
 pnpm run test --coverage
-```
-## 5. Formatting & Linting
-```
-# Enforce ESLint/Prettier
+
+# Lint and format
 pnpm run lint
-pnpm run format  # If adding a format step
+pnpm run format
 ```
-## 6. Documentation Standards
-- Required: JSDoc/TSDoc for all namespaces, functions, interfaces, classes (new or modified).
-- Format: Include @description, @param (with types), @returns, and purpose/examples.
-- Tools: Use typedoc for generation; commit updates to docs/api/.
-
-## 7. Navigation Hotspots
-
-- Engine: `packages/core/src/crawler/` (BFS logic).
-- Graphs: `packages/core/src/graph/` (PageRank, HITS).
-- CLI: `packages/cli/src/commands/` (crawl/page modes).
-- Plugins: `packages/core/src/plugin-system/` (hooks/registry).
-- Configs: Root `package.json` (workspaces); `packages/core/src/constants.ts` (defaults like USER_AGENT).
-
-## 8. Roadmap Reference (Optional Guidance)
-For directional alignment, reference the live GitHub Issues/Milestones (e.g., github.com/yourorg/crawlith/issues). Current priorities (as of last sync—verify before acting):
-
-- JS Rendering (Beta): Integrate Playwright for dynamic audits.
-- Multi-Host Crawling: Safe cross-domain analysis with consent.
-- DB Migrations: Optimize SQLite for 1M+ pages.
-- UI Enhancements: Real-time graph filtering in dashboard.
-
-**Note**: Do not hardcode or expand this—pull from external tracking to avoid staleness.
-
-## 9. Best Practices: Avoiding Common Pitfalls
-
-- Centralize Constants: Import from packages/core/src/constants.ts (e.g., DEFAULTS.RATE_LIMIT). No hardcoding.
-- Reuse Abstractions: Leverage Fetcher for all HTTP; avoid raw undici/http modules.
-- OSS Boundaries: Keep CLI/core fork-friendly—premium uses env vars/tokens, not code locks.
-- Anti-Duplication: Scan for existing code (e.g., rg "pattern"); extend rather than rewrite.
-- Hallucination Check: For any code/output, cross-reference against codebase/docs. If fabricating, flag and clarify.
-
-## 10. Planning & Execution
-- Before Writing Code: Always create a markdown-formatted plan with a checklist. Structure it as:
-```text
-## Plan for [Feature/Task]
-
-### Checklist
-- [ ] Step 1: Research existing code/docs (e.g., search for related functions).
-- [ ] Step 2: Write/update unit tests (make them fail initially).
-- [ ] Step 3: Implement code incrementally.
-- [ ] Step 4: Run tests/lint/build to verify.
-- [ ] Step 5: Document with JSDoc.
-- [ ] Step 6: Propose diff for review.
-```
-- Update as Progress: Inline-check items (e.g., - [x] Step 1) and note any blockers/decisions. Share the updated plan before final code output.
-- Why?: Ensures structured, verifiable progress; prevents untested/duplicated code.
-
-## 11. Safety & Permissions
-Always seek explicit confirmation before:
-
-- Installing packages (pnpm add).
-- Git pushes, file deletions, or chmods.
-- Full builds or E2E suites.
-- Committing code (propose diffs first).
-
-## 12. PR Checklist
-- Title: feat(scope): short description (e.g., feat(crawler): add BFS depth limiter).
-- Pre-Commit: Lint, type-check, tests (including new/updated ones) all pass. No duplicates introduced.
-- Diff: Focused (<200 lines); include CHANGELOG summary and "Why this change?" rationale.
-- Cleanup: Remove debug logs/comments; ensure JSDoc is complete.
-- Confirmation: Share proposed PR/draft for review before finalizing.
-
-## 13. When Stuck or Uncertain
-- Ask a clarifying question, propose a 3-step plan, or open a draft PR with notes/questions.
-- Do not push speculative, large, or untested changes—break into small, verifiable increments.
-
-## 14. Strict Test-First Mode
-
-- New Features/Changes: Write or update unit tests first (make them fail), then code until green. Cover edge cases (e.g., SSRF triggers).
-- UI Changes: Use component tests for state/props.
-- Bugs/Regressions: Add a failing repro test immediately, then fix to green. No fixes without tests.
-- Coverage Goal: Aim for 90%+ on new code; run pnpm test --coverage to verify.
-- No Commit Without Tests: Treat untested code as invalid—pause and test before proposing.
 
 ---
 
-**Deterministic Crawl Intelligence. Shift-Left SEO.**
+## 5. Before Writing Any Code
+
+Always produce a plan first. Do not skip this.
+
+```
+## Plan: [Feature or Task Name]
+
+### What exists already
+- (grep results, relevant files, abstractions that apply)
+
+### What changes
+- [ ] Write/update failing tests first
+- [ ] Implement incrementally
+- [ ] Run pnpm test --coverage — must stay at 90%+
+- [ ] Run pnpm run lint
+- [ ] Add JSDoc to all new/modified public APIs
+- [ ] Propose diff for review
+
+### Decisions / open questions
+- (anything that needs confirmation before proceeding)
+```
+
+Check items inline as you go (`- [x]`). Share the updated plan before submitting code.
+
+---
+
+## 6. Test-First. Always.
+
+- **New feature** → write failing tests first, then implement until green.
+- **Bug fix** → add a failing repro test, then fix to green.
+- **UI change** → component tests covering state and props.
+- **Coverage target** → 90%+ on all new code. Verify with `pnpm test --coverage`.
+- **Untested code is not done.** Do not propose a diff without tests.
+
+Edge cases that must always be covered in crawler/graph code:
+- SSRF triggers (private IPs, cloud metadata URLs)
+- Redirect cycles
+- Robots.txt blocking
+- Empty or malformed responses
+
+---
+
+## 7. Documentation Requirements
+
+Required for every new or modified public API:
+
+```ts
+/**
+ * @description What this does and why.
+ * @param name - Type and meaning.
+ * @returns What is returned and when.
+ * @example
+ * const result = myFunction(input);
+ */
+```
+
+- Generate API docs with `typedoc`; commit output to `docs/api/`.
+- Update `README` or relevant `docs/` page for any user-facing CLI flag, command, or plugin hook.
+- Internal refactors do not require doc updates — only public surface changes.
+
+---
+
+## 8. Permissions — Always Ask First
+
+Do not perform any of the following without explicit user confirmation:
+
+- `pnpm add` (installing packages)
+- Git commits, pushes, or branch operations
+- File deletions or permission changes (`chmod`)
+- Full builds or E2E test runs
+- Any change to `IPGuard`, `RedirectController`, or Token Bucket defaults
+
+When in doubt: propose, don't act.
+
+---
+
+## 9. PR Requirements
+
+**Title format:** `feat(scope): short description`
+Examples: `feat(crawler): add BFS depth limiter`, `fix(graph): correct PageRank normalization`
+
+**Before opening a PR:**
+- [ ] `pnpm run lint` passes
+- [ ] `pnpm run test --coverage` passes at 90%+
+- [ ] Diff is focused — under 200 lines. If larger, split it.
+- [ ] No `console.log`, debug statements, or commented-out code
+- [ ] JSDoc complete on all new/modified public APIs
+- [ ] CHANGELOG entry included
+- [ ] "Why this change?" written in PR description
+- [ ] No new `pnpm` dependencies without prior confirmation
+
+Share as a draft PR for review before finalizing.
+
+---
+
+## 10. When Stuck
+
+1. Search the codebase first (`rg`, `grep`).
+2. Re-read the relevant section of these instructions.
+3. If still unclear: ask one specific question or open a draft PR with your question in the description.
+
+Do not push speculative or large untested changes. Break work into small, verifiable increments.
+
+---
+
+## 11. Roadmap (Direction Only — Verify Before Acting)
+
+Pull current status from GitHub Issues before starting roadmap work. Do not treat this list as confirmed scope.
+
+- **JS Rendering (Beta)** — Playwright integration for dynamic page audits
+- **Multi-Host Crawling** — Safe cross-domain analysis with consent model
+- **DB Migrations** — SQLite optimization for 1M+ page datasets
+- **UI Enhancements** — Real-time graph filtering in the dashboard
+
+---
+
+*Deterministic Crawl Intelligence. Shift-Left SEO.*
