@@ -136,6 +136,13 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
       // After crawl, we could do more here if needed, but CrawlSitegraph handles metrics phase hooks
       if (options.format !== 'json') {
         console.log(chalk.green('\n✅ Crawl completed successfully.'));
+      } else {
+        controller.renderResult({
+          snapshotId,
+          url,
+          pages: _graph.nodes.size,
+          edges: _graph.edges.size
+        });
       }
     } catch (error) {
       if ((error as any).code === 'ELOCKED') {

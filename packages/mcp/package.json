@@ -5,6 +5,8 @@
   "type": "module",
   "description": "MCP server bridge for Crawlith CLI tools.",
   "scripts": {
+    "build": "tsc",
+    "start": "node dist/mcp-server.js",
     "mcp": "tsx src/mcp-server.ts",
     "test:mcp": "tsx src/mcp-server.ts --help"
   },

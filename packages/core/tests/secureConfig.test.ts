@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import {
     setEncryptedConfigKey,
     getDecryptedConfigKey,
@@ -36,7 +37,7 @@ vi.mock('node:fs', () => ({
 
 describe('secureConfig utility', () => {
     const mockHome = '/home/testuser';
-    const mockConfigPath = `${mockHome}/.crawlith/config.json`;
+    const mockConfigPath = path.join(mockHome, '.crawlith', 'config.json');
 
     beforeEach(() => {
         vi.clearAllMocks();

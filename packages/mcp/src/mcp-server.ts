@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
@@ -30,9 +32,15 @@ const require = createRequire(import.meta.url);
  */
 function resolveDefaultCliEntrypoint(): string {
   try {
+    // Try to resolve the package itself first (works if installed as npm dependency)
     return require.resolve('@crawlith/cli/dist/index.js');
   } catch {
-    return path.resolve(workspaceRoot, 'packages/cli/dist/index.js');
+    // Fallback to local paths for monorepo development
+    const localPath = path.resolve(workspaceRoot, 'packages/cli/dist/index.js');
+    if (fs.existsSync(localPath)) return localPath;
+    
+    // Last resort fallback
+    return path.resolve(workspaceRoot, 'packages/cli/src/index.ts');
   }
 }
 
@@ -49,9 +57,11 @@ const defaultCliEntrypoint = resolveDefaultCliEntrypoint();
 function resolveCliCommand(): { file: string; args: string[] } {
   const configured = process.env.CRAWLITH_CLI_COMMAND?.trim();
   if (!configured) {
+    // Use tsx if pointing to a .ts file, otherwise use node
+    const isTs = defaultCliEntrypoint.endsWith('.ts');
     return {
-      file: process.execPath,
-      args: [defaultCliEntrypoint]
+      file: isTs ? 'npx' : process.execPath,
+      args: isTs ? ['tsx', defaultCliEntrypoint] : [defaultCliEntrypoint]
     };
   }
 
@@ -80,25 +90,32 @@ async function runCliCommand(commandArgs: string[]): Promise<unknown> {
   const cli = resolveCliCommand();
   const args = [...cli.args, ...withJsonOutput(commandArgs)];
 
-  const { stdout, stderr } = await execFileAsync(cli.file, args, {
-    cwd: workspaceRoot,
-    env: process.env,
-    maxBuffer: 10 * 1024 * 1024
-  });
-
-  if (stderr?.trim()) {
-    throw new Error(stderr.trim());
-  }
-
-  const trimmed = stdout.trim();
-  if (!trimmed) {
-    return '';
-  }
-
   try {
-    return JSON.parse(trimmed);
-  } catch {
-    return trimmed;
+    const { stdout, stderr } = await execFileAsync(cli.file, args, {
+      cwd: process.cwd(), // Run in current working directory, not monorepo root
+      env: process.env,
+      maxBuffer: 50 * 1024 * 1024 // 50MB for large crawl graphs
+    });
+
+    if (stderr?.trim()) {
+      // Log warnings to stderr (visible in Claude Desktop logs) but don't throw if stdout exists
+      console.error(`CLI Warning: ${stderr.trim()}`);
+    }
+
+    const trimmed = stdout.trim();
+    if (!trimmed) {
+      return { status: 'success', message: 'Command completed with no output' };
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  } catch (error: any) {
+    // Handle execution failure (non-zero exit code)
+    const message = error.stderr?.trim() || error.message || 'Unknown CLI error';
+    throw new Error(`Crawlith CLI Error: ${message}`);
   }
 }
 
@@ -125,9 +142,9 @@ function asTextContent(payload: unknown): { content: Array<{ type: 'text'; text:
  */
 async function runProcess(file: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return execFileAsync(file, args, {
-    cwd: workspaceRoot,
+    cwd: process.cwd(),
     env: process.env,
-    maxBuffer: 10 * 1024 * 1024
+    maxBuffer: 50 * 1024 * 1024
   });
 }
 
@@ -190,17 +207,37 @@ async function discoverPluginMcpDefinitions(): Promise<{
   prompts: PluginMcpPrompt[];
 }> {
   const loader = new PluginLoader();
-  const plugins = await loader.discover(workspaceRoot);
   const tools: PluginMcpTool[] = [];
   const prompts: PluginMcpPrompt[] = [];
 
-  for (const plugin of plugins) {
-    if (plugin.mcp?.tools?.length) tools.push(...plugin.mcp.tools);
-    if (plugin.mcp?.prompts?.length) prompts.push(...plugin.mcp.prompts);
+  // Discover from multiple potential roots
+  const roots = new Set<string>([
+    workspaceRoot, // Monorepo root (dev)
+    process.cwd(), // Current project directory
+    path.join(os.homedir(), '.crawlith') // Global crawlith config dir
+  ]);
 
-    if (plugin.hooks?.onMcpDiscovery) {
-      const context: PluginContext = createPluginDiscoveryContext(plugin, tools, prompts);
-      await plugin.hooks.onMcpDiscovery(context);
+  for (const root of roots) {
+    if (!root || !fs.existsSync(root)) continue;
+    
+    const plugins = await loader.discover(root);
+    for (const plugin of plugins) {
+      // Avoid duplicates if same plugin found in multiple roots
+      if (plugin.mcp?.tools?.length) {
+        for (const t of plugin.mcp.tools) {
+           if (!tools.some(existing => existing.name === t.name)) tools.push(t);
+        }
+      }
+      if (plugin.mcp?.prompts?.length) {
+        for (const p of plugin.mcp.prompts) {
+           if (!prompts.some(existing => existing.name === p.name)) prompts.push(p);
+        }
+      }
+
+      if (plugin.hooks?.onMcpDiscovery) {
+        const context: PluginContext = createPluginDiscoveryContext(plugin, tools, prompts);
+        await plugin.hooks.onMcpDiscovery(context);
+      }
     }
   }
 
@@ -300,11 +337,22 @@ async function registerPluginMcpDefinitions(mcpServer: McpServer): Promise<{ too
       prompt.name,
       prompt.description,
       (prompt.argumentsSchema ?? {}) as Record<string, z.ZodTypeAny>,
-      (input: Record<string, unknown>) => prompt.buildMessages(input, {
-        scope: 'crawl',
-        command: 'mcp-prompt',
-        metadata: { source: 'plugin', prompt: prompt.name }
-      })
+      (input: Record<string, unknown>) => {
+        const result = prompt.buildMessages(input, {
+          scope: 'crawl',
+          command: 'mcp-prompt',
+          metadata: { source: 'plugin', prompt: prompt.name }
+        });
+
+        // Ensure roles are compatible with MCP SDK (only user and assistant supported)
+        return {
+          ...result,
+          messages: result.messages.map(m => ({
+            ...m,
+            role: m.role === 'system' ? 'user' : (m.role as 'user' | 'assistant')
+          }))
+        };
+      }
     );
     promptCount += 1;
   }
