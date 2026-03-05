@@ -33,6 +33,19 @@ Enable specialized analysis modules to gain deeper insights into your site's str
 | `--orphans` | Find pages in sitemap with zero internal links. | [Orphaned Pages](/concepts/orphans) |
 | `--heading` | Audit H1-H6 hierarchy and nesting health. | - |
 | `--signals` | Extract social tags (OG/Twitter) and JSON-LD. | - |
+| `--incremental` | Recrawl only pages that have changed since the last run. | - |
+| `--detect-duplicates` | Spot pages with very similar or repeated content. | - |
+| `--detect-soft404` | Identify "fake" 200 OK responses that should be 404s. | - |
+| `--detect-canonicals` | Find missing, conflicting, or incorrect canonical tags. | - |
+| `--detect-broken-links` | Map all internal links pointing to non-200 pages. | - |
+| `--detect-redirects` | Identify redirect chains and loops. | - |
+| `--detect-traps` | Detect URL patterns that create infinite crawl loops. | - |
+
+## Multi-Snapshot Flags
+
+| Flag | Description |
+| :--- | :--- |
+| `--compare <old> <new>` | Generate a diff report between two JSON snapshot files. |
 
 ## Safety & Compliance Flags
 
