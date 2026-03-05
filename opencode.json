@@ -6,5 +6,8 @@
       "command": "npx",
       "args": ["tsx", "./packages/mcp/src/mcp-server.ts"]
     }
-  }
+  },
+  "plugins": [
+    "./.opencode/plugins/crawlith.ts"
+  ]
 }
