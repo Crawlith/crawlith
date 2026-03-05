@@ -47,6 +47,26 @@ test('graph metrics basic', () => {
   expect(metrics.orphanPages).toEqual([]);
 });
 
+test('topAuthorityPages excludes external and uncrawled nodes', () => {
+  const g = new Graph();
+  g.addNode('/home', 0, 200, true);
+  g.addNode('/a', 1, 200, true);
+  g.addNode('/b', 1, 200, true);
+  g.addNode('https://external.test/x', 1, 0, false);
+
+  g.addEdge('/home', '/a');
+  g.addEdge('/home', '/b');
+  g.addEdge('/a', '/b');
+
+  // External/unfetched node gets several inbound links; it must still be excluded.
+  g.addEdge('/a', 'https://external.test/x');
+  g.addEdge('/b', 'https://external.test/x');
+  g.addEdge('/home', 'https://external.test/x');
+
+  const metrics = calculateMetrics(g, 5);
+  expect(metrics.topAuthorityPages.every((p) => !p.url.includes('external.test'))).toBe(true);
+});
+
 test('orphan pages', () => {
   const g = new Graph();
   g.addNode('Root', 0, 200);

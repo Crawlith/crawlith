@@ -101,7 +101,8 @@ export function calculateMetrics(graph: Graph, _maxDepth: number): Metrics {
   }
 
   // topAuthorityPages: Top 10 by authority
-  const topAuthorityPages = [...nodes]
+  const topAuthorityPages = nodes
+    .filter(n => n.isInternal !== false && n.status > 0)
     .map(n => ({ url: n.url, authority: getAuthority(n) }))
     .sort((a, b) => b.authority - a.authority)
     .slice(0, 10);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Network, FileText, Settings, Layers, ChevronRight, X, Globe2, ChevronDown, Check } from 'lucide-react';
+import { LayoutDashboard, Network, Layers, ListTree, ChevronRight, X, Globe2, ChevronDown, Check } from 'lucide-react';
 import * as API from '../api';
 
 interface SidebarProps {
@@ -136,10 +136,10 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
               onClick={() => handleNavigation('/')}
             />
             <SidebarItem
-              icon={FileText}
-              label="Content Audit"
-              active={currentPath === '/audit'}
-              onClick={() => handleNavigation('/audit')}
+              icon={ListTree}
+              label="Depth Explorer"
+              active={currentPath === '/depths'}
+              onClick={() => handleNavigation('/depths')}
             />
           </SidebarGroup>
 
@@ -149,12 +149,6 @@ export const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
               label="Crawl History"
               active={currentPath === '/history'}
               onClick={() => handleNavigation('/history')}
-            />
-            <SidebarItem
-              icon={Settings}
-              label="Configuration"
-              active={currentPath === '/settings'}
-              onClick={() => handleNavigation('/settings')}
             />
           </SidebarGroup>
         </nav>

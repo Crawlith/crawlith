@@ -60,29 +60,37 @@ export const SignalsHooks = {
     for (const node of nodes) {
       const url = node?.url;
       if (!url) continue;
+      // Signals should run only on internal pages that were actually fetched.
+      if (node?.isInternal === false) continue;
+      if (typeof node?.status === 'number' && node.status <= 0) continue;
 
       const headerValue = node?.headers?.['content-language'];
       const contentLanguageValue = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-
-      const row = await ctx.db.data.getOrFetch<SignalsRow>(
-        url,
-        async () => {
-          const parsed = service.parseSignalsFromHtml(node?.html || '', url, contentLanguageValue);
-          const score = service.computePageScore(parsed);
-          return {
-            score,
-            status: service.computeStatus(score),
-            has_og: parsed.hasOg,
-            has_lang: parsed.hasLang,
-            has_hreflang: parsed.hasHreflang,
-            has_jsonld: parsed.hasJsonld,
-            broken_jsonld: parsed.brokenJsonld,
-            schema_hash: parsed.schemaHash,
-            og_hash: parsed.ogHash,
-            signals_json: JSON.stringify(parsed)
-          } as SignalsRow;
-        }
-      );
+      let row: SignalsRow | null = null;
+      try {
+        row = await ctx.db.data.getOrFetch<SignalsRow>(
+          url,
+          async () => {
+            const parsed = service.parseSignalsFromHtml(node?.html || '', url, contentLanguageValue);
+            const score = service.computePageScore(parsed);
+            return {
+              score,
+              status: service.computeStatus(score),
+              has_og: parsed.hasOg,
+              has_lang: parsed.hasLang,
+              has_hreflang: parsed.hasHreflang,
+              has_jsonld: parsed.hasJsonld,
+              broken_jsonld: parsed.brokenJsonld,
+              schema_hash: parsed.schemaHash,
+              og_hash: parsed.ogHash,
+              signals_json: JSON.stringify(parsed)
+            } as SignalsRow;
+          }
+        );
+      } catch (error) {
+        ctx.logger?.warn?.(`[plugin:signals] Skipping ${url}: ${(error as Error).message}`);
+        continue;
+      }
 
       if (!row) continue;
       const parsed = (typeof row.signals_json === 'string' ? JSON.parse(row.signals_json) : row.signals_json) as ParsedSignalRecord;

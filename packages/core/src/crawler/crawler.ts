@@ -100,6 +100,9 @@ export class Crawler {
   private edgeBuffer: { sourceUrl: string; targetUrl: string; weight: number; rel: string }[] = [];
   private metricsBuffer: any[] = [];
   private pendingSitemaps: number = 0;
+  private edgesFound: number = 0;
+  private lastProgressEmitAt: number = 0;
+  private progressPhase: string = 'crawling';
 
   // Modules
   private scopeManager: ScopeManager | null = null;
@@ -235,6 +238,7 @@ export class Crawler {
       this.uniqueQueue.add(u);
       this.queue.push({ url: u, depth: d });
       this.context.emit({ type: 'queue:enqueue', url: u, depth: d });
+      this.emitProgress();
 
       this.bufferPage(u, d, 0, data);
 
@@ -368,9 +372,26 @@ export class Crawler {
 
   private bufferEdge(sourceUrl: string, targetUrl: string, weight: number = 1.0, rel: string = 'internal'): void {
     this.edgeBuffer.push({ sourceUrl, targetUrl, weight, rel });
+    this.edgesFound += 1;
+    this.emitProgress();
     if (this.edgeBuffer.length >= 100) {
       this.flushEdges();
     }
+  }
+
+  private emitProgress(force: boolean = false): void {
+    const now = Date.now();
+    if (!force && now - this.lastProgressEmitAt < 200) return;
+    this.lastProgressEmitAt = now;
+    this.context.emit({
+      type: 'crawl:progress',
+      pagesCrawled: this.pagesCrawled,
+      queued: this.queue.length,
+      active: this.active,
+      nodesFound: this.uniqueQueue.size,
+      edgesFound: this.edgesFound,
+      phase: this.progressPhase
+    });
   }
 
   private flushEdges(): void {
@@ -682,6 +703,8 @@ export class Crawler {
     return new Promise((resolve) => {
       const checkDone = async () => {
         if (this.queue.length === 0 && this.active === 0 && this.pendingSitemaps === 0) {
+          this.progressPhase = 'finalizing';
+          this.emitProgress(true);
           await this.flushAll();
           this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
             limit_reached: this.reachedLimit ? 1 : 0
@@ -706,7 +729,12 @@ export class Crawler {
 
         if (this.pagesCrawled >= this.options.limit) {
           this.reachedLimit = true;
+          this.progressPhase = 'limit reached';
+          this.emitProgress();
           if (this.active === 0) {
+            this.context.emit({ type: 'crawl:limit-reached', limit: this.options.limit });
+            this.progressPhase = 'finalizing';
+            this.emitProgress(true);
             await this.flushAll();
             this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
               limit_reached: 1
@@ -720,7 +748,6 @@ export class Crawler {
             if (this.reusingSnapshot) {
               this.snapshotRepo!.touchSnapshot(this.snapshotId!);
             }
-            this.context.emit({ type: 'crawl:limit-reached', limit: this.options.limit });
             resolve(this.snapshotId!);
           }
           return;
@@ -762,10 +789,12 @@ export class Crawler {
 
           this.limitConcurrency(() => this.processPage(item, isBlocked)).finally(() => {
             this.active--;
+            this.emitProgress();
             next();
           });
         }
 
+        this.emitProgress();
         await checkDone();
       };
       next();

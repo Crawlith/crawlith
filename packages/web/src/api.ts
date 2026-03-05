@@ -81,6 +81,19 @@ export interface TopPage {
   hubScore: number;
 }
 
+export interface DepthPage {
+  url: string;
+  fullUrl: string;
+  status: number;
+  pageRankScore: number;
+}
+
+export interface DepthGroup {
+  depth: number;
+  count: number;
+  pages: DepthPage[];
+}
+
 export interface Snapshot {
   id: number;
   run_type?: 'completed' | 'incremental' | 'single';
@@ -279,6 +292,14 @@ export async function fetchDepthDistribution(snapshotId?: number): Promise<{ buc
   if (snapshotId) params.append('snapshot', snapshotId.toString());
   const res = await fetch(apiUrl('/metrics/depth-distribution', params));
   if (!res.ok) throw new Error('Failed to fetch depth distribution');
+  return res.json();
+}
+
+export async function fetchDepthPages(snapshotId?: number): Promise<{ results: DepthGroup[] }> {
+  const params = new URLSearchParams();
+  if (snapshotId) params.append('snapshot', snapshotId.toString());
+  const res = await fetch(apiUrl('/metrics/depth-pages', params));
+  if (!res.ok) throw new Error('Failed to fetch depth pages');
   return res.json();
 }
 

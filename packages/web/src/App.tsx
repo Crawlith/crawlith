@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import * as API from './api';
 import { Dashboard } from './pages/Dashboard';
 import { SinglePage } from './pages/SinglePage';
+import { DepthExplorer } from './pages/DepthExplorer';
 import { HistoryView } from './components/History/HistoryView';
 
 export const DashboardContext = React.createContext<{
@@ -105,6 +106,7 @@ function App() {
                   <HistoryView />
                 </div>
               } />
+              <Route path="/depths" element={<DepthExplorer />} />
               <Route path="/page" element={<SinglePage />} />
             </Routes>
           </main>

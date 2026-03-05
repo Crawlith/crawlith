@@ -453,7 +453,45 @@ export function startServer(options: ServerOptions): Promise<void> {
       res.json({ buckets: rows });
     });
 
-    // 4.7 GET /api/snapshots
+    // 4.7 GET /api/metrics/depth-pages
+    api.get('/metrics/depth-pages', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
+      const currentSiteOrigin = (req as any).siteOrigin as string;
+      const rows = db.prepare(`
+        SELECT
+          p.depth as depth,
+          p.normalized_url as url,
+          p.http_status as status,
+          COALESCE(m.pagerank_score, 0) as pageRankScore
+        FROM metrics m
+        JOIN pages p ON m.page_id = p.id
+        WHERE m.snapshot_id = ? AND p.is_internal = 1
+        ORDER BY p.depth ASC, m.pagerank_score DESC, p.normalized_url ASC
+      `).all(currentSnapshotId) as { depth: number; url: string; status: number; pageRankScore: number }[];
+
+      const grouped = new Map<number, { depth: number; count: number; pages: { url: string; fullUrl: string; status: number; pageRankScore: number }[] }>();
+
+      for (const row of rows) {
+        if (!grouped.has(row.depth)) {
+          grouped.set(row.depth, { depth: row.depth, count: 0, pages: [] });
+        }
+
+        const bucket = grouped.get(row.depth)!;
+        bucket.pages.push({
+          url: row.url,
+          fullUrl: UrlUtil.toAbsolute(row.url, currentSiteOrigin),
+          status: row.status,
+          pageRankScore: row.pageRankScore
+        });
+        bucket.count += 1;
+      }
+
+      res.json({
+        results: Array.from(grouped.values()).sort((a, b) => a.depth - b.depth)
+      });
+    });
+
+    // 4.8 GET /api/snapshots
     api.get('/snapshots', (req, res) => {
       const selectedSite = resolveRequestedSite(req);
       if (!selectedSite) return res.status(404).json({ error: 'Site not found' });

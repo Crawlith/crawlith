@@ -17,6 +17,8 @@ import { UrlUtil } from '../crawler/normalize.js';
 export interface CrawlSitegraphResult {
   snapshotId: number;
   graph: Graph;
+  metrics?: any;
+  healthData?: any;
 }
 
 export interface SiteCrawlInput {
@@ -42,7 +44,6 @@ export interface SiteCrawlInput {
   clusterThreshold?: number;
   minClusterSize?: number;
   heading?: boolean;
-  health?: boolean;
   failOnCritical?: boolean;
   scoreBreakdown?: boolean;
   computeHits?: boolean;
@@ -102,6 +103,8 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     const snapshotId = await crawl(input.url, crawlOpts as any, engineContext);
     const graph = loadGraphFromSnapshot(snapshotId);
 
+    // Ensure plugin hooks that persist data are scoped to the created snapshot.
+    ctx.snapshotId = snapshotId;
     await registry.runHook('onGraphBuilt', ctx, graph);
     await registry.runHook('onMetrics', ctx, graph);
 
@@ -119,7 +122,7 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       }
     }
 
-    runPostCrawlMetrics(snapshotId, crawlOpts.depth, {
+    const result = runPostCrawlMetrics(snapshotId, crawlOpts.depth, {
       context: undefined,
       limitReached: false,
       graphInstance: graph,
@@ -127,7 +130,8 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       clusterThreshold: input.clusterThreshold,
       minClusterSize: input.minClusterSize,
       heading: input.heading ?? true,
-      health: input.health ?? true,
+      // Always compute and persist health score for full crawls.
+      health: true,
       computeHits: input.computeHits ?? true,
       computePagerank: input.computePagerank ?? true,
       orphans: input.orphans ?? true,
@@ -141,12 +145,15 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
       )
     });
 
+    const metrics = result?.metrics;
+    const healthData = result?.healthData;
+
     if (ctx.db) {
       ctx.db.aggregateScoreProviders(snapshotId, registry.pluginsList);
     }
 
-    await registry.runHook('onReport', ctx, { snapshotId, graph });
-    return { snapshotId, graph };
+    await registry.runHook('onReport', ctx, { snapshotId, graph, metrics, healthData });
+    return { snapshotId, graph, metrics, healthData };
   }
 }
 

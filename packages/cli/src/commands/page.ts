@@ -29,7 +29,6 @@ export const getPageCommand = (registry: PluginRegistry) => {
     .option('--sitemap [url]', 'sitemap URL (defaults to /sitemap.xml if not specified)')
     // Heading & Health
     .option('--heading', 'Analyze heading structure and hierarchy health')
-    .option('--health', 'Run health score analysis')
     .option('--fail-on-critical', 'Exit code 1 if critical issues exist')
     .option('--score-breakdown', 'Print health score component weights')
     // Graph Centrality
@@ -81,7 +80,6 @@ export const getPageCommand = (registry: PluginRegistry) => {
         minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : undefined,
         sitemap: options.sitemap,
         heading: options.heading,
-        health: options.health,
         failOnCritical: options.failOnCritical,
         scoreBreakdown: options.scoreBreakdown,
         computePagerank: options.pagerank,
@@ -150,6 +148,7 @@ export const getPageCommand = (registry: PluginRegistry) => {
           return renderAnalyzeInsightOutput(report, res);
         });
       }
+      controller.finish();
 
     } catch (error) {
       context.emit({ type: 'error', message: 'Error', error });
