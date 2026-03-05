@@ -24,8 +24,8 @@ vi.mock('better-sqlite3', () => {
     }),
   };
 });
-vi.mock('../../src/db/schema.js', () => ({
-  initSchema: vi.fn(),
+vi.mock('../../src/db/migrations.js', () => ({
+  runBaseMigrations: vi.fn(),
 }));
 
 describe('DB Index', () => {

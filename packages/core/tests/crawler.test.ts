@@ -80,17 +80,17 @@ test('crawler should crawl and build graph', async () => {
   const nodes = graph.getNodes();
   expect(nodes.length).toBe(3);
 
-  const root = graph.nodes.get('https://example.com/');
+  const root = graph.nodes.get('/');
   expect(root).toBeDefined();
   expect(root?.depth).toBe(0);
   expect(root?.outLinks).toBe(2);
 
-  const page1 = graph.nodes.get('https://example.com/page1');
+  const page1 = graph.nodes.get('/page1');
   expect(page1).toBeDefined();
   expect(page1?.depth).toBe(1);
   expect(page1?.inLinks).toBe(1);
 
-  const page2 = graph.nodes.get('https://example.com/page2');
+  const page2 = graph.nodes.get('/page2');
   expect(page2).toBeDefined();
   expect(page2?.inLinks).toBe(2);
 });
@@ -214,7 +214,7 @@ test('redirect safety', async () => {
   }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
-  const destNode = graph.nodes.get('https://redirect.com/dest');
+  const destNode = graph.nodes.get('/dest');
   expect(destNode).toBeDefined();
   expect(destNode?.status).toBe(200);
 
@@ -256,10 +256,10 @@ test('mime check', async () => {
   const graph = loadGraphFromSnapshot(snapshotId);
 
   // /data should be in graph
-  const dataNode = graph.nodes.get('https://mime.com/data');
+  const dataNode = graph.nodes.get('/data');
   expect(dataNode).toBeDefined();
   // But we should NOT have parsed it, so /hidden should NOT be in graph
-  const hiddenNode = graph.nodes.get('https://mime.com/hidden');
+  const hiddenNode = graph.nodes.get('/hidden');
   expect(hiddenNode).toBeUndefined();
 });
 
@@ -277,10 +277,10 @@ test('self-link guard', async () => {
   const graph = loadGraphFromSnapshot(snapshotId);
 
   const edges = graph.getEdges();
-  const selfEdge = edges.find(e => e.source === 'https://self.com/' && e.target === 'https://self.com/');
+  const selfEdge = edges.find(e => e.source === '/' && e.target === '/');
   expect(selfEdge).toBeUndefined();
 
-  const otherEdge = edges.find(e => e.source === 'https://self.com/' && e.target === 'https://self.com/other');
+  const otherEdge = edges.find(e => e.source === '/' && e.target === '/other');
   expect(otherEdge).toBeDefined();
 });
 
@@ -324,7 +324,7 @@ test('seeds from sitemap', async () => {
   }, mockContext);
   const graph = loadGraphFromSnapshot(snapshotId);
 
-  const page1 = graph.nodes.get('https://sitemap-seed.com/page1');
+  const page1 = graph.nodes.get('/page1');
   expect(page1).toBeDefined();
   expect(page1?.status).toBe(200);
 });
@@ -340,7 +340,7 @@ test('incremental crawl uses etags', async () => {
 
   const snapshotId1 = await crawl('https://incremental.com', { limit: 10, depth: 1, ignoreRobots: true, rate: 1000 }, mockContext);
   const graph1 = loadGraphFromSnapshot(snapshotId1);
-  const node1 = graph1.nodes.get('https://incremental.com/');
+  const node1 = graph1.nodes.get('/');
   expect(node1?.etag).toBe('"v1"');
 
   // Second crawl setup
@@ -359,6 +359,6 @@ test('incremental crawl uses etags', async () => {
   }, mockContext);
   const graph2 = loadGraphFromSnapshot(snapshotId2);
 
-  const node2 = graph2.nodes.get('https://incremental.com/');
+  const node2 = graph2.nodes.get('/');
   expect(node2?.incrementalStatus).toBe('unchanged');
 });

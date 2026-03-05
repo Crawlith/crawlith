@@ -35,9 +35,11 @@ describe('analyze integration', () => {
     // Parse fixture and load pages into db
     const pages = rawData.pages || rawData.nodes || [];
     pages.forEach((p: any) => {
+      const parsedUrl = new URL(p.url);
+      const normalizedPath = parsedUrl.pathname + parsedUrl.search;
       pageRepo.upsertPage({
         site_id: siteId,
-        normalized_url: p.url,
+        normalized_url: normalizedPath,
         last_seen_snapshot_id: snapshotId,
         http_status: p.status || 200,
         html: p.html || '',
@@ -47,8 +49,10 @@ describe('analyze integration', () => {
 
     if (rawData.edges) {
       rawData.edges.forEach((e: any) => {
-        const sourceId = pageRepo.getIdByUrl(siteId, e.source);
-        const targetId = pageRepo.getIdByUrl(siteId, e.target);
+        const parsedSource = new URL(e.source);
+        const parsedTarget = new URL(e.target);
+        const sourceId = pageRepo.getIdByUrl(siteId, parsedSource.pathname + parsedSource.search);
+        const targetId = pageRepo.getIdByUrl(siteId, parsedTarget.pathname + parsedTarget.search);
         if (sourceId && targetId) {
           edgeRepo.insertEdge(snapshotId, sourceId, targetId);
         }

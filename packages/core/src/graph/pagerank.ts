@@ -58,94 +58,98 @@ export class PageRankService {
         const results = new Map<string, PageRankRow>();
         if (nodeCount === 0) return results;
 
-        const nodeUrls = eligibleNodes.map(n => n.url);
-        const nodeMap = new Map<string, any>();
-        eligibleNodes.forEach(n => nodeMap.set(n.url, n));
-
-        // Initialize PageRank
-        let pr = new Map<string, number>();
-        nodeUrls.forEach(url => pr.set(url, 1 / nodeCount));
+        // Map URL to Index for O(1) access and TypedArray usage
+        const urlToIndex = new Map<string, number>();
+        for (let i = 0; i < nodeCount; i++) {
+            urlToIndex.set(eligibleNodes[i].url, i);
+        }
 
         // Pre-calculate weighted outbound sums and inverted adjacency
-        const outWeights = new Map<string, number>();
-        const incoming = new Map<string, { source: string; weight: number }[]>();
-        const sinks: string[] = [];
-
-        // Initialize outWeights for all eligible nodes
-        nodeUrls.forEach(url => outWeights.set(url, 0));
+        const outWeights = new Float64Array(nodeCount);
+        const incoming: { sourceIndex: number, weight: number }[][] = new Array(nodeCount).fill(null).map(() => []);
 
         for (const edge of allEdges) {
-            if (nodeMap.has(edge.source) && nodeMap.has(edge.target)) {
+            const sourceIndex = urlToIndex.get(edge.source);
+            const targetIndex = urlToIndex.get(edge.target);
+
+            if (sourceIndex !== undefined && targetIndex !== undefined) {
                 const weight = edge.weight || 1.0;
-
-                const sources = incoming.get(edge.target) ?? [];
-                sources.push({ source: edge.source, weight });
-                incoming.set(edge.target, sources);
-
-                outWeights.set(edge.source, (outWeights.get(edge.source) || 0) + weight);
+                incoming[targetIndex].push({ sourceIndex, weight });
+                outWeights[sourceIndex] += weight;
             }
         }
 
         // Identify sinks
-        nodeUrls.forEach(url => {
-            if ((outWeights.get(url) || 0) === 0) {
-                sinks.push(url);
+        const sinks: number[] = [];
+        for (let i = 0; i < nodeCount; i++) {
+            if (outWeights[i] === 0) {
+                sinks.push(i);
             }
-        });
+        }
+
+        // Initialize PageRank typed arrays
+        let pr = new Float64Array(nodeCount).fill(1 / nodeCount);
+        let nextPr = new Float64Array(nodeCount);
 
         // Iterative Calculation
-        for (let i = 0; i < maxIterations; i++) {
-            const nextPr = new Map<string, number>();
-
+        for (let iter = 0; iter < maxIterations; iter++) {
             // Calculate total rank from sinks to redistribute
             let sinkRankTotal = 0;
-            for (const url of sinks) {
-                sinkRankTotal += pr.get(url) || 0;
+            for (let i = 0; i < sinks.length; i++) {
+                sinkRankTotal += pr[sinks[i]];
             }
 
             const baseRank = (1 - d) / nodeCount + (d * sinkRankTotal / nodeCount);
+            let maxDelta = 0;
 
-            for (const url of nodeUrls) {
+            for (let i = 0; i < nodeCount; i++) {
                 let rankFromLinks = 0;
-                const sources = incoming.get(url) || [];
+                const sources = incoming[i];
 
-                for (const edge of sources) {
-                    const sourceRank = pr.get(edge.source) || 0;
-                    const sourceOutWeight = outWeights.get(edge.source) || 1.0;
+                for (let j = 0; j < sources.length; j++) {
+                    const edge = sources[j];
+                    const sourceRank = pr[edge.sourceIndex];
+                    const sourceOutWeight = outWeights[edge.sourceIndex] || 1.0;
                     rankFromLinks += sourceRank * (edge.weight / sourceOutWeight);
                 }
 
                 const newRank = baseRank + d * rankFromLinks;
-                nextPr.set(url, newRank);
+                nextPr[i] = newRank;
+
+                const delta = Math.abs(newRank - pr[i]);
+                if (delta > maxDelta) {
+                    maxDelta = delta;
+                }
             }
 
-            // Convergence check
-            let maxDelta = 0;
-            for (const url of nodeUrls) {
-                const delta = Math.abs(nextPr.get(url)! - pr.get(url)!);
-                if (delta > maxDelta) maxDelta = delta;
-            }
-
+            // Swap arrays
+            const temp = pr;
             pr = nextPr;
+            nextPr = temp;
 
             if (maxDelta < epsilon) break;
         }
 
         // 2. Normalization (0-100)
-        const ranks = Array.from(pr.values());
-        const minPR = Math.min(...ranks);
-        const maxPR = Math.max(...ranks);
+        let minPR = pr[0];
+        let maxPR = pr[0];
+        for (let i = 1; i < nodeCount; i++) {
+            const rank = pr[i];
+            if (rank < minPR) minPR = rank;
+            if (rank > maxPR) maxPR = rank;
+        }
         const range = maxPR - minPR;
 
-        for (const node of eligibleNodes) {
-            const rawRank = pr.get(node.url)!;
+        for (let i = 0; i < nodeCount; i++) {
+            const rawRank = pr[i];
+            const url = eligibleNodes[i].url;
             let score = 100;
 
             if (range > 1e-12) {
                 score = 100 * (rawRank - minPR) / range;
             }
 
-            results.set(node.url, {
+            results.set(url, {
                 raw_rank: rawRank,
                 score: Number(score.toFixed(3))
             });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { initSchema } from '../src/db/schema.js';
+import { runBaseMigrations } from '../src/db/migrations.js';
 import { SiteRepository } from '../src/db/repositories/SiteRepository.js';
 import { SnapshotRepository } from '../src/db/repositories/SnapshotRepository.js';
 
@@ -11,7 +11,7 @@ describe('SiteRepository & SnapshotRepository', () => {
 
   beforeEach(() => {
     db = new Database(':memory:');
-    initSchema(db);
+    runBaseMigrations(db);
     siteRepo = new SiteRepository(db);
     snapshotRepo = new SnapshotRepository(db);
   });

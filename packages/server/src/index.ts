@@ -486,13 +486,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.2 GET /api/page/inlinks
     api.get('/page/inlinks', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      let url = req.query.url as string;
+      const queryUrl = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
-      if (!url) return res.status(400).json({ error: 'URL is required' });
-      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
+      if (!queryUrl) return res.status(400).json({ error: 'URL is required' });
+      const url = queryUrl.startsWith('/') ? `https://${site!.domain}${queryUrl}` : queryUrl;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -528,13 +528,13 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.3 GET /api/page/outlinks
     api.get('/page/outlinks', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      let url = req.query.url as string;
+      const queryUrl = req.query.url as string;
       const pageNum = parseInt(req.query.page as string || '1', 10);
       const pageSize = parseInt(req.query.pageSize as string || '50', 10);
       const offset = (pageNum - 1) * pageSize;
 
-      if (!url) return res.status(400).json({ error: 'URL is required' });
-      url = url.startsWith('/') ? `https://${site!.domain}${url}` : url;
+      if (!queryUrl) return res.status(400).json({ error: 'URL is required' });
+      const url = queryUrl.startsWith('/') ? `https://${site!.domain}${queryUrl}` : queryUrl;
 
       const page = db.prepare('SELECT id FROM pages WHERE site_id = ? AND normalized_url = ?').get(siteId, url) as { id: number };
       if (!page) return res.status(404).json({ error: 'Page not found' });
@@ -676,7 +676,7 @@ export function startServer(options: ServerOptions): Promise<void> {
     // 5.7 GET /api/page/plugins
     api.get('/page/plugins', validateSnapshot, (req, res) => {
       const currentSnapshotId = (req as any).snapshotId as number;
-      let url = req.query.url as string;
+      const url = req.query.url as string;
 
       if (!url) return res.status(400).json({ error: 'URL is required' });
 
@@ -701,14 +701,16 @@ export function startServer(options: ServerOptions): Promise<void> {
                 if (typeof parsedRow[key] === 'string' && (parsedRow[key].startsWith('{') || parsedRow[key].startsWith('['))) {
                   try {
                     parsedRow[key] = JSON.parse(parsedRow[key] as string);
-                  } catch { }
+                  } catch (_parseErr) {
+                    // Ignore JSON parse errors for non-JSON strings
+                  }
                 }
               }
               pluginData[pName] = parsedRow;
             }
           }
-        } catch (e) {
-          // Ignore
+        } catch (_e) {
+          // Ignore table lookup or access errors for plugins that failed to initialize fully
         }
       }
 

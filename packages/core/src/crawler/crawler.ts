@@ -251,8 +251,12 @@ export class Crawler {
   }
 
   async seedQueue(): Promise<void> {
+    const rootUrl = normalizeUrl(this.startUrl, this.rootOrigin, { stripQuery: this.options.stripQuery });
+    if (!rootUrl) throw new Error('Invalid root URL for seeding');
+    const rootPath = UrlUtil.toPath(rootUrl, this.rootOrigin);
+
     // Seed from startUrl first to ensure it's prioritized in the queue
-    this.addToQueue(this.startUrl, 0);
+    this.addToQueue(rootPath, 0);
 
     const sitemapsToFetch = new Set<string>();
 
