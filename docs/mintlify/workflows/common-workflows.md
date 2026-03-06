@@ -7,7 +7,7 @@ Standard ways to use Crawlith in your daily audit and monitoring tasks.
 Run a fast scan of the top levels of your site to assess general health:
 
 ```bash
-crawlith crawl https://example.com --limit 200 --depth 3 --health
+crawlith crawl https://example.com --limit 200 --depth 3
 ```
 
 *   **Goals**: Catch 404s, discover missing titles/meta, and view the high-level [Health Score](/concepts/health-score).

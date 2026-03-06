@@ -38,7 +38,7 @@ export interface PostCrawlOptions {
     rootOrigin?: string;
 }
 
-export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, options: PostCrawlOptions = {}) {
+export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, options: PostCrawlOptions = {}): { metrics: any; healthData?: any } | undefined {
     const context = options.context;
     const limitReached = options.limitReached || false;
     const graphInstance = options.graphInstance;
@@ -65,7 +65,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
     const snapshot = snapshotRepo.getSnapshot(snapshotId);
     if (!snapshot) {
         emit({ type: 'error', message: `Snapshot ${snapshotId} not found` });
-        return;
+        return undefined;
     }
 
     if (!graphInstance) {
@@ -276,5 +276,11 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
 
     emit({ type: 'metrics:complete', durationMs: 0 });
 
-    return { metrics };
+    return { 
+        metrics,
+        healthData: healthScore !== null ? { 
+            health: new HealthService().calculateHealthScore(metrics.totalPages, new HealthService().collectCrawlIssues(graph, metrics, options.rootOrigin ?? '')),
+            issues: new HealthService().collectCrawlIssues(graph, metrics, options.rootOrigin ?? '')
+        } : undefined
+    };
 }

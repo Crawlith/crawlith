@@ -49,6 +49,7 @@ export class PageRepository {
         datetime('now')
       )
       ON CONFLICT(site_id, normalized_url) DO UPDATE SET
+        first_seen_snapshot_id = COALESCE(pages.first_seen_snapshot_id, excluded.first_seen_snapshot_id),
         last_seen_snapshot_id = excluded.last_seen_snapshot_id,
         http_status = CASE WHEN excluded.http_status != 0 THEN excluded.http_status ELSE pages.http_status END,
         canonical_url = COALESCE(excluded.canonical_url, pages.canonical_url),
@@ -153,6 +154,7 @@ export class PageRepository {
         datetime('now')
       )
       ON CONFLICT(site_id, normalized_url) DO UPDATE SET
+        first_seen_snapshot_id = COALESCE(pages.first_seen_snapshot_id, excluded.first_seen_snapshot_id),
         last_seen_snapshot_id = excluded.last_seen_snapshot_id,
         http_status = CASE WHEN excluded.http_status != 0 THEN excluded.http_status ELSE pages.http_status END,
         canonical_url = COALESCE(excluded.canonical_url, pages.canonical_url),
@@ -218,19 +220,19 @@ export class PageRepository {
     if (runType === 'single') {
       return this.db.prepare('SELECT p.* FROM pages p JOIN metrics m ON p.id = m.page_id WHERE m.snapshot_id = ?').all(snapshotId) as Page[];
     }
-    return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as Page[];
+    return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND COALESCE(p.first_seen_snapshot_id, p.last_seen_snapshot_id) <= ?').all(snapshotId, snapshotId) as Page[];
   }
 
   getPagesIdentityBySnapshot(snapshotId: number): { id: number; normalized_url: string }[] {
     // For identities, always loading all up to this point is fine for the crawler to map URLs to IDs.
-    return this.db.prepare('SELECT p.id, p.normalized_url FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').all(snapshotId, snapshotId) as { id: number; normalized_url: string }[];
+    return this.db.prepare('SELECT p.id, p.normalized_url FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND COALESCE(p.first_seen_snapshot_id, p.last_seen_snapshot_id) <= ?').all(snapshotId, snapshotId) as { id: number; normalized_url: string }[];
   }
 
   getPagesIteratorBySnapshot(snapshotId: number, runType: string = 'completed'): IterableIterator<Page> {
     if (runType === 'single') {
       return this.db.prepare('SELECT p.* FROM pages p JOIN metrics m ON p.id = m.page_id WHERE m.snapshot_id = ?').iterate(snapshotId) as IterableIterator<Page>;
     }
-    return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND p.first_seen_snapshot_id <= ?').iterate(snapshotId, snapshotId) as IterableIterator<Page>;
+    return this.db.prepare('SELECT p.* FROM pages p JOIN snapshots s ON p.site_id = s.site_id WHERE s.id = ? AND COALESCE(p.first_seen_snapshot_id, p.last_seen_snapshot_id) <= ?').iterate(snapshotId, snapshotId) as IterableIterator<Page>;
   }
 
   getIdByUrl(siteId: number, url: string): number | undefined {

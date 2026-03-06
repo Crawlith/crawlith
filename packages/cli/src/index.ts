@@ -3,7 +3,26 @@ import chalk from './utils/chalk.js';
 import { version } from './utils/version.js';
 import { buildProgram, maybeNotifyForUpdates } from './bootstrap.js';
 
+function installCancellationHandlers(): void {
+  // Let the UI command manage its own SIGINT/SIGTERM shutdown lifecycle.
+  const isUiCommand = process.argv.slice(2).includes('ui');
+  if (isUiCommand) return;
+
+  let cancelling = false;
+  const cancel = () => {
+    if (cancelling) return;
+    cancelling = true;
+    // Keep this plain and stable for scripts.
+    console.log('\nOperation canceled.');
+    process.exit(0);
+  };
+
+  process.once('SIGINT', cancel);
+  process.once('SIGTERM', cancel);
+}
+
 async function bootstrap() {
+  installCancellationHandlers();
   maybeNotifyForUpdates(process.argv);
   const { program } = await buildProgram();
 

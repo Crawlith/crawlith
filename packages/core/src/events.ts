@@ -3,6 +3,15 @@ export type CrawlEvent =
   | { type: 'crawl:success'; url: string; status: number; durationMs: number; depth?: number }
   | { type: 'crawl:error'; url: string; error: string; depth?: number }
   | { type: 'crawl:limit-reached'; limit: number }
+  | {
+      type: 'crawl:progress';
+      pagesCrawled: number;
+      queued: number;
+      active: number;
+      nodesFound: number;
+      edgesFound: number;
+      phase?: string;
+    }
   | { type: 'queue:enqueue'; url: string; depth: number }
   | { type: 'metrics:start'; phase: string }
   | { type: 'metrics:complete'; durationMs: number }

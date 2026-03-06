@@ -192,12 +192,44 @@ export class CrawlithDB {
     }
 
     public getPageIdByUrl(snapshotId: number | string, url: string): number | null {
-        // Find by path. In standard crawling, we use root-relative paths like /engineering-computer-science
-        const normalized = normalizeUrl(url, '', { stripQuery: false, toPath: true });
-        if (!normalized) return null;
+        const raw = url.trim();
+        if (!raw) return null;
 
-        const row = this.statements.getPageIdByUrl.get(snapshotId, normalized) as { id: number } | undefined;
-        return row ? row.id : null;
+        // Support both stored path format ("/foo") and absolute URL inputs.
+        const candidates = new Set<string>();
+        const addCandidateWithSlashVariants = (value: string) => {
+            if (!value) return;
+            candidates.add(value);
+            if (value === '/') return;
+            if (value.endsWith('/')) {
+                candidates.add(value.slice(0, -1));
+            } else {
+                candidates.add(`${value}/`);
+            }
+        };
+        if (raw.startsWith('/')) {
+            addCandidateWithSlashVariants(raw);
+        }
+
+        const normalizedPath = normalizeUrl(raw, '', { stripQuery: false, toPath: true });
+        if (normalizedPath) {
+            addCandidateWithSlashVariants(normalizedPath);
+        }
+
+        // Fallback for absolute URL parsing; normalizeUrl may return null for malformed/bare path input.
+        try {
+            const parsed = new URL(raw);
+            addCandidateWithSlashVariants(`${parsed.pathname}${parsed.search}`);
+        } catch {
+            // ignore
+        }
+
+        for (const candidate of candidates) {
+            const row = this.statements.getPageIdByUrl.get(snapshotId, candidate) as { id: number } | undefined;
+            if (row) return row.id;
+        }
+
+        return null;
     }
 
     public insertPluginReport(input: {
@@ -394,6 +426,22 @@ export class CrawlithDB {
         // 1. Check cache (global across snapshots)
         const cached = this.getPluginRow<T>(url, undefined, undefined, { global: true });
         if (cached !== null) {
+            // Materialize a snapshot-local row even when cache hits globally,
+            // so per-snapshot score aggregation remains consistent.
+            if (this._pluginName && this._snapshotId) {
+                const existingForSnapshot = this.getPluginRow<T>(url);
+                if (existingForSnapshot === null) {
+                    const cachedRow = cached as any;
+                    const {
+                        id: _id,
+                        snapshot_id: _snapshotId,
+                        url_id: _urlId,
+                        created_at: _createdAt,
+                        ...pluginData
+                    } = cachedRow;
+                    this.insertPluginRow({ url, data: pluginData as T });
+                }
+            }
             return cached; // Always use cache when it exists
         }
 

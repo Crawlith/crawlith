@@ -35,7 +35,6 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
     .option('--min-cluster-size <number>', 'Minimum pages per cluster', '3')
     // Heading & Health (Moved from plugin to core)
     .option('--heading', 'Analyze heading structure and hierarchy health')
-    .option('--health', 'Run health score analysis')
     .option('--fail-on-critical', 'Exit code 1 if critical issues exist')
     .option('--score-breakdown', 'Print health score component weights')
     // Graph Centrality
@@ -59,10 +58,12 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
 
     if (options.debug) options.logLevel = 'debug';
     if (options.verbose) options.logLevel = 'verbose';
+    const limit = parseInt(options.limit, 10);
 
     const controller = new OutputController({
       format: options.format as any,
-      logLevel: options.logLevel as any
+      logLevel: options.logLevel as any,
+      maxPages: Number.isFinite(limit) && limit > 0 ? limit : undefined
     });
 
     const context: EngineContext = {
@@ -78,7 +79,6 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
         console.log(`${chalk.gray('Limits:')} Pages: ${options.limit} | Depth: ${options.depth}\n`);
       }
 
-      const limit = parseInt(options.limit, 10);
       const depth = parseInt(options.depth, 10);
       const stripQuery = !options.query;
 
@@ -88,7 +88,7 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
       }
 
       const crawlSitegraph = new CrawlSitegraph();
-      const { graph: _graph } = await crawlSitegraph.execute({
+      const { snapshotId, graph: _graph } = await crawlSitegraph.execute({
         url,
         limit,
         depth,
@@ -109,7 +109,6 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
         clusterThreshold: options.clusterThreshold ? parseInt(options.clusterThreshold, 10) : undefined,
         minClusterSize: options.minClusterSize ? parseInt(options.minClusterSize, 10) : undefined,
         heading: options.heading,
-        health: options.health,
         failOnCritical: options.failOnCritical,
         scoreBreakdown: options.scoreBreakdown,
         computeHits: options.computeHits,
@@ -135,7 +134,7 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
 
       // After crawl, we could do more here if needed, but CrawlSitegraph handles metrics phase hooks
       if (options.format !== 'json') {
-        console.log(chalk.green('\n✅ Crawl completed successfully.'));
+        // Handled by plugins (reporter)
       } else {
         controller.renderResult({
           snapshotId,
@@ -144,6 +143,7 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
           edges: _graph.edges.size
         });
       }
+      controller.finish();
     } catch (error) {
       if ((error as any).code === 'ELOCKED') {
         // Handled by LockManager

@@ -27,10 +27,10 @@ A clear score helps teams:
 
 ## Usage
 
-Enable health scoring during a crawl with the `--health` flag:
+Health scoring is enabled by default during crawl:
 
 ```bash
-crawlith crawl https://example.com --health
+crawlith crawl https://example.com
 ```
 
 The CLI will print a summary table of the score breakdown upon completion.

@@ -26,7 +26,6 @@ Enable specialized analysis modules to gain deeper insights into your site's str
 
 | Flag | Description | Concept Link |
 | :--- | :--- | :--- |
-| `--health` | Generate a weighted quality score (0-100). | [Health Score](/concepts/health-score) |
 | `--compute-pagerank` | Measure internal authority flow and link equity. | [PageRank](/concepts/pagerank) |
 | `--compute-hits` | Identify key Hubs and Authorities. | [HITS](/concepts/hits) |
 | `--clustering` | Group pages with similar structural layouts. | [Clustering](/concepts/clustering) |
@@ -67,3 +66,5 @@ Enable specialized analysis modules to gain deeper insights into your site's str
 | `--output <path>` | Custom directory for all generated report files. |
 | `--fail-on-critical` | Exit with code 1 if critical issues (like 404s) are found. |
 | `--score-breakdown` | Show detailed weighting for the Health Score calculation. |
+
+Health score is computed automatically on every crawl and persisted to the snapshot.

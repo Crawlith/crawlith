@@ -27,8 +27,8 @@ export const ReporterPlugin: CrawlithPlugin = {
             if (!isCrawl) return; // Reporter only handles crawl reports for now
 
             const { graph, snapshotId } = result;
-            const metrics = calculateMetrics(graph, 10);
-            const healthData = result.plugins?.health;
+            const metrics = result.metrics || calculateMetrics(graph, 10);
+            const healthData = result.healthData || result.plugins?.health;
 
             if (String(flags.format) === 'json') {
                 const insightReport = buildCrawlInsightReport(graph, metrics, healthData);
