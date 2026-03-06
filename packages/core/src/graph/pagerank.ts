@@ -33,7 +33,6 @@ export class PageRankService {
         const neutralScoreWhenFlat = options.neutralScoreWhenFlat ?? 50;
 
         const allNodes = graph.getNodes();
-        const allEdges = graph.getEdges();
 
         // 1. Filter Eligible Nodes
         const eligibleNodes = allNodes.filter(node => {
@@ -71,16 +70,17 @@ export class PageRankService {
         const outWeights = new Float64Array(nodeCount);
         const incoming: { sourceIndex: number, weight: number }[][] = new Array(nodeCount).fill(null).map(() => []);
 
-        for (const edge of allEdges) {
-            const sourceIndex = urlToIndex.get(edge.source);
-            const targetIndex = urlToIndex.get(edge.target);
+        // ⚡ Bolt: Use memory-efficient iteration avoiding array allocations
+        graph.forEachEdge((source, target, edgeWeight) => {
+            const sourceIndex = urlToIndex.get(source);
+            const targetIndex = urlToIndex.get(target);
 
             if (sourceIndex !== undefined && targetIndex !== undefined) {
-                const weight = edge.weight || 1.0;
+                const weight = edgeWeight || 1.0;
                 incoming[targetIndex].push({ sourceIndex, weight });
                 outWeights[sourceIndex] += weight;
             }
-        }
+        });
 
         // Identify sinks
         const sinks: number[] = [];

@@ -48,19 +48,19 @@ export class HITSService {
         const incoming: { sourceIndex: number, weight: number }[][] = new Array(N).fill(null).map(() => []);
         const outgoing: { targetIndex: number, weight: number }[][] = new Array(N).fill(null).map(() => []);
 
-        const allEdges = graph.getEdges();
-        for (const edge of allEdges) {
-            if (edge.source === edge.target) continue;
+        // ⚡ Bolt: Use memory-efficient iteration avoiding array allocations
+        graph.forEachEdge((source, target, edgeWeight) => {
+            if (source === target) return;
 
-            const sourceIndex = urlToIndex.get(edge.source);
-            const targetIndex = urlToIndex.get(edge.target);
+            const sourceIndex = urlToIndex.get(source);
+            const targetIndex = urlToIndex.get(target);
 
             if (sourceIndex !== undefined && targetIndex !== undefined) {
-                const weight = edge.weight || 1.0;
+                const weight = edgeWeight || 1.0;
                 incoming[targetIndex].push({ sourceIndex, weight });
                 outgoing[sourceIndex].push({ targetIndex, weight });
             }
-        }
+        });
 
         // Initialize Scores
         const authScores = new Float64Array(N).fill(1.0);
