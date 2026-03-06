@@ -30,7 +30,7 @@ jobs:
         run: pnpm run build
 
       - name: Ensure Executable Perms
-        run: chmod +x plugins/cli/dist/index.js
+        run: chmod +x packages/cli/dist/index.js
 
       - name: Publish to NPM
         run: |
