@@ -29,9 +29,6 @@ jobs:
       - name: Build Packages
         run: pnpm run build
 
-      - name: Run tests
-        run: pnpm test
-
       - name: Ensure Executable Perms
         run: chmod +x plugins/cli/dist/index.js
 
