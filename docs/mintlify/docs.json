@@ -1,52 +1,110 @@
 {
-  "name": "Crawlith CLI",
-  "navigation": [
-    {
-      "group": "Getting Started",
-      "pages": [
-        "introduction",
-        "installation",
-        "basic-usage"
-      ]
-    },
-    {
-      "group": "Commands",
-      "pages": [
-        "commands/crawl",
-        "commands/page",
-        "commands/probe",
-        "commands/sites",
-        "commands/ui",
-        "commands/export",
-        "commands/clean",
-        "commands/config"
-      ]
-    },
-    {
-      "group": "Concepts",
-      "pages": [
-        "concepts/health-score",
-        "concepts/pagerank",
-        "concepts/hits",
-        "concepts/orphans",
-        "concepts/clustering",
-        "concepts/database"
-      ]
-    },
-    {
-      "group": "Features",
-      "pages": [
-        "features/signals-intelligence"
-      ]
-    },
-    {
-      "group": "Resources",
-      "pages": [
-        "output-files",
-        "workflows/common-workflows",
-        "troubleshooting",
-        "faq"
-      ]
+  "theme": "mint",
+  "name": "Crawlith",
+  "colors": {
+    "primary": "#16A34A",
+    "light": "#07C983",
+    "dark": "#15803D"
+  },
+  "seo": {
+    "metatags": {
+      "canonical": "https://crawlith.saurabh.app"
     }
-  ]
+  },
+     "global": {
+      "anchors": [
+        {
+          "anchor": "Github",
+          "href": "https://github.com/Crawlith/crawlith"
+        },
+        {
+          "anchor": "NPM",
+          "href": "https://www.npmjs.com/package/@crawlith/cli"
+        }
+      ]
+    },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Crawlith",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "basic-usage"
+            ]
+          },
+          {
+            "group": "Commands",
+            "pages": [
+              "commands/crawl",
+              "commands/page",
+              "commands/probe",
+              "commands/sites",
+              "commands/ui",
+              "commands/export",
+              "commands/clean",
+              "commands/config"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/health-score",
+              "concepts/pagerank",
+              "concepts/hits",
+              "concepts/orphans",
+              "concepts/clustering",
+              "concepts/database"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/signals-intelligence"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "output-files",
+              "workflows/common-workflows",
+              "troubleshooting",
+              "faq"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Plugins"
+      }
+    ]
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Github",
+      "href": "https://github.com/Crawlith/crawlith"
+    }
+  },
+   "contextual": {
+    "options": [
+     "copy",
+     "view",
+     "chatgpt",
+     "claude",
+     "perplexity",
+     "mcp",
+     "cursor",
+     "vscode"
+   ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/saurabhsharma2u",
+      "github": "https://github.com/saurabhsharma2u"
+    }
+  }
 }
