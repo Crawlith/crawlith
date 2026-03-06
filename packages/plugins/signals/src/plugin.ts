@@ -66,7 +66,7 @@ export const SignalsHooks = {
 
       const headerValue = node?.headers?.['content-language'];
       const contentLanguageValue = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-      let row: SignalsRow | null = null;
+      let row: SignalsRow | null;
       try {
         row = await ctx.db.data.getOrFetch<SignalsRow>(
           url,
