@@ -426,6 +426,22 @@ export class CrawlithDB {
         // 1. Check cache (global across snapshots)
         const cached = this.getPluginRow<T>(url, undefined, undefined, { global: true });
         if (cached !== null) {
+            // Materialize a snapshot-local row even when cache hits globally,
+            // so per-snapshot score aggregation remains consistent.
+            if (this._pluginName && this._snapshotId) {
+                const existingForSnapshot = this.getPluginRow<T>(url);
+                if (existingForSnapshot === null) {
+                    const cachedRow = cached as any;
+                    const {
+                        id: _id,
+                        snapshot_id: _snapshotId,
+                        url_id: _urlId,
+                        created_at: _createdAt,
+                        ...pluginData
+                    } = cachedRow;
+                    this.insertPluginRow({ url, data: pluginData as T });
+                }
+            }
             return cached; // Always use cache when it exists
         }
 
