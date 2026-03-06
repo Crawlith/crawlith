@@ -1,6 +1,7 @@
 <div align="center">
   <h1>Crawlith</h1>
   <p><b>Professional-grade SEO crawling and graph intelligence suite.</b></p>
+<img width="1897" height="941" alt="image" src="https://github.com/user-attachments/assets/88485584-7509-4e81-9e43-6b64f298ba8a" />
 
   [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
   [![Crawlith CI](https://github.com/Crawlith/crawlith/actions/workflows/ci.yml/badge.svg)]()
