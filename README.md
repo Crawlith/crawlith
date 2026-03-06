@@ -46,39 +46,55 @@ Crawlith is organized as a pnpm-powered monorepo for maximum modularity:
 
 ## 🚦 Quick Start
 
-### 1. Installation
-Crawlith is designed to be run globally or from your project root.
+## 📦 Installation
+
+To use Crawlith globally on your system:
 
 ```bash
-# Clone and build
-git clone https://github.com/Crawlith/crawlith.git
-cd crawlith
-pnpm install
-pnpm build
+npm install -g @crawlith/cli
+# or
+pnpm add -g @crawlith/cli
 ```
 
-### 2. Basic Usage
-Run a full link graph and SEO metrics audit:
+Or run it instantly without installation using `npx`:
+
+```bash
+npx crawlith --help
+```
+
+---
+
+## 🛠 Usage
+
+### 1. Crawl a Website
+Build a full link graph and SEO metrics for a domain.
 ```bash
 crawlith crawl https://example.com --limit 1000 --depth 10
 ```
 
-Analyze a specific page for on-page SEO health:
+### 2. Analyze a Single Page
+Perfect for quick on-page SEO audits and content structure checks.
 ```bash
 crawlith page https://example.com/blog/seo-guide
 ```
 
-Launch the interactive dashboard:
+### 3. Start the UI Dashboard
+Visualize your crawl snapshots in a beautiful, interactive interface.
 ```bash
 crawlith ui
 ```
 
-Configure a plugin (e.g., PageSpeed):
+### 4. Probe Security
+Inspect transport-layer headers, SSL/TLS status, and HTTP/2 support.
 ```bash
-crawlith config pagespeed set YOUR_API_KEY
+crawlith probe https://example.com
 ```
 
----
+### 5. List Tracked Sites
+View all sites currently stored in your local intelligence database.
+```bash
+crawlith sites
+```
 
 ## 🔌 Intelligence Plugins
 
