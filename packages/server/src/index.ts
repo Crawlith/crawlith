@@ -1116,7 +1116,8 @@ export function startServer(options: ServerOptions): Promise<void> {
     app.use(express.static(resolvedStaticPath));
 
     // SPA fallback
-    app.get('*', (req, res) => {
+    // SPA fallback
+    app.get(/.*/, (req, res) => {
       res.sendFile(path.join(resolvedStaticPath, 'index.html'));
     });
 

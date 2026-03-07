@@ -78,8 +78,8 @@ export async function analyzeTransport(targetUrl: string, timeout: number, userA
 
         if (cert && Object.keys(cert).length > 0) {
           certInfo = {
-            subject: (cert.subject && cert.subject.CN) ? cert.subject.CN : 'Unknown',
-            issuer: (cert.issuer && cert.issuer.CN) ? cert.issuer.CN : 'Unknown',
+            subject: (cert.subject && cert.subject.CN) ? (Array.isArray(cert.subject.CN) ? cert.subject.CN[0] : cert.subject.CN) : 'Unknown',
+            issuer: (cert.issuer && cert.issuer.CN) ? (Array.isArray(cert.issuer.CN) ? cert.issuer.CN[0] : cert.issuer.CN) : 'Unknown',
             validFrom: cert.valid_from,
             validTo: cert.valid_to,
             daysUntilExpiry: Math.floor((new Date(cert.valid_to).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),

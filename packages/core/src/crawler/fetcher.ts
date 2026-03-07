@@ -125,7 +125,6 @@ export class Fetcher {
             const res = await request(currentUrl, {
               method: 'GET',
               headers,
-              maxRedirections: 0,
               dispatcher: this.secureDispatcher,
               headersTimeout: 10000,
               bodyTimeout: 10000
