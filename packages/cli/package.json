@@ -15,18 +15,18 @@
   },
   "dependencies": {
     "@crawlith/core": "workspace:*",
-    "commander": "^12.0.0",
-    "express": "^4.19.2",
-    "open": "^10.1.0"
+    "commander": "^14.0.3",
+    "express": "^5.2.1",
+    "open": "^11.0.0"
   },
   "devDependencies": {
-    "@crawlith/server": "workspace:*",
     "@crawlith/plugin-exporter": "workspace:*",
     "@crawlith/plugin-reporter": "workspace:*",
     "@crawlith/plugin-signals": "workspace:*",
-    "@types/node": "^20.12.7",
-    "tsup": "^8.0.0",
-    "typescript": "^5.4.5",
+    "@crawlith/server": "workspace:*",
+    "@types/node": "^25.3.5",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }
 }

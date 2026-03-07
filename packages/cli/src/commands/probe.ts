@@ -15,7 +15,7 @@ export const getProbeCommand = (registry: PluginRegistry) => {
 
   probe.action(async (url: string, options: any) => {
     if (!url) {
-      console.error(chalk.red('\n❌ Error: URL argument is required for audit\n'));
+      console.error(chalk.red('\n❌ Error: URL argument is required for probe\n'));
       probe.outputHelp();
       process.exit(0);
     }
