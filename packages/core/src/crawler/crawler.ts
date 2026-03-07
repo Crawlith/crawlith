@@ -532,24 +532,22 @@ export class Crawler {
       external_link_ratio: prevNode.externalLinkRatio
     });
     // Re-discovery links from previous graph to continue crawling if needed
-    const prevLinks = this.options.previousGraph?.getEdges()
-      .filter(e => e.source === path)
-      .map(e => e.target);
-
-    if (prevLinks) {
-      for (const link of prevLinks) {
-        const normalizedLink = normalizeUrl(link, this.rootOrigin, this.options);
-        if (normalizedLink) {
-          const path = this.toStorageUrl(normalizedLink);
-          if (path !== url) {
-            this.bufferPage(path, depth + 1, 0);
-            this.bufferEdge(url, path, 1.0, 'internal');
-            if (this.shouldEnqueue(path, depth + 1)) {
-              this.addToQueue(path, depth + 1);
+    if (this.options.previousGraph) {
+      this.options.previousGraph.forEachEdge((source, target, _weight) => {
+        if (source === path) {
+          const normalizedLink = normalizeUrl(target, this.rootOrigin, this.options);
+          if (normalizedLink) {
+            const nextPath = this.toStorageUrl(normalizedLink);
+            if (nextPath !== url) {
+              this.bufferPage(nextPath, depth + 1, 0);
+              this.bufferEdge(url, nextPath, 1.0, 'internal');
+              if (this.shouldEnqueue(nextPath, depth + 1)) {
+                this.addToQueue(nextPath, depth + 1);
+              }
             }
           }
         }
-      }
+      });
     }
   }
 
