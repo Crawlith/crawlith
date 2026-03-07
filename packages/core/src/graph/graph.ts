@@ -165,6 +165,20 @@ export class Graph {
     });
   }
 
+  /**
+   * Memory-efficient iteration over all edges without allocating temporary arrays or objects.
+   * Useful for high-performance loops (e.g. PageRank, HITS, Metrics).
+   */
+  forEachEdge(callback: (source: string, target: string, weight: number) => void) {
+    for (const [edgeKey, weight] of this.edges.entries()) {
+      const splitIndex = edgeKey.indexOf('\x00');
+      // Inline parsing to avoid object allocation in hot paths
+      const source = edgeKey.slice(0, splitIndex);
+      const target = edgeKey.slice(splitIndex + 1);
+      callback(source, target, weight);
+    }
+  }
+
   toJSON() {
     return {
       nodes: this.getNodes(),

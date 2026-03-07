@@ -288,8 +288,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   }
 
   if (options.orphans) {
-    const edges = crawlData.graph.getEdges();
-    annotateOrphans(crawlData.graph.getNodes(), edges, {
+    annotateOrphans(crawlData.graph, {
       enabled: true,
       severityEnabled: !!options.orphanSeverity,
       includeSoftOrphans: !!options.includeSoftOrphans,
