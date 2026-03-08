@@ -288,8 +288,15 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   }
 
   if (options.orphans) {
-    const edges = crawlData.graph.getEdges();
-    annotateOrphans(crawlData.graph.getNodes(), edges, {
+    const iterableEdges = {
+      *[Symbol.iterator]() {
+        for (const [edgeKey, weight] of crawlData.graph.edges.entries()) {
+          const splitIndex = edgeKey.indexOf('\x00');
+          yield { source: edgeKey.slice(0, splitIndex), target: edgeKey.slice(splitIndex + 1), weight };
+        }
+      }
+    };
+    annotateOrphans(crawlData.graph.getNodes(), iterableEdges, {
       enabled: true,
       severityEnabled: !!options.orphanSeverity,
       includeSoftOrphans: !!options.includeSoftOrphans,

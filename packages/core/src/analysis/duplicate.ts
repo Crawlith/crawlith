@@ -321,22 +321,21 @@ export class DuplicateService {
     }
 
     private collapseEdges(graph: Graph) {
-        const edges = graph.getEdges();
         const updatedEdges = new Map<string, number>();
 
-        for (const edge of edges) {
-            const targetNode = graph.nodes.get(edge.target);
-            if (!targetNode) continue;
+        graph.forEachEdge((source, target, weight) => {
+            const targetNode = graph.nodes.get(target);
+            if (!targetNode) return;
 
-            const actualSource = edge.source;
-            const actualTarget = (targetNode as any).isCollapsed && (targetNode as any).collapseInto ? (targetNode as any).collapseInto : edge.target;
+            const actualSource = source;
+            const actualTarget = (targetNode as any).isCollapsed && (targetNode as any).collapseInto ? (targetNode as any).collapseInto : target;
 
-            if (actualSource === actualTarget) continue;
+            if (actualSource === actualTarget) return;
 
             const edgeKey = Graph.getEdgeKey(actualSource, actualTarget);
             const existingWeight = updatedEdges.get(edgeKey) || 0;
-            updatedEdges.set(edgeKey, Math.max(existingWeight, edge.weight));
-        }
+            updatedEdges.set(edgeKey, Math.max(existingWeight, weight));
+        });
 
         graph.edges = updatedEdges;
 

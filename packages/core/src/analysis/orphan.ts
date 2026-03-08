@@ -111,13 +111,24 @@ function consolidateInboundByCanonical(nodes: ExtendedGraphNode[]): Map<string, 
     return canonicalInbound;
 }
 
-export function annotateOrphans(nodes: ExtendedGraphNode[], edges: GraphEdge[], options: OrphanScoringOptions): AnnotatedNode[] {
+export function annotateOrphans(nodes: ExtendedGraphNode[], edges: Iterable<GraphEdge> | GraphEdge[], options: OrphanScoringOptions): AnnotatedNode[] {
     if (!options.enabled) {
         return nodes.map((node) => ({ ...node, orphan: false } as AnnotatedNode));
     }
 
     const canonicalInbound = consolidateInboundByCanonical(nodes);
     const nodeByUrl = new Map(nodes.map((node) => [node.url, node]));
+
+    // Pre-calculate inbound sources to avoid iterating over all edges per node
+    const inboundEdgesByTarget = new Map<string, string[]>();
+    for (const edge of edges) {
+        let sources = inboundEdgesByTarget.get(edge.target);
+        if (!sources) {
+            sources = [];
+            inboundEdgesByTarget.set(edge.target, sources);
+        }
+        sources.push(edge.source);
+    }
 
     return nodes.map((node) => {
         const isHomepage = node.isHomepage || (options.rootUrl ? node.url === options.rootUrl : node.depth === 0);
@@ -137,9 +148,9 @@ export function annotateOrphans(nodes: ExtendedGraphNode[], edges: GraphEdge[], 
         }
 
         if (!orphanType && options.includeSoftOrphans && inbound > 0) {
-            const inboundSources = edges
-                .filter((edge) => edge.target === node.url)
-                .map((edge) => nodeByUrl.get(edge.source))
+            const sources = inboundEdgesByTarget.get(node.url) || [];
+            const inboundSources = sources
+                .map(sourceUrl => nodeByUrl.get(sourceUrl))
                 .filter((source): source is GraphNode => Boolean(source));
 
             if (inboundSources.length > 0 && inboundSources.every((source) => isLowValuePage(source))) {
