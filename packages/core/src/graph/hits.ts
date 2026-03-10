@@ -48,19 +48,18 @@ export class HITSService {
         const incoming: { sourceIndex: number, weight: number }[][] = new Array(N).fill(null).map(() => []);
         const outgoing: { targetIndex: number, weight: number }[][] = new Array(N).fill(null).map(() => []);
 
-        const allEdges = graph.getEdges();
-        for (const edge of allEdges) {
-            if (edge.source === edge.target) continue;
+        graph.forEachEdge((source, target, weight) => {
+            if (source === target) return;
 
-            const sourceIndex = urlToIndex.get(edge.source);
-            const targetIndex = urlToIndex.get(edge.target);
+            const sourceIndex = urlToIndex.get(source);
+            const targetIndex = urlToIndex.get(target);
 
             if (sourceIndex !== undefined && targetIndex !== undefined) {
-                const weight = edge.weight || 1.0;
-                incoming[targetIndex].push({ sourceIndex, weight });
-                outgoing[sourceIndex].push({ targetIndex, weight });
+                const w = weight || 1.0;
+                incoming[targetIndex].push({ sourceIndex, weight: w });
+                outgoing[sourceIndex].push({ targetIndex, weight: w });
             }
-        }
+        });
 
         // Initialize Scores
         const authScores = new Float64Array(N).fill(1.0);
