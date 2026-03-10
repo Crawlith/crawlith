@@ -165,6 +165,17 @@ export class Graph {
     });
   }
 
+  /**
+   * Memory-efficient iteration over all edges without allocating intermediate arrays.
+   * Useful in high-frequency hot loops.
+   */
+  forEachEdge(callback: (source: string, target: string, weight: number) => void): void {
+    for (const [key, weight] of this.edges) {
+      const { source, target } = Graph.parseEdgeKey(key);
+      callback(source, target, weight);
+    }
+  }
+
   toJSON() {
     return {
       nodes: this.getNodes(),
