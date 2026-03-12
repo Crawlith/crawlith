@@ -23,23 +23,27 @@ export interface Metrics {
 
 export function calculateMetrics(graph: Graph, _maxDepth: number): Metrics {
   const nodes = graph.getNodes();
-  const edges = graph.getEdges();
 
   const totalPages = nodes.length;
-  const totalEdges = edges.length;
+  const totalEdges = graph.edges.size;
 
   // Identify broken nodes
   const brokenNodes = new Set(nodes.filter(n => n.status >= 400 || n.status === 0).map(n => n.url));
 
+  // ⚡ Bolt: Fast parsing of string edge keys instead of mapping over objects for O(1) string splits inside hot loop
   // Pre-compute outgoing edges per node for faster lookup
   const outgoingEdges = new Map<string, string[]>();
-  for (const edge of edges) {
-    let targets = outgoingEdges.get(edge.source);
+  for (const edgeKey of graph.edges.keys()) {
+    const splitIndex = edgeKey.indexOf('\x00');
+    const source = edgeKey.slice(0, splitIndex);
+    const target = edgeKey.slice(splitIndex + 1);
+
+    let targets = outgoingEdges.get(source);
     if (!targets) {
       targets = [];
-      outgoingEdges.set(edge.source, targets);
+      outgoingEdges.set(source, targets);
     }
-    targets.push(edge.target);
+    targets.push(target);
   }
 
   // Populate brokenLinks per node
