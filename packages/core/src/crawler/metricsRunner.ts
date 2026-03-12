@@ -136,7 +136,7 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
             includeSoftOrphans: options.includeSoftOrphans ?? true,
             minInbound: options.minInbound ?? 2
         };
-        annotatedNodes = annotateOrphans(graph.getNodes(), graph.getEdges(), orphanOptions) as any[];
+        annotatedNodes = annotateOrphans(graph, orphanOptions) as any[];
     }
 
     const soft404Service = new Soft404Service();

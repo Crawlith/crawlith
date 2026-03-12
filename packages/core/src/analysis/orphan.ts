@@ -1,4 +1,4 @@
-import type { GraphNode, GraphEdge } from '../graph/graph.js';
+import type { GraphNode, Graph } from '../graph/graph.js';
 
 export interface ExtendedGraphNode extends GraphNode {
     pageType?: string;
@@ -111,7 +111,9 @@ function consolidateInboundByCanonical(nodes: ExtendedGraphNode[]): Map<string, 
     return canonicalInbound;
 }
 
-export function annotateOrphans(nodes: ExtendedGraphNode[], edges: GraphEdge[], options: OrphanScoringOptions): AnnotatedNode[] {
+
+export function annotateOrphans(graph: Graph, options: OrphanScoringOptions): AnnotatedNode[] {
+    const nodes = graph.getNodes() as ExtendedGraphNode[];
     if (!options.enabled) {
         return nodes.map((node) => ({ ...node, orphan: false } as AnnotatedNode));
     }
@@ -137,10 +139,13 @@ export function annotateOrphans(nodes: ExtendedGraphNode[], edges: GraphEdge[], 
         }
 
         if (!orphanType && options.includeSoftOrphans && inbound > 0) {
-            const inboundSources = edges
-                .filter((edge) => edge.target === node.url)
-                .map((edge) => nodeByUrl.get(edge.source))
-                .filter((source): source is GraphNode => Boolean(source));
+            const inboundSources: GraphNode[] = [];
+            graph.forEachEdge((source, target, _weight) => {
+               if (target === node.url) {
+                   const sourceNode = nodeByUrl.get(source);
+                   if (sourceNode) inboundSources.push(sourceNode);
+               }
+            });
 
             if (inboundSources.length > 0 && inboundSources.every((source) => isLowValuePage(source))) {
                 orphanType = 'soft';
