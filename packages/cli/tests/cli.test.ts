@@ -225,3 +225,115 @@ test('crawl diff execution via --compare', async () => {
   consoleSpy.mockRestore();
   errorSpy.mockRestore();
 });
+
+test('crawl command help information matches snapshot (flags)', () => {
+  expect(crawlCommand.helpInformation()).toMatchSnapshot();
+});
+
+test('analyze command help information matches snapshot (flags)', () => {
+  expect(analyze.helpInformation()).toMatchSnapshot();
+});
+
+test('crawl command executes with all flags correctly matched in snapshot', async () => {
+  // Use a local mock wrapper instead since we mocked it globally as a class
+  let capturedInput: any = null;
+  const OriginalCrawlSitegraph = core.CrawlSitegraph;
+  (core as any).CrawlSitegraph = class extends OriginalCrawlSitegraph {
+    execute = vi.fn().mockImplementation(async (input: any) => {
+      capturedInput = input;
+      return { snapshotId: 1, graph: new core.Graph() };
+    });
+  };
+
+  await crawlCommand.parseAsync([
+    'node', 'crawl', 'https://example.com',
+    '--limit', '10',
+    '--depth', '3',
+    '--concurrency', '5',
+    '--no-query',
+    '--sitemap', 'https://example.com/sitemap_index.xml',
+    '--log-level', 'debug',
+    '--force',
+    '--allow', 'example.com,api.example.com',
+    '--deny', 'ads.example.com',
+    '--include-subdomains',
+    '--ignore-robots',
+    '--proxy', 'http://proxy.com',
+    '--ua', 'CustomBot/1.0',
+    '--rate', '1.5',
+    '--max-bytes', '1000000',
+    '--max-redirects', '10',
+    '--clustering',
+    '--cluster-threshold', '15',
+    '--min-cluster-size', '5',
+    '--heading',
+    '--health',
+    '--fail-on-critical',
+    '--score-breakdown',
+    '--compute-hits',
+    '--compute-pagerank',
+    '--orphans',
+    '--orphan-severity',
+    '--include-soft-orphans',
+    '--min-inbound', '3',
+    '--export', 'json'
+  ]);
+
+  expect(capturedInput).not.toBeNull();
+
+  // Omit volatile/internal objects for snapshot stability
+  const { plugins: _plugins, context: _context, ...stableInput } = capturedInput;
+  expect(stableInput).toMatchSnapshot();
+
+  // Restore
+  (core as any).CrawlSitegraph = OriginalCrawlSitegraph;
+});
+
+test('analyze command executes with all flags correctly matched in snapshot', async () => {
+  let capturedInput: any = null;
+  const OriginalPageAnalysisUseCase = core.PageAnalysisUseCase;
+  (core as any).PageAnalysisUseCase = class extends OriginalPageAnalysisUseCase {
+    execute = vi.fn().mockImplementation(async (input: any) => {
+      capturedInput = input;
+      return { url: input.url, pages: [], site_summary: { pages_analyzed: 0, site_score: 0, avg_seo_score: 0, thin_pages: 0, duplicate_titles: 0 }, active_modules: { seo: true, content: true, accessibility: true } };
+    });
+  };
+
+  await analyze.parseAsync([
+    'node', 'page', 'https://example.com/test',
+    '--live',
+    '--log-level', 'debug',
+    '--seo',
+    '--content',
+    '--accessibility',
+    '--proxy', 'http://proxy.com',
+    '--ua', 'CustomBot/1.0',
+    '--rate', '1.5',
+    '--max-bytes', '1000000',
+    '--max-redirects', '10',
+    '--clustering',
+    '--cluster-threshold', '15',
+    '--min-cluster-size', '5',
+    '--sitemap', 'https://example.com/sitemap.xml',
+    '--heading',
+    '--health',
+    '--fail-on-critical',
+    '--score-breakdown',
+    '--pagerank',
+    '--hits',
+    '--orphans',
+    '--orphan-severity', 'high',
+    '--include-soft-orphans',
+    '--min-inbound', '3',
+    '--format', 'json'
+  ]);
+
+  expect(capturedInput).not.toBeNull();
+
+  // Omit volatile/internal objects for snapshot stability
+  const { plugins: _plugins, context: _context, ...stableInput } = capturedInput;
+  expect(stableInput).toMatchSnapshot();
+
+  // Restore
+  (core as any).PageAnalysisUseCase = OriginalPageAnalysisUseCase;
+});
