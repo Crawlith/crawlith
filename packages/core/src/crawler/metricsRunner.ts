@@ -136,7 +136,15 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
             includeSoftOrphans: options.includeSoftOrphans ?? true,
             minInbound: options.minInbound ?? 2
         };
-        annotatedNodes = annotateOrphans(graph.getNodes(), graph.getEdges(), orphanOptions) as any[];
+        const iterableEdges = {
+            *[Symbol.iterator]() {
+                for (const [edgeKey, weight] of graph.edges.entries()) {
+                    const splitIndex = edgeKey.indexOf('\x00');
+                    yield { source: edgeKey.slice(0, splitIndex), target: edgeKey.slice(splitIndex + 1), weight };
+                }
+            }
+        };
+        annotatedNodes = annotateOrphans(graph.getNodes(), iterableEdges, orphanOptions) as any[];
     }
 
     const soft404Service = new Soft404Service();

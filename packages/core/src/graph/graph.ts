@@ -158,6 +158,17 @@ export class Graph {
     return Array.from(this.nodes.values());
   }
 
+  /**
+   * Iterates over all edges efficiently without allocating an array of objects.
+   * Useful for performance-critical hot loops.
+   */
+  forEachEdge(callback: (source: string, target: string, weight: number) => void): void {
+    for (const [edgeKey, weight] of this.edges.entries()) {
+      const splitIndex = edgeKey.indexOf('\x00');
+      callback(edgeKey.slice(0, splitIndex), edgeKey.slice(splitIndex + 1), weight);
+    }
+  }
+
   getEdges(): GraphEdge[] {
     return Array.from(this.edges.entries()).map(([edge, weight]) => {
       const { source, target } = Graph.parseEdgeKey(edge);
