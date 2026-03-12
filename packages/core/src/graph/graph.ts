@@ -165,6 +165,19 @@ export class Graph {
     });
   }
 
+  /**
+   * ⚡ Bolt: Iterates over all edges without allocating a new array of objects.
+   * Useful for high-performance iterative algorithms like PageRank and HITS.
+   */
+  forEachEdge(callback: (source: string, target: string, weight: number) => void) {
+    for (const [edgeKey, weight] of this.edges.entries()) {
+      const splitIndex = edgeKey.indexOf('\x00');
+      const source = edgeKey.slice(0, splitIndex);
+      const target = edgeKey.slice(splitIndex + 1);
+      callback(source, target, weight);
+    }
+  }
+
   toJSON() {
     return {
       nodes: this.getNodes(),
