@@ -1,10 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as API from '../../api';
 import { Share2, HelpCircle } from 'lucide-react';
+import { GraphSearch } from '../GraphSearch';
 
 export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.GraphContext | null>(null);
     const [loading, setLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const handleSearch = useCallback((q: string) => {
+        setSearchQuery(q.trim().toLowerCase());
+    }, []);
+
+    /** Returns true if a node URL matches the search query */
+    const matchesQuery = (nodeUrl: string | undefined | null): boolean => {
+        if (!searchQuery) return true;
+        return (nodeUrl || '').toLowerCase().includes(searchQuery);
+    };
 
     useEffect(() => {
         if (!snapshotId) return;
@@ -72,14 +84,17 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
 
             {/* Visualization Column */}
             <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center min-h-[500px] relative overflow-hidden">
-                <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Immediate Neighbors (Depth 1)</span>
-                    <div className="group/help relative cursor-help">
-                        <HelpCircle size={12} className="text-slate-300" />
-                        <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-slate-900 text-white text-[10px] rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/help:opacity-100 transition-opacity z-50 leading-relaxed font-normal">
-                            This visualization shows internal pages linking directly to this page (Green) and pages this page links to (Amber). Node size indicates logical importance.
+                <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2 z-10">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Immediate Neighbors (Depth 1)</span>
+                        <div className="group/help relative cursor-help">
+                            <HelpCircle size={12} className="text-slate-300" />
+                            <div className="absolute top-full left-0 mt-2 w-64 p-3 bg-slate-900 text-white text-[10px] rounded-lg shadow-xl opacity-0 pointer-events-none group-hover/help:opacity-100 transition-opacity z-50 leading-relaxed font-normal">
+                                This visualization shows internal pages linking directly to this page (Green) and pages this page links to (Amber). Node size indicates logical importance.
+                            </div>
                         </div>
                     </div>
+                    <GraphSearch onSearch={handleSearch} />
                 </div>
 
                 {/* SVG Visualization */}
@@ -97,8 +112,10 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                         const y = (i - (arrayLength - 1) / 2) * 45;
                         const shortUrl = (node.normalized_url || '').split('/').pop() || '/';
                         const nodeHref = `/page?url=${encodeURIComponent(node.normalized_url || '')}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ''}`;
+                        const matched = matchesQuery(node.normalized_url);
+                        const dimmed = searchQuery && !matched;
                         return (
-                            <a key={`in-${i}`} href={nodeHref}>
+                            <a key={`in-${i}`} href={nodeHref} style={{ opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.2s' }}>
                                 <g className="cursor-pointer">
                                     <line x1={x} y1={y} x2="-25" y2="0" stroke="#10b981" strokeWidth="1.2" strokeDasharray="6 4" opacity="0.6" />
                                     {/* Incoming flow: source node -> current node */}
@@ -109,7 +126,8 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                                             path={`M ${x} ${y} L -25 0`}
                                         />
                                     </circle>
-                                    <circle cx={x} cy={y} r="8" fill="#10b981" />
+                                    <circle cx={x} cy={y} r={matched && searchQuery ? 11 : 8} fill="#10b981"
+                                        style={{ filter: matched && searchQuery ? 'drop-shadow(0 0 6px #10b981)' : 'none', transition: 'r 0.2s' }} />
                                     <text x={x - 12} y={y + 4} textAnchor="end" className="text-[9px] fill-slate-500 dark:fill-slate-400 font-mono pointer-events-none">
                                         {shortUrl}
                                     </text>
@@ -126,8 +144,10 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                         const y = (i - (arrayLength - 1) / 2) * 45;
                         const shortUrl = (node.normalized_url || '').split('/').pop() || '/';
                         const nodeHref = `/page?url=${encodeURIComponent(node.normalized_url || '')}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ''}`;
+                        const matched = matchesQuery(node.normalized_url);
+                        const dimmed = searchQuery && !matched;
                         return (
-                            <a key={`out-${i}`} href={nodeHref}>
+                            <a key={`out-${i}`} href={nodeHref} style={{ opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.2s' }}>
                                 <g className="cursor-pointer">
                                     <line x1="25" y1="0" x2={x} y2={y} stroke="#f59e0b" strokeWidth="1.2" strokeDasharray="6 4" opacity="0.6" />
                                     {/* Outgoing flow: current node -> target node */}
@@ -138,7 +158,8 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                                             path={`M 25 0 L ${x} ${y}`}
                                         />
                                     </circle>
-                                    <circle cx={x} cy={y} r="8" fill="#f59e0b" />
+                                    <circle cx={x} cy={y} r={matched && searchQuery ? 11 : 8} fill="#f59e0b"
+                                        style={{ filter: matched && searchQuery ? 'drop-shadow(0 0 6px #f59e0b)' : 'none', transition: 'r 0.2s' }} />
                                     <text x={x + 12} y={y + 4} textAnchor="start" className="text-[9px] fill-slate-500 dark:fill-slate-400 font-mono pointer-events-none">
                                         {shortUrl}
                                     </text>
@@ -163,7 +184,7 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                         <p className="text-xs text-slate-500">No incoming internal nodes for this snapshot.</p>
                     ) : (
                         <ul className="space-y-2 max-h-56 overflow-y-auto">
-                            {(data.incoming || []).map((node, idx) => (
+                            {(data.incoming || []).filter(n => matchesQuery(n.normalized_url)).map((node, idx) => (
                                 <li key={`in-list-${idx}`} className="flex items-center justify-between text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
                                     <span className="font-mono text-slate-700 dark:text-slate-300 truncate pr-3">{node.normalized_url}</span>
                                     <span className="text-slate-500">PR {(node.pagerank_score || 0).toFixed(2)}</span>
@@ -179,7 +200,7 @@ export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number 
                         <p className="text-xs text-slate-500">No outgoing internal nodes for this snapshot.</p>
                     ) : (
                         <ul className="space-y-2 max-h-56 overflow-y-auto">
-                            {(data.outgoing || []).map((node, idx) => (
+                            {(data.outgoing || []).filter(n => matchesQuery(n.normalized_url)).map((node, idx) => (
                                 <li key={`out-list-${idx}`} className="flex items-center justify-between text-xs border-b border-slate-100 dark:border-slate-800 pb-2">
                                     <span className="font-mono text-slate-700 dark:text-slate-300 truncate pr-3">{node.normalized_url}</span>
                                     <span className="text-slate-500">PR {(node.pagerank_score || 0).toFixed(2)}</span>
