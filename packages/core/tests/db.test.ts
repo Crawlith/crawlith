@@ -89,6 +89,32 @@ describe('Database Layer', () => {
     expect(page?.last_seen_snapshot_id).toBe(snapshotId2); // Should update to the second one
   });
 
+  it('should scope snapshot page lists to URLs seen in that snapshot', () => {
+    const siteId = siteRepo.createSite('example.com');
+    const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
+    const snapshotId2 = snapshotRepo.createSnapshot(siteId, 'completed');
+
+    pageRepo.upsertPage({
+      site_id: siteId,
+      normalized_url: '/book-a-call?intent=old',
+      last_seen_snapshot_id: snapshotId,
+      http_status: 200,
+      depth: 1
+    });
+
+    pageRepo.upsertPage({
+      site_id: siteId,
+      normalized_url: '/book-a-call',
+      last_seen_snapshot_id: snapshotId2,
+      http_status: 200,
+      depth: 1
+    });
+
+    expect(pageRepo.getPagesBySnapshot(snapshotId2).map(p => p.normalized_url)).toEqual(['/book-a-call']);
+    expect(Array.from(pageRepo.getPagesIteratorBySnapshot(snapshotId2)).map(p => p.normalized_url)).toEqual(['/book-a-call']);
+    expect(pageRepo.getPagesIdentityBySnapshot(snapshotId2).map(p => p.normalized_url)).toEqual(['/book-a-call']);
+  });
+
   it('should persist new columns (nofollow, security_error, retries)', () => {
     const siteId = siteRepo.createSite('new-cols.com');
     const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
