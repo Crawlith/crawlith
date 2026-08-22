@@ -8,26 +8,19 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "github-actions"
     commit-message:
       prefix: "chore"
       include: "scope"
 
-  # pnpm (uses the "npm" ecosystem)
+  # pnpm
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "pnpm"
     commit-message:
       prefix: "chore"
       include: "scope"
-    # Group minor + patch updates to reduce noise
     groups:
       pnpm-minor-and-patch:
         patterns:
