@@ -16,8 +16,8 @@
   "dependencies": {
     "@crawlith/core": "workspace:*",
     "commander": "^15.0.0",
-    "express": "^5.2.1",
-    "open": "^11.0.1"
+    "express": "^5.3.0",
+    "open": "^11.0.4"
   },
   "devDependencies": {
     "@crawlith/plugin-exporter": "workspace:*",
