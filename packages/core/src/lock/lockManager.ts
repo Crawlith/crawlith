@@ -6,7 +6,7 @@ import { generateLockKey } from './hashKey.js';
 import { isPidAlive } from './pidCheck.js';
 import { EngineContext } from '../events.js';
 
-interface LockData {
+export interface LockData {
   pid: number;
   startedAt: number;
   command: string;
@@ -49,14 +49,14 @@ export class LockManager {
 
       if (force) {
         this.log('warn', 'Force mode enabled. Overriding existing lock.');
-        try { unlinkSync(lockPath); } catch { /* ignore */ }
+        this.removeLockFile(lockPath);
       } else {
         if (!isStale) {
           this.log('error', `Crawlith: command already running for ${targetUrl} (PID ${pid})`);
           process.exit(1);
         } else {
           this.log('info', 'Detected stale lock. Continuing execution.');
-          try { unlinkSync(lockPath); } catch { /* ignore */ }
+          this.removeLockFile(lockPath);
         }
       }
     }
@@ -95,19 +95,55 @@ export class LockManager {
       }
     }
   }
+  /** Locks whose owning process is still running. Corrupt lock files count as stale. */
+  static async findLiveLocks(): Promise<LockData[]> {
+    const live: LockData[] = [];
+    for (const file of await this.lockFiles()) {
+      const lock = await this.readLock(file);
+      if (lock && isPidAlive(lock.pid)) live.push(lock);
+    }
+    return live;
+  }
 
+  /** Deletes stale lock files and returns how many were removed. Locks held by running processes are kept. */
   static async clearAllLocks(): Promise<number> {
-    if (!existsSync(this.lockDir)) return 0;
-    const files = await fs.readdir(this.lockDir);
-    const lockFiles = files.filter(f => f.endsWith('.lock'));
     let count = 0;
-    for (const file of lockFiles) {
+    for (const file of await this.lockFiles()) {
+      const lock = await this.readLock(file);
+      if (lock && isPidAlive(lock.pid)) continue;
       try {
-        await fs.unlink(path.join(this.lockDir, file));
+        await fs.unlink(file);
         count++;
-      } catch { /* ignore */ }
+      } catch { /* already gone or not removable; nothing to clear */ }
     }
     return count;
+  }
+
+  private static async lockFiles(): Promise<string[]> {
+    if (!existsSync(this.lockDir)) return [];
+    const files = await fs.readdir(this.lockDir);
+    return files.filter(f => f.endsWith('.lock')).map(f => path.join(this.lockDir, f));
+  }
+
+  private static async readLock(file: string): Promise<LockData | null> {
+    try {
+      return JSON.parse(await fs.readFile(file, 'utf-8')) as LockData;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Removes a stale or overridden lock. A file that is already gone is fine; any other failure is reported,
+   * because the exclusive create that follows would otherwise fail and be misreported as a race.
+   */
+  private static removeLockFile(lockPath: string): void {
+    try {
+      unlinkSync(lockPath);
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return;
+      throw new Error(`Cannot remove stale lock ${lockPath}: ${error?.message ?? error}`, { cause: error });
+    }
   }
 
   private static log(type: 'info' | 'warn' | 'error', message: string, error?: unknown) {

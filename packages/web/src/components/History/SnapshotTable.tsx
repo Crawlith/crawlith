@@ -24,7 +24,7 @@ export const SnapshotTable: React.FC<SnapshotTableProps> = ({ snapshots, onDelet
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-          {snapshots.map((snap) => (
+          {snapshots.map((snap, index) => (
             <tr key={snap.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
               <td className="px-6 py-4 font-mono text-xs text-slate-500">#{snap.id}</td>
               <td className="px-6 py-4 text-slate-800 dark:text-slate-200">
@@ -44,8 +44,9 @@ export const SnapshotTable: React.FC<SnapshotTableProps> = ({ snapshots, onDelet
               <td className="px-6 py-4 flex items-center justify-center gap-2">
                 <button
                   onClick={() => onCompare(snap.id)}
-                  className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors group"
-                  title="Compare with previous"
+                  disabled={index === snapshots.length - 1}
+                  className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors group disabled:opacity-40 disabled:pointer-events-none"
+                  title={index === snapshots.length - 1 ? 'No earlier snapshot to compare with' : 'Compare with previous'}
                 >
                   <GitCompare size={16} />
                 </button>

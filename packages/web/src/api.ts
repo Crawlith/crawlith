@@ -155,6 +155,8 @@ export interface PageDetails {
   identity: {
     url: string;
     status: number;
+    /** HTTP code, or why there is none ("Not crawled", "Blocked by robots.txt", "Fetch failed (…)"). */
+    statusLabel: string;
     canonical: string | null;
     title: TextFieldAnalysis;
     metaDescription: TextFieldAnalysis;
@@ -248,6 +250,8 @@ export interface TechnicalSignals {
   contentSize: number;
   serverError: boolean;
   status: number;
+  statusLabel: string;
+  fetchFailed: boolean;
 }
 
 export interface GraphContext {

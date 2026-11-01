@@ -88,7 +88,6 @@ export class Crawler {
   // Site/Snapshot info
   private siteId: number | null = null;
   private snapshotId: number | null = null;
-  private reusingSnapshot: boolean = false;
   private runType: 'completed' | 'incremental' | 'single' = 'completed';
   private rootOrigin: string = '';
 
@@ -100,6 +99,10 @@ export class Crawler {
   private edgeBuffer: { sourceUrl: string; targetUrl: string; weight: number; rel: string }[] = [];
   private metricsBuffer: any[] = [];
   private pendingSitemaps: number = 0;
+  // Re-runs the dispatch loop; set while drain() runs so background work can resume a crawl that went idle.
+  private wakeDrain: () => void = () => { };
+  // onPageParsed hooks run alongside the crawl; the snapshot only ends once they have all settled.
+  private pendingPageHooks = new Set<Promise<void>>();
   private edgesFound: number = 0;
   private lastProgressEmitAt: number = 0;
   private progressPhase: string = 'crawling';
@@ -180,7 +183,10 @@ export class Crawler {
       (this.fetcher as any).scopeManager = this.scopeManager;
     }
 
-    // Every scan now creates a new snapshot (no reuse)
+    // A crawl killed outright (SIGKILL, power loss) never ends its snapshot; close those out before starting another.
+    this.snapshotRepo.failAbandonedSnapshots();
+
+    // Every scan creates a new snapshot
     const runType = this.options.snapshotRunType || (this.options.previousGraph ? 'incremental' : 'completed');
     this.snapshotId = this.snapshotRepo.createSnapshot(this.siteId, runType);
 
@@ -316,6 +322,7 @@ export class Crawler {
             this.context.emit({ type: 'warn', message: 'Sitemap fetch failed', context: { url: sitemapUrl, error: String(e) } });
           } finally {
             this.pendingSitemaps--;
+            this.wakeDrain();
           }
         })();
       }
@@ -402,16 +409,6 @@ export class Crawler {
 
     const identities = this.pageRepo!.getPagesIdentityBySnapshot(this.snapshotId!);
     const urlToId = new Map(identities.map(p => [p.normalized_url, p.id]));
-
-    // When reusing a snapshot, clean up stale edges for pages being re-crawled
-    if (this.reusingSnapshot) {
-      const sourcePageIds = new Set(
-        this.edgeBuffer.map(e => urlToId.get(e.sourceUrl)).filter((id): id is number => id !== undefined)
-      );
-      for (const pageId of sourcePageIds) {
-        this.edgeRepo!.deleteEdgesForPage(this.snapshotId!, pageId);
-      }
-    }
 
     const edgesToInsert = this.edgeBuffer
       .map(e => ({
@@ -573,20 +570,25 @@ export class Crawler {
     const contentTypeHeader = res.headers['content-type'];
     const contentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : (contentTypeHeader || '');
     if (!contentType || !contentType.toLowerCase().includes('text/html')) {
+      // Fetched but not parsed (PDF, image, feed): still a crawled page for counts and incremental status.
       this.bufferPage(path, depth, typeof res.status === 'number' ? res.status : 0);
+      this.bufferMetrics(path, { crawl_status: isBlocked ? 'blocked_by_robots' : 'fetched' });
       return;
     }
 
     const parseResult = this.parser!.parse(res.body, absoluteUrl, res.status as number);
 
     if (this.registry) {
-      this.registry.runHook('onPageParsed', this.context as any, {
+      const hookRun: Promise<void> = this.registry.runHook('onPageParsed', this.context as any, {
         url: absoluteUrl,
         status: res.status,
         depth: depth,
         headers: res.headers,
         ...parseResult
-      });
+      }).catch((error) => {
+        this.context.emit({ type: 'error', message: 'onPageParsed hook failed', error, context: { url: absoluteUrl } });
+      }).finally(() => this.pendingPageHooks.delete(hookRun));
+      this.pendingPageHooks.add(hookRun);
     }
 
     this.bufferPage(path, depth, res.status as number, {
@@ -650,7 +652,11 @@ export class Crawler {
       const prevNode = this.options.previousGraph?.nodes.get(url);
       const res = await this.fetchPage(fetchUrl, depth, prevNode);
 
-      if (!res) return;
+      if (!res) {
+        // fetchPage already reported the error; record it so the page counts as broken, not as never crawled.
+        this.bufferMetrics(url, { crawl_status: 'network_error' });
+        return;
+      }
 
       const finalUrl = normalizeUrl(res.finalUrl, this.rootOrigin, this.options);
       if (!finalUrl) return;
@@ -690,114 +696,141 @@ export class Crawler {
     // 1. Setup fetcher and basic modules
     this.setupModules();
 
-    // 2. Initialize repositories, resolve URL (SSL/WWW), and set up site context
+    // 2. Initialize repositories, resolve URL (SSL/WWW), and create the `running` snapshot
     await this.initialize();
+    const snapshotId = this.snapshotId!;
 
-    if (this.options.robots) {
-      this.robots = this.options.robots;
-    } else {
-      await this.fetchRobots();
+    // If the process exits mid-crawl (Ctrl-C, process.exit, fatal error), end the snapshot on the way out.
+    // better-sqlite3 is synchronous, so the write completes inside the exit handler.
+    const endOnExit = (code: number) => {
+      const status = code === 130 || code === 143 ? 'cancelled' : 'failed';
+      try {
+        this.snapshotRepo!.finishSnapshot(snapshotId, status);
+      } catch {
+        // The database may already be closed; the next crawl's abandoned-snapshot sweep will fail it instead.
+      }
+    };
+    process.once('exit', endOnExit);
+
+    try {
+      if (this.options.robots) {
+        this.robots = this.options.robots;
+      } else {
+        await this.fetchRobots();
+      }
+      await this.seedQueue();
+      await this.drain();
+      await Promise.all(this.pendingPageHooks);
+
+      this.progressPhase = 'finalizing';
+      this.emitProgress(true);
+      await this.flushAll();
+      this.snapshotRepo!.finishSnapshot(snapshotId, 'completed', { limit_reached: this.reachedLimit ? 1 : 0 });
+    } catch (error) {
+      try {
+        this.snapshotRepo!.finishSnapshot(snapshotId, 'failed');
+      } catch {
+        // Keep the original error; the abandoned-snapshot sweep will fail this snapshot later.
+      }
+      throw error;
+    } finally {
+      process.off('exit', endOnExit);
     }
-    await this.seedQueue();
 
-    return new Promise((resolve) => {
-      const checkDone = async () => {
-        if (this.queue.length === 0 && this.active === 0 && this.pendingSitemaps === 0) {
-          this.progressPhase = 'finalizing';
-          this.emitProgress(true);
-          await this.flushAll();
-          this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
-            limit_reached: this.reachedLimit ? 1 : 0
-          });
-          this.snapshotRepo!.pruneSnapshots(
-            this.siteId!,
-            DEFAULTS.MAX_SNAPSHOTS,
-            DEFAULTS.MAX_SINGLE_SNAPSHOTS,
-            this.snapshotId!
-          );
-          if (this.reusingSnapshot) {
-            this.snapshotRepo!.touchSnapshot(this.snapshotId!);
-          }
-          resolve(this.snapshotId!);
-          return true;
-        }
-        return false;
+    this.snapshotRepo!.pruneSnapshots(
+      this.siteId!,
+      DEFAULTS.MAX_SNAPSHOTS,
+      DEFAULTS.MAX_SINGLE_SNAPSHOTS,
+      snapshotId
+    );
+    return snapshotId;
+  }
+
+  /**
+   * Dispatches queued pages until nothing is queued, in flight or still loading from a sitemap,
+   * or until the page limit is hit and in-flight pages have finished. Rejects if dispatching throws.
+   */
+  private drain(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: unknown) => {
+        if (settled) return;
+        settled = true;
+        this.wakeDrain = () => { };
+        if (error === undefined) resolve();
+        else reject(error);
       };
+      const isIdle = () => this.queue.length === 0 && this.active === 0 && this.pendingSitemaps === 0;
 
-      const next = async () => {
-        if (await checkDone()) return;
+      const pump = () => {
+        if (settled) return;
+        try {
+          if (isIdle()) return finish();
 
-        if (this.pagesCrawled >= this.options.limit) {
-          this.reachedLimit = true;
-          this.progressPhase = 'limit reached';
-          this.emitProgress();
-          if (this.active === 0) {
-            this.context.emit({ type: 'crawl:limit-reached', limit: this.options.limit });
-            this.progressPhase = 'finalizing';
-            this.emitProgress(true);
-            await this.flushAll();
-            this.snapshotRepo!.updateSnapshotStatus(this.snapshotId!, 'completed', {
-              limit_reached: 1
-            });
-            this.snapshotRepo!.pruneSnapshots(
-              this.siteId!,
-              DEFAULTS.MAX_SNAPSHOTS,
-              DEFAULTS.MAX_SINGLE_SNAPSHOTS,
-              this.snapshotId!
-            );
-            if (this.reusingSnapshot) {
-              this.snapshotRepo!.touchSnapshot(this.snapshotId!);
-            }
-            resolve(this.snapshotId!);
-          }
-          return;
-        }
-
-        while (this.queue.length > 0 && this.active < this.concurrency && this.pagesCrawled < this.options.limit) {
-          const item = this.queue.shift()!;
-          if (this.visited.has(item.url)) continue;
-
-          // Robust robots check: reconstruct absolute URL since robots-parser needs full URLs,
-          // not root-relative paths. Also check /path/ variant in case robots.txt uses trailing slash.
-          const absUrlForRobots = UrlUtil.toAbsolute(item.url, this.rootOrigin);
-          const isBlocked = this.robots && (
-            !this.robots.isAllowed(absUrlForRobots, 'crawlith') ||
-            (!absUrlForRobots.endsWith('/') && !this.robots.isAllowed(absUrlForRobots + '/', 'crawlith'))
-          );
-
-          if (isBlocked) {
-            if (this.options.debug) {
-              console.log(`${chalk.yellow('⊘ Robots')} ${chalk.gray(item.url)}`);
-            }
-
-            // Tag as blocked for reporting
-            this.bufferMetrics(item.url, {
-              crawl_status: 'blocked_by_robots'
-            });
-            this.bufferPage(item.url, item.depth, 0);
-
-            if (!this.options.ignoreRobots) {
-              this.visited.add(item.url);
-              this.pagesCrawled++;
-              continue;
-            }
-          }
-
-          this.active++;
-          this.pagesCrawled++;
-          this.visited.add(item.url);
-
-          this.limitConcurrency(() => this.processPage(item, isBlocked)).finally(() => {
-            this.active--;
+          if (this.pagesCrawled >= this.options.limit) {
+            this.reachedLimit = true;
+            this.progressPhase = 'limit reached';
             this.emitProgress();
-            next();
-          });
-        }
+            // Wait for sitemaps too, so none of them writes pages into the snapshot after it has ended.
+            if (this.active === 0 && this.pendingSitemaps === 0) {
+              this.context.emit({ type: 'crawl:limit-reached', limit: this.options.limit });
+              finish();
+            }
+            return;
+          }
 
-        this.emitProgress();
-        await checkDone();
+          while (this.queue.length > 0 && this.active < this.concurrency && this.pagesCrawled < this.options.limit) {
+            const item = this.queue.shift()!;
+            if (this.visited.has(item.url)) continue;
+
+            // Robust robots check: reconstruct absolute URL since robots-parser needs full URLs,
+            // not root-relative paths. Also check /path/ variant in case robots.txt uses trailing slash.
+            const absUrlForRobots = UrlUtil.toAbsolute(item.url, this.rootOrigin);
+            const isBlocked = this.robots && (
+              !this.robots.isAllowed(absUrlForRobots, 'crawlith') ||
+              (!absUrlForRobots.endsWith('/') && !this.robots.isAllowed(absUrlForRobots + '/', 'crawlith'))
+            );
+
+            if (isBlocked) {
+              if (this.options.debug) {
+                console.log(`${chalk.yellow('⊘ Robots')} ${chalk.gray(item.url)}`);
+              }
+
+              // Tag as blocked for reporting
+              this.bufferMetrics(item.url, {
+                crawl_status: 'blocked_by_robots'
+              });
+              this.bufferPage(item.url, item.depth, 0);
+
+              if (!this.options.ignoreRobots) {
+                this.visited.add(item.url);
+                this.pagesCrawled++;
+                continue;
+              }
+            }
+
+            this.active++;
+            this.pagesCrawled++;
+            this.visited.add(item.url);
+
+            this.limitConcurrency(() => this.processPage(item, isBlocked))
+              .catch(finish)
+              .finally(() => {
+                this.active--;
+                this.emitProgress();
+                pump();
+              });
+          }
+
+          this.emitProgress();
+          if (isIdle()) finish();
+        } catch (error) {
+          finish(error);
+        }
       };
-      next();
+
+      this.wakeDrain = pump;
+      pump();
     });
   }
 }

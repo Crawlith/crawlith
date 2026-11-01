@@ -22,7 +22,6 @@ import { load } from 'cheerio';
 
 export interface PostCrawlOptions {
     context?: EngineContext;
-    limitReached?: boolean;
     graphInstance?: Graph;
     clustering?: boolean;
     clusterThreshold?: number;
@@ -40,7 +39,7 @@ export interface PostCrawlOptions {
 
 export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, options: PostCrawlOptions = {}): { metrics: any; healthData?: any } | undefined {
     const context = options.context;
-    const limitReached = options.limitReached || false;
+    const startedAt = Date.now();
     const graphInstance = options.graphInstance;
     const db = getDb();
     const metricsRepo = new MetricsRepository(db);
@@ -265,16 +264,16 @@ export function runPostCrawlMetrics(snapshotId: number, maxDepth: number, option
     const thinContentCount = graph.getNodes().filter(n => n.wordCount !== undefined && n.wordCount < 200 && n.status === 200).length;
     const orphanCount = metrics.orphanPages.length;
 
-    snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
+    // The crawler owns the snapshot's status and limit_reached; this only adds computed stats.
+    snapshotRepo.updateSnapshotStats(snapshotId, {
         node_count: metrics.totalPages,
         edge_count: metrics.totalEdges,
-        limit_reached: limitReached ? 1 : 0,
         thin_content_count: thinContentCount,
         orphan_count: orphanCount,
         ...(healthScore !== null ? { health_score: healthScore } : {})
     });
 
-    emit({ type: 'metrics:complete', durationMs: 0 });
+    emit({ type: 'metrics:complete', durationMs: Date.now() - startedAt });
 
     return { 
         metrics,

@@ -35,24 +35,40 @@ const InlinksTable = ({ url, snapshotId }: { url: string; snapshotId: number }) 
     const [data, setData] = useState<API.InlinksResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
+    const [error, setError] = useState<string | null>(null);
+
+    // A different page or snapshot is a different list: drop the old rows and start at its first page.
+    // Paging within the same list keeps the current rows on screen while the next page loads.
+    useEffect(() => {
+        setData(null);
+        setPage(1);
+    }, [url, snapshotId]);
 
     useEffect(() => {
-        if (!snapshotId) return;
+        let cancelled = false;
+        setError(null);
+        setLoading(Boolean(snapshotId));
+        if (!snapshotId) return () => { cancelled = true; };
         const fetch = async () => {
             setLoading(true);
             try {
                 const res = await API.fetchPageInlinks(url, page, snapshotId);
-                setData(res);
+                if (!cancelled) setData(res);
             } catch (e) {
-                console.error(e);
+                if (!cancelled) {
+                    setData(null);
+                    setError(e instanceof Error ? e.message : 'Failed to load inlinks.');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         fetch();
+        return () => { cancelled = true; };
     }, [url, page, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Inlinks...</div>;
+    if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
     if (!data) return <div className="p-8 text-center text-slate-400">No data available</div>;
 
     return (
@@ -97,24 +113,38 @@ const OutlinksTable = ({ url, snapshotId }: { url: string; snapshotId: number })
     const [data, setData] = useState<API.OutlinksResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!snapshotId) return;
+        setData(null);
+        setPage(1);
+    }, [url, snapshotId]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setError(null);
+        setLoading(Boolean(snapshotId));
+        if (!snapshotId) return () => { cancelled = true; };
         const fetch = async () => {
             setLoading(true);
             try {
                 const res = await API.fetchPageOutlinks(url, page, snapshotId);
-                setData(res);
+                if (!cancelled) setData(res);
             } catch (e) {
-                console.error(e);
+                if (!cancelled) {
+                    setData(null);
+                    setError(e instanceof Error ? e.message : 'Failed to load outlinks.');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         fetch();
+        return () => { cancelled = true; };
     }, [url, page, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Outlinks...</div>;
+    if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
     if (!data) return <div className="p-8 text-center text-slate-400">No data available</div>;
 
     return (

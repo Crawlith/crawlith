@@ -123,8 +123,7 @@ export class CrawlSitegraph implements UseCase<SiteCrawlInput, CrawlSitegraphRes
     }
 
     const result = runPostCrawlMetrics(snapshotId, crawlOpts.depth, {
-      context: undefined,
-      limitReached: false,
+      context: engineContext,
       graphInstance: graph,
       clustering: input.clustering ?? true,
       clusterThreshold: input.clusterThreshold,

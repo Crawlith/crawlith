@@ -12,24 +12,38 @@ export const HistoryView: React.FC = () => {
   const [compareMode, setCompareMode] = useState(false);
   const [selectedSnapshotA, setSelectedSnapshotA] = useState<number | null>(null);
   const [selectedSnapshotB, setSelectedSnapshotB] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+    let cancelled = false;
     setLoading(true);
-    try {
-      const historyRes = await API.fetchHistory();
-      setHistory(historyRes.results);
-      const trendsRes = await API.fetchHistoryTrends();
-      setTrends(trendsRes.results);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setHistory([]);
+    setTrends([]);
+    setError(null);
+    const loadData = async () => {
+      try {
+        const [historyRes, trendsRes] = await Promise.all([
+          API.fetchHistory(),
+          API.fetchHistoryTrends(),
+        ]);
+        if (!cancelled) {
+          setHistory(historyRes.results);
+          setTrends(trendsRes.results);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setHistory([]);
+          setTrends([]);
+          setError(e instanceof Error ? e.message : 'Failed to load history and trends.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadData();
+    return () => { cancelled = true; };
+  }, [refreshVersion]);
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this snapshot? This action cannot be undone.')) {
@@ -37,40 +51,24 @@ export const HistoryView: React.FC = () => {
     }
     try {
       await API.deleteSnapshot(id);
-      loadData();
+      setRefreshVersion(version => version + 1);
     } catch (e: any) {
       alert(`Error: ${e.message}`);
     }
   };
 
+  // Compare the clicked snapshot (B) with the one just before it (A). History is newest first.
   const handleCompare = (snapshotId: number) => {
-    if (selectedSnapshotA === null) {
-      setSelectedSnapshotA(snapshotId);
-      // If we have at least one previous snapshot, auto-select the immediate previous one for B?
-      // Or just wait for user to select B.
-      // Actually, UX: click 'Compare' on a row -> sets it as B (current/newer), then prompts to select A (baseline).
-      // Let's assume the user clicked 'Compare' on the NEWER snapshot they want to analyze.
-      // So set B = snapshotId.
-      setSelectedSnapshotB(snapshotId);
-
-      // Try to find the snapshot immediately before this one in the history list (history is sorted DESC)
-      const currentIndex = history.findIndex(h => h.id === snapshotId);
-      if (currentIndex !== -1 && currentIndex < history.length - 1) {
-        setSelectedSnapshotA(history[currentIndex + 1].id);
-      } else {
-        // If it's the oldest, maybe clear A so they have to pick
-        setSelectedSnapshotA(null);
-      }
-      setCompareMode(true);
-    } else {
-      // If already in compare mode, maybe just update one of them?
-      // Let's keep it simple: Reset if they click compare again from the list, or handle inside ComparisonView.
-      setSelectedSnapshotB(snapshotId);
-      setCompareMode(true);
-    }
+    const index = history.findIndex(h => h.id === snapshotId);
+    const previous = index === -1 ? undefined : history[index + 1];
+    if (!previous) return;
+    setSelectedSnapshotA(previous.id);
+    setSelectedSnapshotB(snapshotId);
+    setCompareMode(true);
   };
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading History...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
 
   if (compareMode && selectedSnapshotA && selectedSnapshotB) {
     return (

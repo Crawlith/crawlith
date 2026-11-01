@@ -145,10 +145,12 @@ export const getCrawlCommand = (registry: PluginRegistry) => {
       }
       controller.finish();
     } catch (error) {
+      // End the progress line first so it isn't redrawn under the error with a stale phase.
+      controller.finish();
       if ((error as any).code === 'ELOCKED') {
         // Handled by LockManager
       } else {
-        controller.handle({ type: 'error', message: 'Error during crawl', error: error as Error });
+        controller.handle({ type: 'error', message: `Error during crawl: ${(error as Error).message}`, error: error as Error });
       }
       process.exit(1);
     }

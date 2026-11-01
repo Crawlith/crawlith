@@ -4,11 +4,13 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { isPidAlive } from '../../src/lock/pidCheck.js';
 
 // Mock dependencies
 vi.mock('node:fs/promises');
 vi.mock('node:fs');
 vi.mock('node:os');
+vi.mock('../../src/lock/pidCheck.js', () => ({ isPidAlive: vi.fn() }));
 
 describe('LockManager.clearAllLocks', () => {
     const mockHomeDir = '/home/user';
@@ -52,5 +54,17 @@ describe('LockManager.clearAllLocks', () => {
 
         expect(count).toBe(1);
         expect(fs.unlink).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps locks held by running processes', async () => {
+        vi.mocked(fs.readFile).mockImplementation(async (file: any) =>
+            JSON.stringify({ pid: String(file).endsWith('a.lock') ? 111 : 222 }));
+        vi.mocked(isPidAlive).mockImplementation(pid => pid === 111);
+
+        const count = await LockManager.clearAllLocks();
+
+        expect(count).toBe(1);
+        expect(fs.unlink).not.toHaveBeenCalledWith(path.join(lockDir, 'a.lock'));
+        expect(fs.unlink).toHaveBeenCalledWith(path.join(lockDir, 'b.lock'));
     });
 });

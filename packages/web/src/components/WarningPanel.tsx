@@ -7,21 +7,30 @@ export const WarningPanel = () => {
   const { currentSnapshot } = useContext(DashboardContext);
   const [criticalIssues, setCriticalIssues] = useState<API.Issue[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentSnapshot) return;
+    let cancelled = false;
+    setCriticalIssues([]);
+    setError(null);
+    setLoading(Boolean(currentSnapshot));
+    if (!currentSnapshot) return () => { cancelled = true; };
     const fetch = async () => {
       setLoading(true);
       try {
         const data = await API.fetchIssues(currentSnapshot, 'Critical', '', 1);
-        setCriticalIssues(data.results.slice(0, 5)); // show top 5
+        if (!cancelled) setCriticalIssues(data.results.slice(0, 5));
       } catch (e) {
-        console.error(e);
+        if (!cancelled) {
+          setCriticalIssues([]);
+          setError(e instanceof Error ? e.message : 'Failed to load critical issues.');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetch();
+    return () => { cancelled = true; };
   }, [currentSnapshot]);
 
   return (
@@ -33,11 +42,12 @@ export const WarningPanel = () => {
         <div>
           <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Critical Attention</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {loading ? 'Loading...' : `${criticalIssues.length} issues require immediate fix`}
+            {loading ? 'Loading...' : error ? 'Critical issues unavailable' : `${criticalIssues.length} issues require immediate fix`}
           </p>
         </div>
       </div>
 
+      {error && <div className="p-4 text-center text-sm text-red-500">{error}</div>}
       <div className="space-y-3">
         {criticalIssues.map((issue, idx) => (
           <div key={issue.id || idx} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700/50 hover:border-red-200 dark:hover:border-red-900/30 transition-colors group cursor-pointer">

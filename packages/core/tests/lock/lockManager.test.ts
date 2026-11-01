@@ -98,6 +98,18 @@ describe('LockManager', () => {
     expect(mockContext.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'info', message: expect.stringContaining('Detected stale lock') }));
   });
 
+  it('reports a stale lock it cannot delete instead of misreporting a race', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ pid: 9999, startedAt: Date.now(), command, target, args: options }));
+    vi.mocked(isPidAlive).mockReturnValue(false);
+    vi.mocked(unlinkSync).mockImplementation(() => {
+      throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+    });
+
+    await expect(LockManager.acquireLock(command, target, options, mockContext)).rejects.toThrow('Cannot remove stale lock');
+    expect(fs.writeFile).not.toHaveBeenCalled();
+  });
+
   it('should override lock if force is true', async () => {
     vi.mocked(existsSync).mockReturnValue(true);
     // Even if PID is alive

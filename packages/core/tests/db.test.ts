@@ -48,10 +48,46 @@ describe('Database Layer', () => {
     expect(snapshot).toBeDefined();
     expect(snapshot?.status).toBe('running');
 
-    snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', { node_count: 10, edge_count: 5 });
+    snapshotRepo.finishSnapshot(snapshotId, 'completed', { node_count: 10, edge_count: 5 });
     const updated = snapshotRepo.getLatestSnapshot(siteId);
     expect(updated?.status).toBe('completed');
     expect(updated?.node_count).toBe(10);
+  });
+
+  it('never moves a finished snapshot to another status', () => {
+    const siteId = siteRepo.createSite('example.com');
+    const snapshotId = snapshotRepo.createSnapshot(siteId, 'completed');
+
+    expect(snapshotRepo.finishSnapshot(snapshotId, 'cancelled')).toBe(true);
+    expect(snapshotRepo.finishSnapshot(snapshotId, 'completed', { limit_reached: 1 })).toBe(false);
+
+    const snapshot = snapshotRepo.getSnapshot(snapshotId);
+    expect(snapshot?.status).toBe('cancelled');
+    expect(snapshot?.limit_reached).toBe(0);
+  });
+
+  it('fails running snapshots whose process is gone and leaves live ones running', () => {
+    const siteId = siteRepo.createSite('example.com');
+    const ownProcess = snapshotRepo.createSnapshot(siteId, 'completed');
+    const deadProcess = snapshotRepo.createSnapshot(siteId, 'completed');
+    const liveProcess = snapshotRepo.createSnapshot(siteId, 'completed');
+    const noPid = snapshotRepo.createSnapshot(siteId, 'completed');
+    const finished = snapshotRepo.createSnapshot(siteId, 'completed');
+    const setPid = db.prepare('UPDATE snapshots SET pid = ? WHERE id = ?');
+    setPid.run(900001, deadProcess);
+    setPid.run(900002, liveProcess);
+    setPid.run(null, noPid);
+    setPid.run(900001, finished);
+    snapshotRepo.finishSnapshot(finished, 'completed');
+
+    expect(snapshotRepo.failAbandonedSnapshots(pid => pid === 900002)).toBe(2);
+
+    const status = (id: number) => snapshotRepo.getSnapshot(id)?.status;
+    expect(status(ownProcess)).toBe('running');
+    expect(status(deadProcess)).toBe('failed');
+    expect(status(liveProcess)).toBe('running');
+    expect(status(noPid)).toBe('failed');
+    expect(status(finished)).toBe('completed');
   });
 
   it('should upsert pages', () => {

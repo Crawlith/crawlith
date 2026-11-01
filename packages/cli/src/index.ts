@@ -9,12 +9,14 @@ function installCancellationHandlers(): void {
   if (isUiCommand) return;
 
   let cancelling = false;
-  const cancel = () => {
+  const cancel = (signal: NodeJS.Signals) => {
     if (cancelling) return;
     cancelling = true;
     // Keep this plain and stable for scripts.
     console.log('\nOperation canceled.');
-    process.exit(0);
+    // 128 + signal number (shell convention), so scripts can tell a cancelled run from a finished one.
+    // The crawler's exit handler reads this code to mark an in-flight snapshot `cancelled`.
+    process.exit(signal === 'SIGTERM' ? 143 : 130);
   };
 
   process.once('SIGINT', cancel);

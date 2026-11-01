@@ -1,4 +1,5 @@
 import { Graph } from '../graph/graph.js';
+import { isBrokenPage } from '../graph/nodeStatus.js';
 import { analyzeContent } from '../analysis/content.js';
 import { analyzeH1 } from '../analysis/seo.js';
 import { analyzeImageAlts } from '../analysis/images.js';
@@ -147,16 +148,14 @@ export class HealthService {
                 crawlTraps += 1;
             }
 
-            const isConfirmedError = node.status >= 400 || (node.status === 0 && (node.crawlStatus === 'network_error' || node.crawlStatus === 'failed_after_retries' || node.securityError || node.crawlStatus === 'fetched_error'));
-
-            if (isConfirmedError) {
+            if (isBrokenPage(node)) {
                 brokenInternalLinks += 1;
             }
 
             if (node.brokenLinks) {
                 const actualBreaks = node.brokenLinks.filter(url => {
                     const target = graph.nodes.get(url);
-                    return target && (target.status >= 400 || (target.status === 0 && (target.crawlStatus === 'network_error' || target.crawlStatus === 'failed_after_retries' || target.securityError || target.crawlStatus === 'fetched_error')));
+                    return target !== undefined && isBrokenPage(target);
                 });
                 brokenInternalLinks += actualBreaks.length;
             }

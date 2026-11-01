@@ -8,20 +8,26 @@ export const SignalsTab = ({ url, snapshotId }: { url: string, snapshotId: numbe
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
+        setPluginsData({});
+        setError(null);
         const fetchPlugins = async () => {
             setLoading(true);
             try {
                 const data = await API.fetchPagePlugins(url, snapshotId);
-                setPluginsData(data);
-                setError(null);
-            } catch (e: any) {
-                setError(e.message || 'Failed to load plugin data.');
+                if (!cancelled) setPluginsData(data);
+            } catch (e) {
+                if (!cancelled) {
+                    setPluginsData({});
+                    setError(e instanceof Error ? e.message : 'Failed to load plugin data.');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
         fetchPlugins();
+        return () => { cancelled = true; };
     }, [url, snapshotId]);
 
     if (loading) {

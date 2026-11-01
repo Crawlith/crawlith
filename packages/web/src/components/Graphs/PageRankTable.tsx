@@ -10,18 +10,26 @@ export const PageRankTable = () => {
   const navigate = useNavigate();
   const { currentSnapshot } = useContext(DashboardContext);
   const [topPages, setTopPages] = useState<API.TopPage[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentSnapshot) return;
+    let cancelled = false;
+    setTopPages([]);
+    setError(null);
+    if (!currentSnapshot) return () => { cancelled = true; };
     const fetchData = async () => {
       try {
         const data = await API.fetchTopPages(currentSnapshot);
-        setTopPages(data.results);
+        if (!cancelled) setTopPages(data.results);
       } catch (e) {
-        console.error(e);
+        if (!cancelled) {
+          setTopPages([]);
+          setError(e instanceof Error ? e.message : 'Failed to load top pages.');
+        }
       }
     };
     fetchData();
+    return () => { cancelled = true; };
   }, [currentSnapshot]);
 
   return (
@@ -36,6 +44,7 @@ export const PageRankTable = () => {
         </div>
       </div>
 
+      {error && <div className="p-4 text-center text-sm text-red-500">{error}</div>}
       <div className="flex-1 overflow-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">

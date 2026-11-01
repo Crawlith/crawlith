@@ -16,18 +16,25 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({ snapshotA, snaps
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    setLoading(Boolean(snapshotA && snapshotB));
     const fetch = async () => {
       setLoading(true);
       try {
         const res = await API.fetchSnapshotComparison(snapshotA, snapshotB);
-        setData(res);
+        if (!cancelled) setData(res);
       } catch (e) {
-        console.error(e);
+        if (!cancelled) {
+          setData(null);
+          console.error(e);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     if (snapshotA && snapshotB) fetch();
+    return () => { cancelled = true; };
   }, [snapshotA, snapshotB]);
 
   if (loading) return <div className="p-8 text-center text-slate-500 animate-pulse">Analyzing differences...</div>;
@@ -49,7 +56,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({ snapshotA, snaps
               onChange={(e) => onChangeA(Number(e.target.value))}
               className="bg-transparent text-sm font-medium text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
             >
-              {allSnapshots.map(s => <option key={s.id} value={s.id}>#{s.id} ({new Date(s.createdAt).toLocaleDateString()})</option>)}
+              {allSnapshots.filter(s => s.id !== snapshotB).map(s => <option key={s.id} value={s.id}>#{s.id} ({new Date(s.createdAt).toLocaleDateString()})</option>)}
             </select>
           </div>
           <ArrowRight size={16} className="text-slate-400" />
@@ -60,7 +67,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({ snapshotA, snaps
               onChange={(e) => onChangeB(Number(e.target.value))}
               className="bg-transparent text-sm font-medium text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
             >
-              {allSnapshots.map(s => <option key={s.id} value={s.id}>#{s.id} ({new Date(s.createdAt).toLocaleDateString()})</option>)}
+              {allSnapshots.filter(s => s.id !== snapshotA).map(s => <option key={s.id} value={s.id}>#{s.id} ({new Date(s.createdAt).toLocaleDateString()})</option>)}
             </select>
           </div>
         </div>

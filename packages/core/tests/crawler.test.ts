@@ -1,7 +1,10 @@
 import { test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { crawl } from '../src/crawler/crawl.js';
 import { loadGraphFromSnapshot } from '../src/db/graphLoader.js';
-import { closeDb } from '../src/db/index.js';
+import { closeDb, getDb } from '../src/db/index.js';
+import { MetricsRepository } from '../src/db/repositories/MetricsRepository.js';
+import { PluginRegistry } from '../src/plugin-system/plugin-registry.js';
+import { Fetcher } from '../src/crawler/fetcher.js';
 import { MockAgent, setGlobalDispatcher } from 'undici';
 import { IPGuard } from '../src/core/security/ipGuard.js';
 import { EngineContext } from '../src/events.js';
@@ -261,6 +264,28 @@ test('mime check', async () => {
   // But we should NOT have parsed it, so /hidden should NOT be in graph
   const hiddenNode = graph.nodes.get('/hidden');
   expect(hiddenNode).toBeUndefined();
+  // It was still fetched, so it counts as a crawled page.
+  expect(dataNode?.crawlStatus).toBe('fetched');
+});
+
+test('a fetch that throws is recorded as a network error, not left looking uncrawled', async () => {
+  const client = mockAgent.get('https://throws.com');
+  client.intercept({ path: '/robots.txt', method: 'GET' }).reply(404, '');
+  client.intercept({ path: '/', method: 'GET' }).reply(200, '<html><a href="/boom">Boom</a></html>', { headers: { 'content-type': 'text/html' } });
+
+  const originalFetch = Fetcher.prototype.fetch;
+  const fetchSpy = vi.spyOn(Fetcher.prototype, 'fetch').mockImplementation(function (this: Fetcher, url: string, options?: any) {
+    if (url.endsWith('/boom')) throw new Error('socket hang up');
+    return originalFetch.call(this, url, options);
+  });
+  try {
+    const snapshotId = await crawl('https://throws.com', { limit: 10, depth: 2, ignoreRobots: true, rate: 1000 }, mockContext);
+    const boom = loadGraphFromSnapshot(snapshotId).nodes.get('/boom');
+    expect(boom?.status).toBe(0);
+    expect(boom?.crawlStatus).toBe('network_error');
+  } finally {
+    fetchSpy.mockRestore();
+  }
 });
 
 test('self-link guard', async () => {
@@ -362,3 +387,91 @@ test('incremental crawl uses etags', async () => {
   const node2 = graph2.nodes.get('/');
   expect(node2?.incrementalStatus).toBe('unchanged');
 });
+
+test('crawls sitemap URLs that arrive after the page queue has drained', async () => {
+  const client = mockAgent.get('https://late-sitemap.com');
+  client.intercept({ path: '/robots.txt', method: 'GET' }).reply(404, '');
+  // The root page finishes long before the sitemap, so the queue is empty while the sitemap is still loading.
+  client.intercept({ path: '/sitemap.xml', method: 'GET' })
+    .reply(200, '<urlset><url><loc>https://late-sitemap.com/page1</loc></url></urlset>')
+    .delay(300);
+  client.intercept({ path: '/', method: 'GET' }).reply(200, '<html>Root</html>', { headers: { 'content-type': 'text/html' } });
+  client.intercept({ path: '/page1', method: 'GET' }).reply(200, '<html>Page 1</html>', { headers: { 'content-type': 'text/html' } });
+
+  const snapshotId = await crawl('https://late-sitemap.com', {
+    limit: 10,
+    depth: 5,
+    ignoreRobots: true,
+    sitemap: 'true',
+    rate: 1000
+  }, mockContext);
+
+  const graph = loadGraphFromSnapshot(snapshotId);
+  expect(graph.nodes.get('/page1')?.status).toBe(200);
+  const snapshot = getDb().prepare('SELECT status FROM snapshots WHERE id = ?').get(snapshotId) as { status: string };
+  expect(snapshot.status).toBe('completed');
+}, 3000);
+
+test('marks the snapshot failed and rejects when the crawl cannot be saved', async () => {
+  const client = mockAgent.get('https://broken-db.com');
+  client.intercept({ path: '/robots.txt', method: 'GET' }).reply(404, '');
+  client.intercept({ path: '/', method: 'GET' }).reply(200, '<html><body>Root</body></html>', { headers: { 'content-type': 'text/html' } });
+
+  const insertMany = vi.spyOn(MetricsRepository.prototype, 'insertMany').mockImplementation(() => {
+    throw new Error('disk full');
+  });
+  try {
+    await expect(crawl('https://broken-db.com', { limit: 10, depth: 1, ignoreRobots: true, rate: 1000 }, mockContext))
+      .rejects.toThrow('disk full');
+  } finally {
+    insertMany.mockRestore();
+  }
+
+  const snapshot = getDb().prepare('SELECT status FROM snapshots ORDER BY id DESC LIMIT 1').get() as { status: string };
+  expect(snapshot.status).toBe('failed');
+}, 3000);
+
+test('waits for a slow sitemap before ending a crawl that hit its page limit', async () => {
+  const client = mockAgent.get('https://limit-sitemap.com');
+  client.intercept({ path: '/robots.txt', method: 'GET' }).reply(404, '');
+  client.intercept({ path: '/sitemap.xml', method: 'GET' })
+    .reply(200, '<urlset><url><loc>https://limit-sitemap.com/from-sitemap</loc></url></urlset>')
+    .delay(300);
+  client.intercept({ path: '/', method: 'GET' }).reply(200, '<html>Root</html>', { headers: { 'content-type': 'text/html' } });
+
+  const snapshotId = await crawl('https://limit-sitemap.com', {
+    limit: 1,
+    depth: 5,
+    ignoreRobots: true,
+    sitemap: 'true',
+    rate: 1000
+  }, mockContext);
+
+  // The sitemap's URL is recorded as discovered before the snapshot ends, not written into it afterwards.
+  const graph = loadGraphFromSnapshot(snapshotId);
+  expect(graph.nodes.has('/from-sitemap')).toBe(true);
+  expect(graph.limitReached).toBe(true);
+}, 3000);
+
+test('ends the crawl only after async onPageParsed hooks finish', async () => {
+  const client = mockAgent.get('https://slow-hook.com');
+  client.intercept({ path: '/robots.txt', method: 'GET' }).reply(404, '');
+  client.intercept({ path: '/', method: 'GET' }).reply(200, '<html>Root</html>', { headers: { 'content-type': 'text/html' } });
+
+  const seen: string[] = [];
+  const registry = new PluginRegistry([{
+    name: 'slow-hook',
+    hooks: {
+      onPageParsed: async (_ctx: unknown, page: { url: string }) => {
+        // Real delay on purpose: the hook must still be running when the crawl would otherwise finish, and no
+        // external signal marks that moment (the fixed crawler emits 'finalizing' only after hooks settle).
+        await new Promise(resolve => setTimeout(resolve, 100));
+        seen.push(page.url);
+      }
+    }
+  } as any]);
+
+  await crawl('https://slow-hook.com', { limit: 10, depth: 1, ignoreRobots: true, rate: 1000, registry }, mockContext);
+
+  expect(seen).toEqual(['https://slow-hook.com/']);
+}, 3000);

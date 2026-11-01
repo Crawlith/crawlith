@@ -5,24 +5,34 @@ import { Share2, HelpCircle } from 'lucide-react';
 export const GraphTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.GraphContext | null>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!snapshotId) return;
+        let cancelled = false;
+        setData(null);
+        setError(null);
+        setLoading(Boolean(snapshotId));
+        if (!snapshotId) return () => { cancelled = true; };
         const fetch = async () => {
             setLoading(true);
             try {
                 const res = await API.fetchPageGraphContext(url, snapshotId);
-                setData(res);
+                if (!cancelled) setData(res);
             } catch (e) {
-                console.error(e);
+                if (!cancelled) {
+                    setData(null);
+                    setError(e instanceof Error ? e.message : 'Failed to load graph context.');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         fetch();
+        return () => { cancelled = true; };
     }, [url, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Graph Context...</div>;
+    if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
     if (!data) return null;
     const siteId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('siteId') : null;
 

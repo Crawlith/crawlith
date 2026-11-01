@@ -1,9 +1,11 @@
+import { describePageStatus } from '../graph/nodeStatus.js';
+
 export function renderCrawlCsvNodes(graphData: any): string {
     const nodeHeaders = ['URL', 'Depth', 'Status', 'InboundLinks', 'OutboundLinks', 'PageRankScore'];
     const nodeRows = graphData.nodes.map((n: any) => {
         const outbound = graphData.edges.filter((e: any) => e.source === n.url).length;
         const inbound = graphData.edges.filter((e: any) => e.target === n.url).length;
-        const statusStr = n.status === 0 ? 'Pending/Limit' : n.status;
+        const statusStr = describePageStatus(n);
         return [n.url, n.depth, statusStr, inbound, outbound, (n.pageRankScore || 0).toFixed(3)].join(',');
     });
     return [nodeHeaders.join(','), ...nodeRows].join('\n');
@@ -38,7 +40,7 @@ export function renderCrawlMarkdown(url: string, graphData: any, metrics: any, g
     md.push('| URL | Inbound | Status |');
     md.push('| :--- | :--- | :--- |');
     topPages.forEach(p => {
-        const statusStr = p.status === 0 ? 'Pending/Limit' : p.status;
+        const statusStr = describePageStatus(p);
         md.push(`| ${p.url} | ${p.inLinks} | ${statusStr} |`);
     });
 

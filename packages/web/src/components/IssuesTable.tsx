@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, AlertCircle, Info, ChevronRight, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { DashboardContext } from '../App';
@@ -15,12 +15,23 @@ export const IssuesTable = () => {
   const [severityFilter, setSeverityFilter] = useState<'All' | 'Critical' | 'Warning' | 'Info'>('All');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sort state is local for now as API sort isn't fully implemented in this iteration
+  // Sorting applies to the current page of results.
   const [sortConfig, setSortConfig] = useState<{ key: keyof API.Issue, direction: 'asc' | 'desc' } | null>({ key: 'impactScore', direction: 'desc' });
 
+  // Another snapshot's issues must never show as current; filter and page changes keep rows under the loading overlay.
   useEffect(() => {
-    if (!currentSnapshot) return;
+    setIssues([]);
+    setTotalPages(1);
+    setPage(1);
+  }, [currentSnapshot]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    setLoading(Boolean(currentSnapshot));
+    if (!currentSnapshot) return () => { cancelled = true; };
 
     const fetchData = async () => {
       setLoading(true);
@@ -28,17 +39,26 @@ export const IssuesTable = () => {
         const severity = severityFilter === 'All' ? undefined : severityFilter;
         const search = filter || undefined;
         const data = await API.fetchIssues(currentSnapshot, severity, search, page);
-        setIssues(data.results);
-        setTotalPages(Math.ceil(data.total / data.pageSize));
+        if (!cancelled) {
+          setIssues(data.results);
+          setTotalPages(Math.max(1, Math.ceil(data.total / data.pageSize)));
+        }
       } catch (e) {
-        console.error(e);
+        if (!cancelled) {
+          setIssues([]);
+          setTotalPages(1);
+          setError(e instanceof Error ? e.message : 'Failed to load issues.');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     const debounce = setTimeout(fetchData, 300);
-    return () => clearTimeout(debounce);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounce);
+    };
   }, [currentSnapshot, filter, severityFilter, page]);
 
 
@@ -48,19 +68,19 @@ export const IssuesTable = () => {
       direction = 'asc';
     }
     setSortConfig({ key, direction });
+  };
 
-    // Client-side sort for current page (since API sort is limited in this scope)
-    const sorted = [...issues].sort((a, b) => {
-      const aVal = a[key] as any;
-      const bVal = b[key] as any;
+  const sortedIssues = useMemo(() => {
+    if (!sortConfig) return issues;
+    const { key, direction } = sortConfig;
+    return [...issues].sort((a, b) => {
+      const aVal = a[key] ?? '';
+      const bVal = b[key] ?? '';
       if (aVal < bVal) return direction === 'asc' ? -1 : 1;
       if (aVal > bVal) return direction === 'asc' ? 1 : -1;
       return 0;
     });
-    setIssues(sorted);
-  };
-
-  // const Icon = Icons[severity]; // This was causing error because Icons wasn't defined in scope before usage in map loop if strict TS.
+  }, [issues, sortConfig]);
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col h-[800px] shadow-sm">
@@ -82,7 +102,7 @@ export const IssuesTable = () => {
               placeholder="Search URL..."
               className="pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:text-slate-200 transition-all"
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => { setFilter(e.target.value); setPage(1); }}
             />
           </div>
         </div>
@@ -106,6 +126,8 @@ export const IssuesTable = () => {
         </div>
       </div>
 
+      {error && <div className="p-4 text-center text-sm text-red-500">{error}</div>}
+
       {/* Table */}
       <div className="overflow-auto flex-1 relative">
         {loading && (
@@ -126,7 +148,7 @@ export const IssuesTable = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-            {issues.map((issue, idx) => {
+            {sortedIssues.map((issue, idx) => {
               const issueHref = withSiteId('/page', { url: issue.url });
               return (
               <tr
@@ -164,7 +186,7 @@ export const IssuesTable = () => {
               </tr>
               );
             })}
-            {issues.length === 0 && !loading && (
+            {issues.length === 0 && !loading && !error && (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                   No issues found matching your filters.

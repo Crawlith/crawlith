@@ -9,22 +9,32 @@ export const CriticalPanel = () => {
   const navigate = useNavigate();
   const { currentSnapshot } = useContext(DashboardContext);
   const [criticalIssues, setCriticalIssues] = useState<API.Issue[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentSnapshot) return;
+    let cancelled = false;
+    setCriticalIssues([]);
+    setError(null);
+    setLoading(Boolean(currentSnapshot));
+    if (!currentSnapshot) return () => { cancelled = true; };
 
     const fetchCritical = async () => {
         try {
             // Fetch top 10 critical issues
             const data = await API.fetchIssues(currentSnapshot, 'Critical', undefined, 1);
-            // Sort by impact score descending locally since API returns paginated but not strictly ordered by impact globally across all pages without specific endpoint
-            // (Assuming API returns ordered results, which we implemented in server)
-            setCriticalIssues(data.results.slice(0, 10));
-        } catch(e) {
-            console.error(e);
+            if (!cancelled) setCriticalIssues(data.results.slice(0, 10));
+        } catch (e) {
+            if (!cancelled) {
+                setCriticalIssues([]);
+                setError(e instanceof Error ? e.message : 'Failed to load critical issues.');
+            }
+        } finally {
+            if (!cancelled) setLoading(false);
         }
     }
     fetchCritical();
+    return () => { cancelled = true; };
   }, [currentSnapshot]);
 
   return (
@@ -37,11 +47,12 @@ export const CriticalPanel = () => {
           <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Critical Attention</h3>
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400 ml-9">
-          Top {criticalIssues.length} issues sorted by Impact Score
+          {loading ? 'Loading...' : error ? 'Critical issues unavailable' : `Top ${criticalIssues.length} issues sorted by Impact Score`}
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {error && <div className="p-4 text-center text-sm text-red-500">{error}</div>}
         {criticalIssues.map((issue, idx) => (
           <div
             key={idx}
@@ -76,7 +87,7 @@ export const CriticalPanel = () => {
             </div>
           </div>
         ))}
-        {criticalIssues.length === 0 && (
+        {criticalIssues.length === 0 && !loading && !error && (
             <div className="text-center text-slate-400 text-xs py-10">
                 No critical issues found. Great job!
             </div>

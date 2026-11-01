@@ -5,6 +5,7 @@ export * from './crawler/metricsRunner.js';
 export * from './crawler/trap.js';
 export * from './graph/metrics.js';
 export * from './graph/graph.js';
+export * from './graph/nodeStatus.js';
 export * from './graph/simhash.js';
 export * from './graph/pagerank.js';
 export * from './graph/hits.js';

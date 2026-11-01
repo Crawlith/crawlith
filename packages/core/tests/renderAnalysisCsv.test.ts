@@ -104,7 +104,7 @@ describe('renderAnalysisCsv', () => {
         expect(lines[1]).toContain('"This description contains ""quotes"" inside."');
     });
 
-    test('handles Pending/Limit status (status: 0)', () => {
+    test('labels a page that was never fetched (status: 0) as not crawled', () => {
         const result: AnalysisResult = {
             pages: [
                 {
@@ -139,7 +139,7 @@ describe('renderAnalysisCsv', () => {
 
         const csv = renderAnalysisCsv(result);
         const lines = csv.split('\n');
-        expect(lines[1]).toContain('Pending/Limit');
+        expect(lines[1]).toContain('Not crawled');
     });
 
     test('handles missing title and description gracefully', () => {

@@ -55,7 +55,7 @@ describe('analyze integration', () => {
       });
     }
 
-    snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', { node_count: pages.length, edge_count: (rawData.edges || []).length });
+    snapshotRepo.finishSnapshot(snapshotId, 'completed', { node_count: pages.length, edge_count: (rawData.edges || []).length });
     return { db, siteId, snapshotId };
   }
 

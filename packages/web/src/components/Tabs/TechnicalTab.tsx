@@ -5,24 +5,34 @@ import { ArrowRight, Server, Activity } from 'lucide-react';
 export const TechnicalTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.TechnicalSignals | null>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!snapshotId) return;
+        let cancelled = false;
+        setData(null);
+        setError(null);
+        setLoading(Boolean(snapshotId));
+        if (!snapshotId) return () => { cancelled = true; };
         const fetch = async () => {
             setLoading(true);
             try {
                 const res = await API.fetchPageTechnical(url, snapshotId);
-                setData(res);
+                if (!cancelled) setData(res);
             } catch (e) {
-                console.error(e);
+                if (!cancelled) {
+                    setData(null);
+                    setError(e instanceof Error ? e.message : 'Failed to load technical signals.');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         fetch();
+        return () => { cancelled = true; };
     }, [url, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Technical Signals...</div>;
+    if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
     if (!data) return null;
 
     return (
@@ -78,8 +88,8 @@ export const TechnicalTab = ({ url, snapshotId }: { url: string; snapshotId: num
                     </div>
                     <div className="flex justify-between items-center pb-3">
                         <span className="text-sm text-slate-500">Server Status</span>
-                        <span className={`font-mono text-sm font-bold px-2 py-0.5 rounded ${data.status >= 400 || data.status === 0 ? 'bg-red-100 text-red-700' : data.status >= 300 ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                            {data.status === 0 ? 'Network Error' : `${data.status} ${data.status < 300 ? 'OK' : data.status < 400 ? 'Redirect' : 'Error'}`}
+                        <span className={`font-mono text-sm font-bold px-2 py-0.5 rounded ${data.status >= 400 || data.fetchFailed ? 'bg-red-100 text-red-700' : data.status === 0 ? 'bg-slate-100 text-slate-700' : data.status >= 300 ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                            {data.status === 0 ? data.statusLabel : `${data.status} ${data.status < 300 ? 'OK' : data.status < 400 ? 'Redirect' : 'Error'}`}
                         </span>
                     </div>
                 </div>

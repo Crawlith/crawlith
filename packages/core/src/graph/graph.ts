@@ -49,6 +49,17 @@ export interface GraphNode {
   headingData?: string;
   isClusterPrimary?: boolean;
   isCollapsed?: boolean;
+  /** Representative URL a collapsed duplicate's inbound links are moved to. Set only while isCollapsed. */
+  collapseInto?: string;
+}
+
+/** One duplicate cluster found by the last duplicate-detection run on a graph. */
+export interface DuplicateClusterSummary {
+  id: string;
+  type: 'exact' | 'near' | 'template_heavy';
+  size: number;
+  representative: string;
+  severity: 'low' | 'medium' | 'high';
 }
 
 export interface GraphEdge {
@@ -69,6 +80,7 @@ export class Graph {
   // Using JSON string of [source, target] to ensure uniqueness. Mapping to weight.
   edges: Map<string, number> = new Map();
   limitReached: boolean = false;
+  duplicateClusters: DuplicateClusterSummary[] = [];
   sessionStats: CrawlStats = {
     pagesFetched: 0,
     pagesCached: 0,

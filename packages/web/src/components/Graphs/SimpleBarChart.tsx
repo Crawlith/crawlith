@@ -6,10 +6,26 @@ import { Tooltip } from '../Tooltip';
 export const SimpleBarChart = () => {
   const { currentSnapshot } = useContext(DashboardContext);
   const [data, setData] = useState<API.MetricBucket[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentSnapshot) return;
-    API.fetchDepthDistribution(currentSnapshot).then(res => setData(res.buckets));
+    let cancelled = false;
+    setData([]);
+    setError(null);
+    if (!currentSnapshot) return () => { cancelled = true; };
+    const load = async () => {
+      try {
+        const res = await API.fetchDepthDistribution(currentSnapshot);
+        if (!cancelled) setData(res.buckets);
+      } catch (e) {
+        if (!cancelled) {
+          setData([]);
+          setError(e instanceof Error ? e.message : 'Failed to load depth distribution.');
+        }
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [currentSnapshot]);
 
   const maxCount = Math.max(...data.map(d => d.count), 1);
@@ -21,6 +37,7 @@ export const SimpleBarChart = () => {
         <Tooltip content="Shows how many clicks away pages are from the start URL. Pages deeper than depth 4 may be harder for search engines to discover." />
       </div>
 
+      {error && <div className="p-4 text-center text-sm text-red-500">{error}</div>}
       <div className="flex-1 flex items-end justify-between gap-2 px-2 pb-2 overflow-x-auto">
         {data.map((item) => {
           const heightPercent = (item.count / maxCount) * 100;
@@ -40,7 +57,7 @@ export const SimpleBarChart = () => {
             </div>
           );
         })}
-        {data.length === 0 && <div className="text-xs text-slate-400 m-auto">No depth data available</div>}
+        {data.length === 0 && !error && <div className="text-xs text-slate-400 m-auto">No depth data available</div>}
       </div>
     </div>
   );
