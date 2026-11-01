@@ -16,35 +16,60 @@ interface DashboardProps {
 export function Dashboard({ showCompare }: DashboardProps) {
     const { currentSnapshot, overview, setOverview, snapshots, setSnapshots } = useContext(DashboardContext);
     const [localLoading, setLocalLoading] = useState(false);
+    const [snapshotError, setSnapshotError] = useState<string | null>(null);
+    const [overviewError, setOverviewError] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
         if (snapshots.length === 0) {
-            API.fetchSnapshots().then(res => setSnapshots(res.results));
+            setSnapshotError(null);
+            const loadSnapshots = async () => {
+                try {
+                    const res = await API.fetchSnapshots();
+                    if (!cancelled) setSnapshots(res.results);
+                } catch (e) {
+                    if (!cancelled) setSnapshotError(e instanceof Error ? e.message : 'Failed to load snapshots.');
+                }
+            };
+            loadSnapshots();
         }
+        return () => { cancelled = true; };
     }, [snapshots.length, setSnapshots]);
 
     useEffect(() => {
-        if (!currentSnapshot) return;
-
-        // Skip if we already have the correct snapshot overview
-        if (overview && (overview as any).snapshotId === currentSnapshot) return;
+        let cancelled = false;
+        setOverview(null);
+        setOverviewError(null);
+        setLocalLoading(Boolean(currentSnapshot));
+        if (!currentSnapshot) return () => { cancelled = true; };
 
         const loadData = async () => {
-            setLocalLoading(true);
             try {
                 const ov = await API.fetchOverview(currentSnapshot);
-                setOverview(ov);
+                if (!cancelled) setOverview({ ...ov, snapshotId: currentSnapshot });
             } catch (e) {
-                console.error('Failed to load dashboard overview', e);
+                if (!cancelled) {
+                    setOverview(null);
+                    setOverviewError(e instanceof Error ? e.message : 'Failed to load dashboard overview.');
+                }
             } finally {
-                setLocalLoading(false);
+                if (!cancelled) setLocalLoading(false);
             }
         };
 
         loadData();
-    }, [currentSnapshot, setOverview, overview]);
+        return () => { cancelled = true; };
+    }, [currentSnapshot, setOverview]);
 
-    if (!overview || localLoading) {
+    if (overviewError || snapshotError) {
+        return <div className="p-8 text-center text-red-500">{overviewError || snapshotError}</div>;
+    }
+
+    if (!currentSnapshot) {
+        return <div className="p-8 text-center text-slate-500">Select a snapshot to view the dashboard.</div>;
+    }
+
+    if (!overview || overview.snapshotId !== currentSnapshot || localLoading) {
         return (
             <div className="max-w-[1920px] mx-auto p-4 md:p-8 space-y-8 pb-20">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">

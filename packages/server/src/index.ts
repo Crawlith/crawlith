@@ -9,7 +9,10 @@ import {
 
   Snapshot,
   PageAnalysisUseCase,
-  UrlUtil
+  UrlUtil,
+  describePageStatus,
+  isBrokenPage,
+  isFailedFetch
 } from '@crawlith/core';
 
 export interface ServerOptions {
@@ -179,11 +182,11 @@ export function startServer(options: ServerOptions): Promise<void> {
       const currentSiteId = (req as any).siteId as number;
       const currentSiteOrigin = (req as any).siteOrigin as string;
 
-      // Get previous snapshot for comparison
+      // Get previous snapshot for comparison (finished runs only; failed or cancelled runs hold partial data)
       const previousSnapshot = db.prepare(`
         SELECT id, created_at, health_score
         FROM snapshots
-        WHERE site_id = ? AND id < ? AND run_type != 'single'
+        WHERE site_id = ? AND id < ? AND run_type != 'single' AND status = 'completed'
         ORDER BY id DESC
         LIMIT 1
       `).get(currentSiteId, currentSnapshotId) as { id: number, health_score: number } | undefined;
@@ -497,8 +500,8 @@ export function startServer(options: ServerOptions): Promise<void> {
       if (!selectedSite) return res.status(404).json({ error: 'Site not found' });
       const includeSingle = req.query.includeSingle === 'true' || req.query.includeSingle === '1';
       const sql = includeSingle
-        ? 'SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? ORDER BY created_at DESC'
-        : 'SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? AND run_type != \'single\' ORDER BY created_at DESC';
+        ? 'SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? AND status = \'completed\' ORDER BY created_at DESC'
+        : 'SELECT id, run_type as type, created_at as createdAt FROM snapshots WHERE site_id = ? AND status = \'completed\' AND run_type != \'single\' ORDER BY created_at DESC';
       const rows = db.prepare(sql).all(selectedSite.id);
       res.json({ results: rows });
     });
@@ -582,8 +585,9 @@ export function startServer(options: ServerOptions): Promise<void> {
           latestSnapshotIdForPage = latestMaxId ?? undefined;
         }
 
-        // Health assessment
-        const criticalCount = (page.status >= 400 || page.status === 0 || page.title.status === 'missing' || page.h1.status === 'critical') ? 1 : 0;
+        // Health assessment (a page that was never fetched is not critical; one whose fetch failed is)
+        const statusFields = { status: page.status, crawlStatus: page.meta.crawlStatus };
+        const criticalCount = (isBrokenPage(statusFields) || page.title.status === 'missing' || page.h1.status === 'critical') ? 1 : 0;
         const warningCount = (page.title.status === 'too_long' || page.title.status === 'too_short' || page.content.wordCount < 300 || page.h1.status === 'warning') ? 1 : 0;
 
         res.json({
@@ -591,11 +595,12 @@ export function startServer(options: ServerOptions): Promise<void> {
           identity: {
             url: page.url,
             status: page.status,
+            statusLabel: describePageStatus(statusFields),
             canonical: page.meta.canonical,
             title: page.title,
             metaDescription: page.metaDescription,
             h1: page.h1,
-            crawlError: page.meta.crawlStatus === 'failed' ? 'fetch_error' : null,
+            crawlError: isFailedFetch(statusFields) ? describePageStatus(statusFields) : null,
             crawlDate: result.crawledAt
           },
           metrics: {
@@ -755,6 +760,7 @@ export function startServer(options: ServerOptions): Promise<void> {
 
     // 5.5 GET /api/page/technical
     api.get('/page/technical', validateSnapshot, (req, res) => {
+      const currentSnapshotId = (req as any).snapshotId as number;
       const currentSiteId = (req as any).siteId as number;
       const currentSiteOrigin = (req as any).siteOrigin as string;
       const url = req.query.url as string;
@@ -764,6 +770,19 @@ export function startServer(options: ServerOptions): Promise<void> {
 
       if (!page) return res.status(404).json({ error: 'Page not found' });
 
+      const statusRow = db.prepare(`
+        SELECT p.security_error, p.is_internal, m.crawl_status
+        FROM pages p
+        LEFT JOIN metrics m ON m.page_id = p.id AND m.snapshot_id = ?
+        WHERE p.id = ?
+      `).get(currentSnapshotId, page.id) as { security_error: string | null; is_internal: number; crawl_status: string | null } | undefined;
+      const statusFields = {
+        status: page.http_status as number,
+        crawlStatus: statusRow?.crawl_status ?? undefined,
+        securityError: statusRow?.security_error ?? undefined,
+        isInternal: statusRow ? Boolean(statusRow.is_internal) : undefined
+      };
+
       res.json({
         redirectChain: page.redirect_chain ? JSON.parse(page.redirect_chain) : null,
         headers: [], // Not stored in DB currently
@@ -771,7 +790,9 @@ export function startServer(options: ServerOptions): Promise<void> {
         contentType: 'text/html',
         contentSize: page.bytes_received,
         serverError: page.http_status >= 500,
-        status: page.http_status
+        status: page.http_status,
+        statusLabel: describePageStatus(statusFields),
+        fetchFailed: isFailedFetch(statusFields)
       });
     });
 
@@ -928,7 +949,7 @@ export function startServer(options: ServerOptions): Promise<void> {
           orphan_count as orphanPages,
           thin_content_count as thinContent
         FROM snapshots
-        WHERE site_id = ? ${includeSingle ? '' : 'AND run_type != \'single\''}
+        WHERE site_id = ? AND status = 'completed' ${includeSingle ? '' : 'AND run_type != \'single\''}
         ORDER BY created_at DESC
       `;
       const snapshots = db.prepare(sql).all(selectedSite.id);
@@ -949,7 +970,7 @@ export function startServer(options: ServerOptions): Promise<void> {
       const snapshots = db.prepare(`
         SELECT id, run_type as type, created_at, node_count, health_score, orphan_count
         FROM snapshots
-        WHERE site_id = ? ${includeSingle ? '' : 'AND run_type != \'single\''}
+        WHERE site_id = ? AND status = 'completed' ${includeSingle ? '' : 'AND run_type != \'single\''}
         ORDER BY created_at ASC
       `).all(selectedSite.id) as any[];
 

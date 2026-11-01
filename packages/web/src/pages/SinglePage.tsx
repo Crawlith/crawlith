@@ -43,26 +43,32 @@ export const SinglePage = () => {
     };
 
     useEffect(() => {
+        let cancelled = false;
+        setDetails(null);
+        setError(null);
         if (!url || !effectiveSnapshotId) {
             setLoading(false);
-            return;
+            return () => { cancelled = true; };
         }
 
         const fetchData = async () => {
             setLoading(true);
             try {
                 const data = await API.fetchPageDetails(url, effectiveSnapshotId);
-                setDetails(data);
-                setError(null);
-            } catch (e: any) {
-                setError(e.message || 'Failed to load page details.');
+                if (!cancelled) setDetails(data);
+            } catch (e) {
+                if (!cancelled) {
+                    setDetails(null);
+                    setError(e instanceof Error ? e.message : 'Failed to load page details.');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
         fetchData();
         setActiveTab('content');
+        return () => { cancelled = true; };
     }, [url, effectiveSnapshotId]);
 
     const handleLiveCrawl = async () => {
@@ -135,7 +141,7 @@ export const SinglePage = () => {
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 mb-2">
-                                <StatusBadge status={details.identity.status} />
+                                <StatusBadge status={details.identity.status} label={details.identity.statusLabel} failed={Boolean(details.identity.crawlError)} />
                                 <span className="text-sm font-mono text-slate-500 dark:text-slate-400 truncate max-w-xl" title={details.identity.canonical || ''}>
                                     {details.identity.canonical ? `Canonical: ${details.identity.canonical}` : 'Self-canonical'}
                                 </span>
@@ -302,17 +308,17 @@ const MetricDisplay = ({ label, value, tooltip }: { label: string, value: string
     </div>
 );
 
-const StatusBadge = ({ status }: { status: number }) => {
+const StatusBadge = ({ status, label, failed }: { status: number; label: string; failed: boolean }) => {
     let color = 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
     if (status >= 200 && status < 300) color = 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30';
     if (status >= 300 && status < 400) color = 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/30';
     if (status >= 400 && status < 500) color = 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30';
     if (status >= 500) color = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/30';
-    if (status === 0) color = 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30';
+    if (status === 0 && failed) color = 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30';
 
     return (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold border ${color}`}>
-            HTTP {status === 0 ? 'ERR' : status}
+            {status === 0 ? label : `HTTP ${status}`}
         </span>
     );
 };

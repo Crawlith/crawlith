@@ -32,6 +32,7 @@ export function runBaseMigrations(db: Database) {
       score_count INTEGER,
       score_weight_sum REAL,
       score_calculated_at TEXT,
+      pid INTEGER,
       FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
     );
   `);
@@ -43,6 +44,7 @@ export function runBaseMigrations(db: Database) {
     db.exec(`UPDATE snapshots SET run_type = CASE WHEN type = 'partial' THEN 'single' ELSE 'completed' END WHERE run_type IS NULL OR run_type = 'full' OR run_type = 'completed';`);
   } catch (_e) { /* ignore */ }
   try { db.exec(`ALTER TABLE snapshots DROP COLUMN type;`); } catch (_e) { /* ignore */ }
+  try { db.exec(`ALTER TABLE snapshots ADD COLUMN pid INTEGER;`); } catch { /* column already exists */ }
 
   // Pages Table
   db.exec(`

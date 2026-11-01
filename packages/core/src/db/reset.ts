@@ -20,6 +20,13 @@ export async function resetCrawlith(options: ResetOptions = {}): Promise<void> {
         return;
     }
 
+    // Reset deletes the whole state directory, including the database a running crawl writes to.
+    const liveLocks = await LockManager.findLiveLocks();
+    if (liveLocks.length > 0) {
+        const running = liveLocks.map(l => `${l.command} ${l.target} (PID ${l.pid})`).join(', ');
+        throw new Error(`Crawlith is still running: ${running}. Stop it before resetting.`);
+    }
+
     // 1. Close database connection to release file handles
     closeDb();
 

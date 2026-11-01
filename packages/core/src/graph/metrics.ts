@@ -1,4 +1,5 @@
 import { Graph, GraphNode } from './graph.js';
+import { isBrokenPage } from './nodeStatus.js';
 
 export interface Metrics {
   totalPages: number;
@@ -28,8 +29,8 @@ export function calculateMetrics(graph: Graph, _maxDepth: number): Metrics {
   const totalPages = nodes.length;
   const totalEdges = edges.length;
 
-  // Identify broken nodes
-  const brokenNodes = new Set(nodes.filter(n => n.status >= 400 || n.status === 0).map(n => n.url));
+  // Identify broken nodes (pages never fetched, e.g. beyond the crawl limit, are not broken)
+  const brokenNodes = new Set(nodes.filter(isBrokenPage).map(n => n.url));
 
   // Pre-compute outgoing edges per node for faster lookup
   const outgoingEdges = new Map<string, string[]>();

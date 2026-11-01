@@ -6,10 +6,26 @@ import { Tooltip } from '../Tooltip';
 export const DuplicateClusterChart = () => {
   const { currentSnapshot } = useContext(DashboardContext);
   const [data, setData] = useState<API.MetricBucket[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentSnapshot) return;
-    API.fetchDuplicateClusters(currentSnapshot).then(res => setData(res.buckets));
+    let cancelled = false;
+    setData([]);
+    setError(null);
+    if (!currentSnapshot) return () => { cancelled = true; };
+    const load = async () => {
+      try {
+        const res = await API.fetchDuplicateClusters(currentSnapshot);
+        if (!cancelled) setData(res.buckets);
+      } catch (e) {
+        if (!cancelled) {
+          setData([]);
+          setError(e instanceof Error ? e.message : 'Failed to load duplicate clusters.');
+        }
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [currentSnapshot]);
 
   const maxCount = Math.max(...data.map(d => d.count), 1);
@@ -21,6 +37,7 @@ export const DuplicateClusterChart = () => {
         <Tooltip content="Groups of pages that have near-identical content. Larger clusters can dilute ranking signals and waste crawl budget." />
       </div>
 
+      {error && <div className="p-4 text-center text-sm text-red-500">{error}</div>}
       <div className="flex-1 flex items-end justify-between gap-4 px-2 pb-2">
         {data.map((item) => {
           const heightPercent = (item.count / maxCount) * 100;
@@ -40,7 +57,7 @@ export const DuplicateClusterChart = () => {
             </div>
           );
         })}
-        {data.length === 0 && <div className="text-xs text-slate-400 m-auto">No duplicates found</div>}
+        {data.length === 0 && !error && <div className="text-xs text-slate-400 m-auto">No duplicates found</div>}
       </div>
     </div>
   );

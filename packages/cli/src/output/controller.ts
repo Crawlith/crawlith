@@ -18,6 +18,8 @@ export class OutputController {
   private startedAt = Date.now();
   private spinnerIndex = 0;
   private progressTimer: ReturnType<typeof setInterval> | null = null;
+  // Set when progress stops; later events (plugin logs during reporting) must not bring the progress line back.
+  private progressEnded = false;
   private lastLineLength = 0;
   private nodesFound = 0;
   private edgesFound = 0;
@@ -33,7 +35,7 @@ export class OutputController {
   }
 
   private startProgress(): void {
-    if (!this.shouldRenderProgress() || this.progressTimer) return;
+    if (!this.shouldRenderProgress() || this.progressTimer || this.progressEnded) return;
     this.progressTimer = setInterval(() => {
       this.renderProgress();
     }, 120);
@@ -41,6 +43,7 @@ export class OutputController {
   }
 
   private stopProgress(): void {
+    this.progressEnded = true;
     if (this.progressTimer) {
       clearInterval(this.progressTimer);
       this.progressTimer = null;
@@ -113,9 +116,13 @@ export class OutputController {
   }
 
   handle(event: CrawlEvent) {
-    if (this.options.format === 'json') return;
+    if (this.options.format === 'json') {
+      // stdout carries the JSON result; errors still need to reach the user, so they go to stderr.
+      if (event.type === 'error') console.error(event.message);
+      return;
+    }
 
-    if (this.shouldRenderProgress()) {
+    if (this.shouldRenderProgress() && !this.progressEnded) {
       this.startProgress();
       switch (event.type) {
         case 'queue:enqueue':

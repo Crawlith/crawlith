@@ -151,7 +151,8 @@ export const getPageCommand = (registry: PluginRegistry) => {
       controller.finish();
 
     } catch (error) {
-      context.emit({ type: 'error', message: 'Error', error });
+      controller.finish();
+      context.emit({ type: 'error', message: `Error: ${(error as Error).message}`, error });
       process.exit(1);
     }
   });

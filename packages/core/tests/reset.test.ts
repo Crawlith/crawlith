@@ -5,11 +5,13 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { isPidAlive } from '../src/lock/pidCheck.js';
 
 // Mock dependencies
 vi.mock('node:fs/promises');
 vi.mock('node:fs');
 vi.mock('node:os');
+vi.mock('../src/lock/pidCheck.js', () => ({ isPidAlive: vi.fn() }));
 vi.mock('../src/db/index.js', async () => {
     const actual = await vi.importActual('../src/db/index.js') as any;
     return {
@@ -81,5 +83,17 @@ describe('resetCrawlith', () => {
         expect(dbIndex.closeDb).not.toHaveBeenCalled();
         expect(fs.rm).not.toHaveBeenCalled();
         expect(dbIndex.getDb).not.toHaveBeenCalled();
+    });
+
+    it('refuses to reset while a crawl is still running', async () => {
+        vi.mocked(fs.readdir).mockResolvedValue(['a.lock'] as any);
+        vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ pid: 4242, command: 'crawl', target: 'https://example.com' }) as any);
+        vi.mocked(isPidAlive).mockReturnValue(true);
+
+        await expect(resetCrawlith({ reportsDir })).rejects.toThrow('Crawlith is still running: crawl https://example.com (PID 4242)');
+
+        expect(dbIndex.closeDb).not.toHaveBeenCalled();
+        expect(fs.unlink).not.toHaveBeenCalled();
+        expect(fs.rm).not.toHaveBeenCalled();
     });
 });

@@ -26,6 +26,16 @@ export class DuplicateService {
         const nodes = graph.getNodes();
         let clusterCounter = 1;
 
+        // Start clean, so a repeat run never leaves cluster state on pages that are no longer duplicates.
+        for (const node of nodes) {
+            node.duplicateClusterId = undefined;
+            node.duplicateType = undefined;
+            node.isClusterPrimary = undefined;
+            node.isCollapsed = undefined;
+            node.collapseInto = undefined;
+        }
+        graph.duplicateClusters = [];
+
         // Phase 1 & 2: Exact Duplicate Detection
         const { exactClusters, nearCandidates, nextId: nextId1 } = this.findExactDuplicates(nodes, clusterCounter);
         clusterCounter = nextId1;
@@ -75,8 +85,8 @@ export class DuplicateService {
                 const id = `cluster_exact_${clusterCounter++}`;
                 exactClusters.push({ id, type: 'exact', nodes: group, size: group.length });
                 for (const n of group) {
-                    (n as any).duplicateClusterId = id;
-                    (n as any).duplicateType = 'exact';
+                    n.duplicateClusterId = id;
+                    n.duplicateType = 'exact';
                 }
             } else {
                 nearCandidates.push(group[0]);
@@ -225,8 +235,8 @@ export class DuplicateService {
                 const groupNodes = groupIndices.map(idx => candidates[idx]);
                 nearClusters.push({ id, type: 'near', nodes: groupNodes, size: groupNodes.length });
                 for (const n of groupNodes) {
-                    (n as any).duplicateClusterId = id;
-                    (n as any).duplicateType = 'near';
+                    n.duplicateClusterId = id;
+                    n.duplicateType = 'near';
                 }
             }
         }
@@ -253,7 +263,7 @@ export class DuplicateService {
         const avgRatio = cluster.nodes.reduce((sum, n) => sum + (n.uniqueTokenRatio || 0), 0) / cluster.nodes.length;
         if (avgRatio < 0.3) {
             cluster.type = 'template_heavy';
-            cluster.nodes.forEach(n => (n as any).duplicateType = 'template_heavy');
+            cluster.nodes.forEach(n => n.duplicateType = 'template_heavy');
         }
     }
 
@@ -293,16 +303,11 @@ export class DuplicateService {
 
     private applyClusterToGraph(cluster: DuplicateCluster, representative: GraphNode, graph: Graph, collapse: boolean) {
         cluster.nodes.forEach(n => {
-            (n as any).isClusterPrimary = n.url === representative.url;
-            (n as any).isCollapsed = false;
-            (n as any).collapseInto = undefined;
+            n.isClusterPrimary = n.url === representative.url;
+            n.isCollapsed = false;
         });
 
-        if (!(graph as any).duplicateClusters) {
-            (graph as any).duplicateClusters = [];
-        }
-
-        (graph as any).duplicateClusters.push({
+        graph.duplicateClusters.push({
             id: cluster.id,
             type: cluster.type,
             size: cluster.nodes.length,
@@ -313,8 +318,8 @@ export class DuplicateService {
         if (collapse) {
             for (const n of cluster.nodes) {
                 if (n.url !== representative.url) {
-                    (n as any).isCollapsed = true;
-                    (n as any).collapseInto = representative.url;
+                    n.isCollapsed = true;
+                    n.collapseInto = representative.url;
                 }
             }
         }
@@ -329,7 +334,7 @@ export class DuplicateService {
             if (!targetNode) continue;
 
             const actualSource = edge.source;
-            const actualTarget = (targetNode as any).isCollapsed && (targetNode as any).collapseInto ? (targetNode as any).collapseInto : edge.target;
+            const actualTarget = targetNode.isCollapsed && targetNode.collapseInto ? targetNode.collapseInto : edge.target;
 
             if (actualSource === actualTarget) continue;
 

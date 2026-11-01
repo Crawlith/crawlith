@@ -6,6 +6,7 @@ import { loadGraphFromSnapshot } from '../db/graphLoader.js';
 import { normalizeUrl, UrlUtil } from '../crawler/normalize.js';
 import { calculateMetrics, Metrics } from '../graph/metrics.js';
 import { Graph } from '../graph/graph.js';
+import { describePageStatus } from '../graph/nodeStatus.js';
 import { analyzeContent, calculateThinContentScore } from './content.js';
 import { analyzeH1, analyzeMetaDescription, analyzeTitle, H1Analysis, TextFieldAnalysis } from './seo.js';
 import { analyzeImageAlts, ImageAltAnalysis } from './images.js';
@@ -382,7 +383,7 @@ export async function analyzeSite(url: string, options: AnalyzeOptions, context?
   if (healthBreakdown && snapshotId) {
     const db2 = getDb();
     const snapshotRepo = new SnapshotRepository(db2);
-    snapshotRepo.updateSnapshotStatus(snapshotId, 'completed', {
+    snapshotRepo.updateSnapshotStats(snapshotId, {
       health_score: healthBreakdown.score
     });
   }
@@ -545,13 +546,15 @@ async function loadCrawlData(rootUrl: string, snapshotId?: number): Promise<Craw
   if (!snapshot) {
     for (const candidate of UrlUtil.toLookupCandidates(rootUrl, `${urlObj.protocol}//${urlObj.host}`)) {
       const page = pageRepo.getPage(site.id, candidate);
-      if (page?.last_seen_snapshot_id) {
-        snapshot = snapshotRepo.getSnapshot(page.last_seen_snapshot_id);
+      const lastSeen = page?.last_seen_snapshot_id ? snapshotRepo.getSnapshot(page.last_seen_snapshot_id) : undefined;
+      // A failed, cancelled or in-progress crawl holds partial data; fall back to the latest finished one.
+      if (lastSeen?.status === 'completed') {
+        snapshot = lastSeen;
         break;
       }
     }
   }
-  if (!snapshot) snapshot = snapshotRepo.getLatestSnapshot(site.id);
+  if (!snapshot) snapshot = snapshotRepo.getLatestSnapshot(site.id, 'completed');
   if (!snapshot) throw new Error(`No crawl data found for ${rootUrl}`);
 
   const graph = loadGraphFromSnapshot(snapshot.id);
@@ -614,7 +617,8 @@ export function renderAnalysisHtml(result: AnalysisResult): string {
 function renderSinglePageHtml(page: PageAnalysis): string {
   const structuredDataStatus = page.structuredData.present ? (page.structuredData.valid ? '<span class="status-ok">Valid</span>' : '<span class="status-critical">Invalid JSON</span>') : 'Not detected';
   const structuredDataTypesRow = page.structuredData.present ? `<tr><th>Types Found</th><td>${page.structuredData.types.map(t => `<code>${t}</code>`).join(', ')}</td></tr>` : '';
-  return ANALYSIS_PAGE_TEMPLATE.replaceAll('{{URL}}', escapeHtml(page.url)).replace('{{SEO_SCORE}}', page.seoScore.toString()).replace('{{THIN_SCORE}}', page.thinScore.toString()).replace('{{HTTP_STATUS}}', page.status === 0 ? 'Pending/Limit' : page.status.toString()).replace('{{TITLE_VALUE}}', escapeHtml(page.title.value || '(missing)')).replace('{{TITLE_LENGTH}}', page.title.length.toString()).replaceAll('{{TITLE_STATUS}}', page.title.status).replace('{{META_DESCRIPTION_VALUE}}', escapeHtml(page.metaDescription.value || '(missing)')).replace('{{META_DESCRIPTION_LENGTH}}', page.metaDescription.length.toString()).replaceAll('{{META_DESCRIPTION_STATUS}}', page.metaDescription.status).replace('{{CANONICAL}}', page.meta.canonical ? escapeHtml(page.meta.canonical) : '<em>(none)</em>').replace('{{ROBOTS_INDEX}}', (!page.meta.noindex).toString()).replace('{{ROBOTS_FOLLOW}}', (!page.meta.nofollow).toString()).replaceAll('{{H1_STATUS}}', page.h1.status).replace('{{H1_COUNT}}', page.h1.count.toString()).replace('{{H1_MATCHES_TITLE}}', page.h1.matchesTitle ? ' | Matches Title' : '').replace('{{WORD_COUNT}}', page.content.wordCount.toString()).replace('{{UNIQUE_SENTENCES}}', page.content.uniqueSentenceCount.toString()).replace('{{TEXT_HTML_RATIO}}', (page.content.textHtmlRatio * 100).toFixed(2)).replace('{{INTERNAL_LINKS}}', page.links.internalLinks.toString()).replace('{{EXTERNAL_LINKS}}', page.links.externalLinks.toString()).replace('{{EXTERNAL_RATIO}}', (page.links.externalRatio * 100).toFixed(1)).replace('{{TOTAL_IMAGES}}', page.images.totalImages.toString()).replace('{{MISSING_ALT}}', page.images.missingAlt.toString()).replace('{{STRUCTURED_DATA_STATUS}}', structuredDataStatus).replace('{{STRUCTURED_DATA_TYPES_ROW}}', structuredDataTypesRow);
+  const httpStatus = escapeHtml(describePageStatus({ status: page.status, crawlStatus: page.meta.crawlStatus }));
+  return ANALYSIS_PAGE_TEMPLATE.replaceAll('{{URL}}', escapeHtml(page.url)).replace('{{SEO_SCORE}}', page.seoScore.toString()).replace('{{THIN_SCORE}}', page.thinScore.toString()).replace('{{HTTP_STATUS}}', httpStatus).replace('{{TITLE_VALUE}}', escapeHtml(page.title.value || '(missing)')).replace('{{TITLE_LENGTH}}', page.title.length.toString()).replaceAll('{{TITLE_STATUS}}', page.title.status).replace('{{META_DESCRIPTION_VALUE}}', escapeHtml(page.metaDescription.value || '(missing)')).replace('{{META_DESCRIPTION_LENGTH}}', page.metaDescription.length.toString()).replaceAll('{{META_DESCRIPTION_STATUS}}', page.metaDescription.status).replace('{{CANONICAL}}', page.meta.canonical ? escapeHtml(page.meta.canonical) : '<em>(none)</em>').replace('{{ROBOTS_INDEX}}', (!page.meta.noindex).toString()).replace('{{ROBOTS_FOLLOW}}', (!page.meta.nofollow).toString()).replaceAll('{{H1_STATUS}}', page.h1.status).replace('{{H1_COUNT}}', page.h1.count.toString()).replace('{{H1_MATCHES_TITLE}}', page.h1.matchesTitle ? ' | Matches Title' : '').replace('{{WORD_COUNT}}', page.content.wordCount.toString()).replace('{{UNIQUE_SENTENCES}}', page.content.uniqueSentenceCount.toString()).replace('{{TEXT_HTML_RATIO}}', (page.content.textHtmlRatio * 100).toFixed(2)).replace('{{INTERNAL_LINKS}}', page.links.internalLinks.toString()).replace('{{EXTERNAL_LINKS}}', page.links.externalLinks.toString()).replace('{{EXTERNAL_RATIO}}', (page.links.externalRatio * 100).toFixed(1)).replace('{{TOTAL_IMAGES}}', page.images.totalImages.toString()).replace('{{MISSING_ALT}}', page.images.missingAlt.toString()).replace('{{STRUCTURED_DATA_STATUS}}', structuredDataStatus).replace('{{STRUCTURED_DATA_TYPES_ROW}}', structuredDataTypesRow);
 }
 
 export function renderAnalysisMarkdown(result: AnalysisResult): string {
@@ -626,7 +630,7 @@ export function renderAnalysisMarkdown(result: AnalysisResult): string {
 export function renderAnalysisCsv(result: AnalysisResult): string {
   const headers = ['URL', 'SEO Score', 'Thin Score', 'HTTP Status', 'Title', 'Title Length', 'Meta Description', 'Desc Length', 'Word Count', 'Internal Links', 'External Links', 'Canonical'];
   const rows = result.pages.map((p) => {
-    const statusStr = p.status === 0 ? 'Pending/Limit' : p.status;
+    const statusStr = describePageStatus({ status: p.status, crawlStatus: p.meta.crawlStatus });
     return [p.url, p.seoScore, p.thinScore, statusStr, `"${(p.title.value || '').replace(/"/g, '""')}"`, p.title.length, `"${(p.metaDescription.value || '').replace(/"/g, '""')}"`, p.metaDescription.length, p.content.wordCount, p.links.internalLinks, p.links.externalLinks, p.meta.canonical || ''].join(',');
   });
   return [headers.join(','), ...rows].join('\n');

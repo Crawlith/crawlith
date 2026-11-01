@@ -5,24 +5,34 @@ import { Layers } from 'lucide-react';
 export const ClusterTab = ({ url, snapshotId }: { url: string; snapshotId: number }) => {
     const [data, setData] = useState<API.ClusterInfo | null>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!snapshotId) return;
+        let cancelled = false;
+        setData(null);
+        setError(null);
+        setLoading(Boolean(snapshotId));
+        if (!snapshotId) return () => { cancelled = true; };
         const fetch = async () => {
             setLoading(true);
             try {
                 const res = await API.fetchPageCluster(url, snapshotId);
-                setData(res);
+                if (!cancelled) setData(res);
             } catch (e) {
-                console.error(e);
+                if (!cancelled) {
+                    setData(null);
+                    setError(e instanceof Error ? e.message : 'Failed to load cluster info.');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         fetch();
+        return () => { cancelled = true; };
     }, [url, snapshotId]);
 
     if (!data && loading) return <div className="p-8 text-center animate-pulse text-slate-400">Loading Cluster Info...</div>;
+    if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
     if (!data) return null;
 
     if (!data.hasCluster) {
