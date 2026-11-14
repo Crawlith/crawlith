@@ -23,7 +23,7 @@
   "dependencies": {
     "better-sqlite3": "^12.6.2",
     "cheerio": "^1.2.0",
-    "commander": "^15.0.0",
+    "commander": "^15.1.0",
     "p-limit": "^7.3.0",
     "robots-parser": "^3.0.1",
     "undici": "^7.30.1"
